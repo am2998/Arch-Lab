@@ -68,9 +68,9 @@ echo -e "# Cleaning old partition table and partitioning"
 echo -e "# --------------------------------------------------------------------------------------------------------------------------\n"
 
 
-DISK="/dev/nvmen0"
-PARTITION_1="p1"
-PARTITION_2="p2"
+DISK="/dev/sda"
+PARTITION_1="1"
+PARTITION_2="2"
 
 wipefs -a -f $DISK 
 
@@ -160,7 +160,7 @@ arch-chroot /mnt <<EOF
 
 echo "$HOSTNAME" > /etc/hostname
 
-echo "KEYMAP=us" > /etc/vconsole.conf
+echo "KEYMAP=it" > /etc/vconsole.conf
 
 ln -sf /usr/share/zoneinfo/Europe/Rome /etc/localtime
 
@@ -222,7 +222,7 @@ echo "vm.page-cluster = 0" >> /etc/sysctl.d/99-vm-zram-parameters.conf
 sysctl --system
 
 
-# --------------------------------------------------------------------------------------------------------------------------
+# -----------------------------------------------a---------------------------------------------------------------------------
 # Install systemd-boot
 # --------------------------------------------------------------------------------------------------------------------------
 
