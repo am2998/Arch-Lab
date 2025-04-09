@@ -68,9 +68,18 @@ echo -e "# Cleaning old partition table and partitioning"
 echo -e "# --------------------------------------------------------------------------------------------------------------------------\n"
 
 
-DISK="/dev/sda"
-PARTITION_1="1"
-PARTITION_2="2"
+if lsblk | grep sd*; then
+    DISK="/dev/sda"
+    PARTITION_1="1"
+    PARTITION_2="2"
+elif lsblk | grep nvme; then
+    DISK="/dev/nvme0n1"
+    PARTITION_1="p1"
+    PARTITION_2="p2"
+else 
+    echo "No NVMe or SATA drive found. Exiting."
+    exit 1
+fi
 
 wipefs -a -f $DISK 
 
