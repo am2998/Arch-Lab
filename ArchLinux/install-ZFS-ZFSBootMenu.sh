@@ -50,17 +50,18 @@ echo -e "\n\n# -----------------------------------------------------------------
 echo -e "# Cleaning old partition table and partitioning"
 echo -e "# --------------------------------------------------------------------------------------------------------------------------\n"
 
-
-if lsblk | grep sd*; then
+if lsblk | grep sd* &>/dev/null; then
     DISK="/dev/sda"
     PARTITION_1="1"
     PARTITION_2="2"
-elif lsblk | grep nvme; then
+    echo "SATA disk detected: $DISK"
+elif lsblk | grep nvme &>/dev/null; then
     DISK="/dev/nvme0n1"
     PARTITION_1="p1"
     PARTITION_2="p2"
+    echo "NVMe disk detected: $DISK"
 else 
-    echo "No NVMe or SATA drive found. Exiting."
+    echo "ERROR: No NVMe or SATA drive found. Exiting."
     exit 1
 fi
 
@@ -87,14 +88,19 @@ echo -e "# Format and mount partitions"
 echo -e "# --------------------------------------------------------------------------------------------------------------------------\n"
 
 zpool create \
-  -o ashift=12 \
-  -O acltype=posixacl -O canmount=off -O compression=lz4 \
-  -O dnodesize=auto -O normalization=formD -o autotrim=on \
-  -O atime=off -O xattr=sa -O mountpoint=none \
-  -R /mnt zroot ${DISK}${PARTITION_2} -f
+    -o ashift=12 \
+    -O acltype=posixacl -O canmount=off -O compression=lz4 \
+    -O dnodesize=auto -O normalization=formD -o autotrim=on \
+    -O atime=off -O xattr=sa -O mountpoint=none \
+    -R /mnt zroot ${DISK}${PARTITION_2} -f
+echo "ZFS pool 'zroot' created successfully."
 
 zfs create -o canmount=noauto -o mountpoint=/ zroot/rootfs
+echo "ZFS dataset 'zroot/rootfs' created successfully."
+
 zpool set bootfs=zroot/rootfs zroot
+echo "bootfs property set successfully."
+
 zfs mount zroot/rootfs
 
 mkdir -p  /mnt/etc/zfs
@@ -232,7 +238,15 @@ mkinitcpio -p linux-lts
 # Install utilities and applications
 # --------------------------------------------------------------------------------------------------------------------------
 
-pacman -S --noconfirm net-tools flatpak firefox konsole dolphin okular kate git man nano
+pacman -S --noconfirm net-tools flatpak firefox git man nano
+
+
+# --------------------------------------------------------------------------------------------------------------------------
+# Install Gnome
+# --------------------------------------------------------------------------------------------------------------------------
+
+pacman -S --noconfirm gnome
+systemctl enable gdm
 
 
 # --------------------------------------------------------------------------------------------------------------------------
