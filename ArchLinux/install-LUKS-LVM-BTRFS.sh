@@ -264,7 +264,7 @@ mkinitcpio -p linux
 # Install utilities and applications
 # --------------------------------------------------------------------------------------------------------------------------
 
-pacman -S --noconfirm net-tools flatpak firefox konsole dolphin okular kate git man nano
+pacman -S --noconfirm net-tools flatpak firefox konsole dolphin okular kate git man nano vi lite-xl distrobox veracrypt rclone cronie
 
 
 # --------------------------------------------------------------------------------------------------------------------------
@@ -285,12 +285,13 @@ pacman -S --noconfirm nvidia-open nvidia-settings nvidia-utils opencl-nvidia lib
 # Install Plasma and SDDM
 # --------------------------------------------------------------------------------------------------------------------------
 
-pacman -Syu --noconfirm sddm 
-sed -i 's/^Current=.*$/Current=breeze/' /usr/lib/sddm/sddm.conf.d/default.conf
-
 pacman -S --noconfirm plasma
 
+pacman -Syu --noconfirm sddm 
+sed -i 's/^Current=.*$/Current=breeze/' /usr/lib/sddm/sddm.conf.d/default.conf
 sed -i '/^\[X11\]/,/\[.*\]/s/^SessionDir=.*$/SessionDir=/' /usr/lib/sddm/sddm.conf.d/default.conf
+
+systemctl enable sddm
 
 
 # --------------------------------------------------------------------------------------------------------------------------
@@ -298,7 +299,7 @@ sed -i '/^\[X11\]/,/\[.*\]/s/^SessionDir=.*$/SessionDir=/' /usr/lib/sddm/sddm.co
 # --------------------------------------------------------------------------------------------------------------------------
 
 systemctl enable NetworkManager
-systemctl enable sddm
+systemctl enable cronie
 
 
 EOF
