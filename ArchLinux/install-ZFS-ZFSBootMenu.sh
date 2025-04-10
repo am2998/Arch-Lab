@@ -235,10 +235,10 @@ mkinitcpio -p linux-lts
 
 
 # --------------------------------------------------------------------------------------------------------------------------
-# Install utilities and applications
+# Install utilities
 # --------------------------------------------------------------------------------------------------------------------------
 
-pacman -S --noconfirm net-tools flatpak firefox git man nano
+pacman -S --noconfirm net-tools flatpak git man vi nano lite-xl distrobox veracrypt rclone cronie
 
 
 # --------------------------------------------------------------------------------------------------------------------------
@@ -271,6 +271,7 @@ pacman -S --noconfirm nvidia-open-lts nvidia-settings nvidia-utils opencl-nvidia
 systemctl enable zfs.target zfs-import-cache zfs-mount zfs-import.target
 
 systemctl enable NetworkManager
+systemctl enable cronie
 
 
 EOF
