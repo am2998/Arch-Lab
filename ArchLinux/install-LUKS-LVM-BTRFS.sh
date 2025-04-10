@@ -170,7 +170,7 @@ arch-chroot /mnt <<EOF
 
 echo "$HOSTNAME" > /etc/hostname
 
-echo "KEYMAP=it" > /etc/vconsole.conf
+echo "KEYMAP=us" > /etc/vconsole.conf
 
 ln -sf /usr/share/zoneinfo/Europe/Rome /etc/localtime
 
