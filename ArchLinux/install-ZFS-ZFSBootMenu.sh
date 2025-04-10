@@ -93,10 +93,10 @@ zpool create \
     -O dnodesize=auto -O normalization=formD -o autotrim=on \
     -O atime=off -O xattr=sa -O mountpoint=none \
     -R /mnt zroot ${DISK}${PARTITION_2} -f
-echo "ZFS pool 'zroot' created successfully."
+echo "ZFS pool created successfully."
 
 zfs create -o canmount=noauto -o mountpoint=/ zroot/rootfs
-echo "ZFS dataset 'zroot/rootfs' created successfully."
+echo "ZFS dataset created successfully."
 
 zpool set bootfs=zroot/rootfs zroot
 echo "bootfs property set successfully."
