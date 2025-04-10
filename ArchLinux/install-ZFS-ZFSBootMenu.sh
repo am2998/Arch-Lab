@@ -50,16 +50,16 @@ echo -e "\n\n# -----------------------------------------------------------------
 echo -e "# Cleaning old partition table and partitioning"
 echo -e "# --------------------------------------------------------------------------------------------------------------------------\n"
 
-if lsblk | grep sd* &>/dev/null; then
-    DISK="/dev/sda"
-    PARTITION_1="1"
-    PARTITION_2="2"
-    echo "SATA disk detected: $DISK"
-elif lsblk | grep nvme &>/dev/null; then
+if lsblk | grep nvme &>/dev/null; then
     DISK="/dev/nvme0n1"
     PARTITION_1="p1"
     PARTITION_2="p2"
     echo "NVMe disk detected: $DISK"
+elif lsblk | grep sda &>/dev/null; then
+    DISK="/dev/sda"
+    PARTITION_1="1"
+    PARTITION_2="2"
+    echo "SATA disk detected: $DISK"
 else 
     echo "ERROR: No NVMe or SATA drive found. Exiting."
     exit 1
