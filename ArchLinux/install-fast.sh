@@ -123,7 +123,7 @@ echo -e "in chroot...\n\n"
 # Configure mirrors
 # --------------------------------------------------------------------------------------------------------------------------
 
-reflector --latest 30 --sort rate --protocol https --save /etc/pacman.d/mirrorlist
+reflector --country "Italy" --latest 10 --sort rate --protocol https --age 7 --save /etc/pacman.d/mirrorlist
 cat /etc/pacman.d/mirrorlist
 
 
