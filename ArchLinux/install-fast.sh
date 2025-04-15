@@ -1,7 +1,7 @@
 #!/bin/bash
 
-# LVM + BTRFS + EFISTUB 
-# COSMIC
+# EXT4 + EFISTUB 
+# Hyprland
 
 cat <<'EOF'
  ______                                             ______                       __              _______   ________  __       __ 
@@ -17,7 +17,7 @@ $$$$$$/        $$$$$$/  $$$$$$$/   $$$$$$$/       $$/   $$/ $$/        $$$$$$$/ 
 EOF
 
 
-exec > >(tee -a result.log) 2>&1
+exec > (tee -a result.log) 2>&1
 
 
 # --------------------------------------------------------------------------------------------------------------------------
@@ -45,23 +45,6 @@ echo -ne "\n\nEnter the username: "; read -r USER
 get_password "Enter the password for user $USER" USERPASS
 get_password "Enter the password for user root" ROOTPASS
 echo -n "Enter the hostname: "; read -r HOSTNAME
-
-
-echo -e "\n\n# --------------------------------------------------------------------------------------------------------------------------"
-echo -e "# Check if there are existing PV and VG"
-echo -e "# --------------------------------------------------------------------------------------------------------------------------\n"
-
-umount -R /mnt 2>/dev/null
-VG_NAME=$(vgdisplay -c | cut -d: -f1 | xargs)
-
-if [ -z "$VG_NAME" ]; then
-    echo -e "No volume group found. Skipping VG removal."
-else
-    echo -e "Removing volume group ${VG_NAME} and all associated volumes..."
-    yes | vgremove "$VG_NAME" 2>/dev/null
-    PV_NAME=$(pvs --noheadings -o pv_name | grep -w "$VG_NAME" | xargs)
-    yes | pvremove "$PV_NAME" 2>/dev/null
-fi
 
 
 echo -e "\n\n# --------------------------------------------------------------------------------------------------------------------------"
@@ -101,33 +84,14 @@ echo w           # Write the partition table
 ) | fdisk $DISK
 
 
-
-echo -e "\n\n# --------------------------------------------------------------------------------------------------------------------------"
-echo -e "# LVM"
-echo -e "# --------------------------------------------------------------------------------------------------------------------------\n"
-
-pvcreate --dataalignment 1m ${DISK}${PARTITION_2}
-vgcreate sys ${DISK}${PARTITION_2}
-yes | lvcreate -l 100%FREE -n root sys
-
-
 echo -e "\n\n# --------------------------------------------------------------------------------------------------------------------------"
 echo -e "# Format and mount partitions"
 echo -e "# --------------------------------------------------------------------------------------------------------------------------\n"
 
+mkfs.ext4 ${DISK}${PARTITION_2}
+mount ${DISK}${PARTITION_2} /mnt
+
 mkfs.fat -F32 ${DISK}${PARTITION_1}  
-mkfs.btrfs -f /dev/sys/root
-mount /dev/sys/root /mnt
-btrfs subvolume create /mnt/@
-btrfs subvolume create /mnt/@home
-btrfs subvolume create /mnt/@var
-umount /mnt
-
-mount -o noatime,ssd,compress=zstd,space_cache=v2,subvol=@ /dev/sys/root /mnt
-mkdir -p /mnt/{home,var}
-mount -o noatime,ssd,compress=zstd,space_cache=v2,subvol=@home /dev/sys/root /mnt/home
-mount -o noatime,ssd,compress=zstd,space_cache=v2,subvol=@var /dev/sys/root /mnt/var
-
 mkdir -p /mnt/boot && mount ${DISK}${PARTITION_1} /mnt/boot
 
 
@@ -135,17 +99,16 @@ echo -e "\n\n# -----------------------------------------------------------------
 echo -e "# Install base system"
 echo -e "# --------------------------------------------------------------------------------------------------------------------------\n"
 
-pacstrap /mnt linux-zen linux-zen-headers base base-devel linux-firmware lvm2 btrfs-progs zram-generator reflector sudo networkmanager intel-ucode efibootmgr
+pacstrap /mnt linux-zen linux-zen-headers booster base base-devel linux-firmware zram-generator reflector sudo networkmanager intel-ucode efibootmgr
 
 
 echo -e "\n\n# --------------------------------------------------------------------------------------------------------------------------"
 echo -e "# Generate fstab file"
 echo -e "# --------------------------------------------------------------------------------------------------------------------------\n"
 
-genfstab -U /mnt >> /mnt/etc/fstab
+genfstab -U /mnt > /mnt/etc/fstab
 echo -e "\nFstab file generated:\n"
 cat /mnt/etc/fstab
-echo -e "\n"
 
 
 echo -e "\n\n# --------------------------------------------------------------------------------------------------------------------------"
@@ -160,10 +123,8 @@ echo -e "in chroot...\n\n"
 # Configure mirrors
 # --------------------------------------------------------------------------------------------------------------------------
 
-reflector --country "Italy" --latest 10 --sort rate --protocol https --age 7 --save /etc/pacman.d/mirrorlist
-echo -e "\nMirrors configured:\n"
+reflector --latest 30 --sort rate --protocol https --save /etc/pacman.d/mirrorlist
 cat /etc/pacman.d/mirrorlist
-echo -e "\n"
 
 
 # --------------------------------------------------------------------------------------------------------------------------
@@ -193,32 +154,31 @@ sysctl --system
 
 
 # --------------------------------------------------------------------------------------------------------------------------
-# EFI Stub
-# --------------------------------------------------------------------------------------------------------------------------
-efibootmgr --create --disk $DISK --part 1 --label "Arch Linux" --loader /vmlinuz-linux-zen --unicode "root=UUID=$(blkid -s UUID -o value /dev/sys/root) rootfstype=btrfs rootflags=subvol=@ rw initrd=\initramfs-linux-zen.img"
-
-
-# --------------------------------------------------------------------------------------------------------------------------
-# Configure mkinitcpio
+# EFI Stub with Booster
 # --------------------------------------------------------------------------------------------------------------------------
 
-sed -i 's/^HOOKS=.*/HOOKS=(systemd autodetect microcode modconf kms keyboard keymap block filesystems lvm2)/' /etc/mkinitcpio.conf
-mkinitcpio -P
+efibootmgr --create --disk $DISK --part 1 --label "Arch Linux" --loader /vmlinuz-linux-zen --unicode "root=UUID=$(blkid -s UUID -o value /dev/sda2) rw initrd=\intel-ucode.img initrd=\booster-linux-zen.img"
 
 
 # --------------------------------------------------------------------------------------------------------------------------
 # Install utilities and applications
 # --------------------------------------------------------------------------------------------------------------------------
 
-pacman -S --noconfirm net-tools flatpak firefox git man nano vi lite-xl rclone cronie snapper
+pacman -S --noconfirm flatpak firefox man nano lite-xl git
 
 
 # --------------------------------------------------------------------------------------------------------------------------
-# Install Cosmic
+# Install Hyrpland with SDDM
 # --------------------------------------------------------------------------------------------------------------------------
 
-pacman -S --noconfirm cosmic
-systemctl enable cosmic-greeter
+pacman -S --noconfirm hyprland egl-wayland sddm
+find /usr/share/wayland-sessions -type f -not -name "hyprland.desktop" -delete
+
+mkdir -p /etc/sddm.conf.d
+echo -e "\n[Autologin]\nUser=$USER\nSession=hyprland" >> /etc/sddm.conf.d/autologin.conf
+groupadd -r autologin
+
+systemctl enable sddm
 
 
 # --------------------------------------------------------------------------------------------------------------------------
@@ -227,7 +187,7 @@ systemctl enable cosmic-greeter
 
 echo "$HOSTNAME" > /etc/hostname
 
-localectl set-keymap --no-convert us
+localectl set-keymap --no-convert it
 
 ln -sf /usr/share/zoneinfo/Europe/Rome /etc/localtime
 
@@ -246,6 +206,8 @@ echo -e "127.0.0.1   localhost\n::1         localhost\n127.0.1.1   $HOSTNAME.loc
 
 useradd -m $USER
 echo "$USER:$USERPASS" | chpasswd
+gpasswd -a $USER autologin
+
 echo "root:$ROOTPASS" | chpasswd
 
 
@@ -253,17 +215,24 @@ echo "root:$ROOTPASS" | chpasswd
 # Configure sudoers file
 # --------------------------------------------------------------------------------------------------------------------------
 
-echo -e "\n\n%$USER ALL=(ALL:ALL) ALL" | tee -a /etc/sudoers
+echo -e "\n\n$USER ALL=(ALL:ALL) NOPASSWD: ALL" | tee -a /etc/sudoers
 echo -e "\nSudoers file configured"
+
+
+# --------------------------------------------------------------------------------------------------------------------------
+# Install Yay
+# --------------------------------------------------------------------------------------------------------------------------
+
+su -c "cd /tmp && git clone https://aur.archlinux.org/yay.git && cd yay && echo $USERPASS | makepkg -si --noconfirm" $USER
+echo "Yay installation completed"
+
 
 # --------------------------------------------------------------------------------------------------------------------------
 # Manage services
 # --------------------------------------------------------------------------------------------------------------------------
 
 systemctl enable NetworkManager
-systemctl enable cronie
-systemctl disable ldconfig.service
-systemctl disable geoclue
+systemctl mask ldconfig.service
 systemctl mask geoclue
 
 

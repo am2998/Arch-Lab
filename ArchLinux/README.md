@@ -14,7 +14,7 @@ This script automates the installation of Arch Linux with a custom configuration
 
 ## Features
 
-- LUKS+LVM+BTRFS or ZFS+ZFSBootMenu
+- LUKS+LVM+BTRFS or ZFS+ZFSBootMenu or EXT4+EFISTUB
 - ZRAM 
 - Open NVIDIA drivers
 - Pipewire
