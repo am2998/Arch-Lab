@@ -169,7 +169,21 @@ pacman -S --noconfirm flatpak firefox man nano git
 
 
 # --------------------------------------------------------------------------------------------------------------------------
-# Install Hyprland
+# Install audio components
+# --------------------------------------------------------------------------------------------------------------------------
+
+pacman -S --noconfirm pipewire wireplumber pipewire-pulse alsa-plugins alsa-firmware sof-firmware alsa-card-profiles pavucontrol-qt
+
+
+# --------------------------------------------------------------------------------------------------------------------------
+# Install NVIDIA drivers
+# --------------------------------------------------------------------------------------------------------------------------
+
+pacman -S --noconfirm nvidia-open-lts nvidia-settings nvidia-utils opencl-nvidia libxnvctrl
+
+
+# --------------------------------------------------------------------------------------------------------------------------
+# Install Hyprland + ML4W dotfiles
 # --------------------------------------------------------------------------------------------------------------------------
 
 pacman -S --noconfirm hyprland egl-wayland
@@ -186,6 +200,8 @@ echo -e "[[ '$(tty)' == /dev/tty1 ]] && Hyprland > /dev/null" > /home/$USER/.bas
 
 groupadd -r autologin
 
+wget https://raw.githubusercontent.com/mylinuxforwork/dotfiles/main/setup-arch.sh /home/$USER
+
 
 # --------------------------------------------------------------------------------------------------------------------------
 # System setup
@@ -193,7 +209,7 @@ groupadd -r autologin
 
 echo "$HOSTNAME" > /etc/hostname
 
-localectl set-keymap --no-convert it
+localectl set-keymap --no-convert us
 
 ln -sf /usr/share/zoneinfo/Europe/Rome /etc/localtime
 
