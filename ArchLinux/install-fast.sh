@@ -164,21 +164,26 @@ efibootmgr --create --disk $DISK --part 1 --label "Arch Linux" --loader /vmlinuz
 # Install utilities and applications
 # --------------------------------------------------------------------------------------------------------------------------
 
-pacman -S --noconfirm flatpak firefox man nano lite-xl git
+pacman -S --noconfirm flatpak firefox man nano git
 
 
 # --------------------------------------------------------------------------------------------------------------------------
-# Install Hyrpland with SDDM
+# Install Hyprland
 # --------------------------------------------------------------------------------------------------------------------------
 
-pacman -S --noconfirm hyprland egl-wayland sddm
+pacman -S --noconfirm hyprland egl-wayland
 find /usr/share/wayland-sessions -type f -not -name "hyprland.desktop" -delete
 
-mkdir -p /etc/sddm.conf.d
-echo -e "\n[Autologin]\nUser=$USER\nSession=hyprland" >> /etc/sddm.conf.d/autologin.conf
-groupadd -r autologin
+mkdir -p /etc/systemd/system/getty@tty1.service.d 
 
-systemctl enable sddm
+echo -e "
+[Service]
+ExecStart=
+ExecStart=-/sbin/agetty -o '-p -f -- \\u' --noclear --autologin $USER %I $TERM" >> /etc/systemd/system/getty@tty1.service.d/autologin.conf
+
+echo -e "[[ '$(tty)' == /dev/tty1 ]] && Hyprland > /dev/null" > /home/$USER/.bash_profile
+
+groupadd -r autologin
 
 
 # --------------------------------------------------------------------------------------------------------------------------
