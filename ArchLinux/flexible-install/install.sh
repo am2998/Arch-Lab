@@ -39,10 +39,10 @@ source $CHECK_FUNCTIONS_SCRIPT
 print_section_header "DESKTOP ENVIRONMENT SELECTION"
 
 echo -e "\033[1;33mChoose your desktop environment:\033[0m"
-echo "  \033[1;37m1)\033[0m Hyprland"
-echo "  \033[1;37m2)\033[0m XFCE4"
-echo "  \033[1;37m3)\033[0m KDE Plasma"
-echo "  \033[1;37m4)\033[0m GNOME"
+echo -e "  \033[1;37m1)\033[0m Hyprland"
+echo -e "  \033[1;37m2)\033[0m XFCE4"
+echo -e "  \033[1;37m3)\033[0m KDE Plasma"
+echo -e "  \033[1;37m4)\033[0m GNOME"
 echo
 read -p "Enter your choice (1-4): " de_choice
 
@@ -85,15 +85,15 @@ echo -e "\033[1;32m✓ Hostname set to: \033[1;37m$HOSTNAME\033[0m"
 print_section_header "MIRROR COUNTRY SELECTION"
 
 echo -e "\033[1;33mSelect your country for repository mirrors:\033[0m"
-echo "  \033[1;37m1)\033[0m Italy"
-echo "  \033[1;37m2)\033[0m Germany"
-echo "  \033[1;37m3)\033[0m United States"
-echo "  \033[1;37m4)\033[0m United Kingdom"
-echo "  \033[1;37m5)\033[0m France"
-echo "  \033[1;37m6)\033[0m Spain"
-echo "  \033[1;37m7)\033[0m Netherlands"
-echo "  \033[1;37m8)\033[0m Other (specify)"
-echo "  \033[1;37m9)\033[0m Worldwide (no specific country)"
+echo -e "  \033[1;37m1)\033[0m Italy"
+echo -e "  \033[1;37m2)\033[0m Germany"
+echo -e "  \033[1;37m3)\033[0m United States"
+echo -e "  \033[1;37m4)\033[0m United Kingdom"
+echo -e "  \033[1;37m5)\033[0m France"
+echo -e "  \033[1;37m6)\033[0m Spain"
+echo -e "  \033[1;37m7)\033[0m Netherlands"
+echo -e "  \033[1;37m8)\033[0m Other (specify)"
+echo -e "  \033[1;37m9)\033[0m Worldwide (no specific country)"
 echo
 read -p "Enter your choice (1-9): " mirror_choice
 
@@ -141,8 +141,13 @@ case $mirror_choice in
         ;;
 esac
 
+# ----------------------------------------
+# KEYBOARD LAYOUT SELECTION
+# ----------------------------------------
+print_section_header "KEYBOARD LAYOUT SELECTION"
+
 # List available keyboard layouts and let user select one
-echo -e "\n=== Keyboard Layout Selection ==="
+echo -e "\033[1;33mSelect your keyboard layout:\033[0m"
 # Get available keyboard layouts and filter to show only one entry per language
 mapfile -t ALL_KEYBOARD_LAYOUTS < <(localectl list-keymaps | sort)
 
@@ -169,7 +174,7 @@ echo -e "\nAvailable keyboard layouts (primary variants only):"
 # Display available layouts in multiple columns
 for ((i=0; i<TOTAL_LAYOUTS; i++)); do
     # Format each entry with fixed width for alignment
-    printf "  %3d) %-20s" "$((i+1))" "${KEYBOARD_LAYOUTS[$i]}"
+    printf "  \033[1;37m%3d)\033[0m %-20s" "$((i+1))" "${KEYBOARD_LAYOUTS[$i]}"
     # Add a newline after every COLUMNS items
     if (( (i+1) % COLUMNS == 0 )); then
         echo ""
@@ -182,21 +187,26 @@ fi
 
 # Let user select a layout by number
 while true; do
-    echo -n "Enter the number of your keyboard layout: "
+    echo -en "\nEnter the number of your keyboard layout: "
     read -r layout_choice
     
     # Validate input
     if [[ "$layout_choice" =~ ^[0-9]+$ && "$layout_choice" -ge 1 && "$layout_choice" -le "${#KEYBOARD_LAYOUTS[@]}" ]]; then
         KEYBOARD_LAYOUT="${KEYBOARD_LAYOUTS[$((layout_choice-1))]}"
-        echo "✓ Selected keyboard layout: $KEYBOARD_LAYOUT"
+        echo -e "\033[1;32m✓ Selected keyboard layout: \033[1;37m$KEYBOARD_LAYOUT\033[0m\n"
         break
     else
-        echo "⚠ Invalid choice. Please enter a number between 1 and ${#KEYBOARD_LAYOUTS[@]}."
+        echo -e "\033[1;33m⚠ Invalid choice. Please enter a number between 1 and ${#KEYBOARD_LAYOUTS[@]}.\033[0m"
     fi
 done
 
+# ----------------------------------------
+# LOCALE SELECTION
+# ----------------------------------------
+print_section_header "LOCALE SELECTION"
+
 # List available locales and let user select one
-echo -e "\n=== Locale Selection ==="
+echo -e "\033[1;33mSelect your system locale:\033[0m"
 # Get available locales and store them in an array
 mapfile -t ALL_AVAILABLE_LOCALES < <(grep -E "^#[a-zA-Z]" /etc/locale.gen | sed 's/^#//' | sort)
 
@@ -223,7 +233,7 @@ echo -e "\nAvailable locales (primary variants only):"
 # Display available locales in multiple columns
 for ((i=0; i<TOTAL_LOCALES; i++)); do
     # Format each entry with fixed width for alignment
-    printf "  %3d) %-20s" "$((i+1))" "${AVAILABLE_LOCALES[$i]}"
+    printf "  \033[1;37m%3d)\033[0m %-22s" "$((i+1))" "${AVAILABLE_LOCALES[$i]}"
     # Add a newline after every LOCALE_COLUMNS items
     if (( (i+1) % LOCALE_COLUMNS == 0 )); then
         echo ""
@@ -236,35 +246,48 @@ fi
 
 # Let user select a locale by number
 while true; do
-    echo -n "Enter the number of your desired locale: "
+    echo -en "\nEnter the number of your desired locale: "
     read -r locale_choice
     
     # Validate input
     if [[ "$locale_choice" =~ ^[0-9]+$ && "$locale_choice" -ge 1 && "$locale_choice" -le "${#AVAILABLE_LOCALES[@]}" ]]; then
         SYSTEM_LOCALE="${AVAILABLE_LOCALES[$((locale_choice-1))]}"
-        echo "✓ Selected locale: $SYSTEM_LOCALE"
+        echo -e "\033[1;32m✓ Selected locale: \033[1;37m$SYSTEM_LOCALE\033[0m\n"
         break
     else
-        echo "⚠ Invalid choice. Please enter a number between 1 and ${#AVAILABLE_LOCALES[@]}."
+        echo -e "\033[1;33m⚠ Invalid choice. Please enter a number between 1 and ${#AVAILABLE_LOCALES[@]}.\033[0m"
     fi
 done
 
-echo -en "\nEnter the username: "; read -r USER
+# ----------------------------------------
+# USER CONFIGURATION
+# ----------------------------------------
+print_section_header "USER CONFIGURATION"
 
-# --------------------------------------------------------------------------------------------------------------------------
-# Password Configuration
-# --------------------------------------------------------------------------------------------------------------------------
+echo -e "\033[1;33mEnter the username:\033[0m"
+echo -en "Username: "; read -r USER
+echo -e "\033[1;32m✓ Username set to: \033[1;37m$USER\033[0m\n"
 
-echo -e "\n=== Password Configuration ==="
+# ----------------------------------------
+# PASSWORD CONFIGURATION
+# ----------------------------------------
+print_section_header "PASSWORD CONFIGURATION"
+
+echo -e "\033[1;33mSet user and root passwords:\033[0m"
 get_password "Enter the password for user $USER" USERPASS
-get_password "Enter the password for user root" ROOTPASS
+echo -e "\033[1;32m✓ User password set\033[0m"
 
-# --------------------------------------------------------------------------------------------------------------------------
-# CPU Selection 
-# --------------------------------------------------------------------------------------------------------------------------
-echo -e "\n=== CPU Selection ==="
-echo "  1) Intel"
-echo "  2) AMD"
+get_password "Enter the password for user root" ROOTPASS
+echo -e "\033[1;32m✓ Root password set\033[0m\n"
+
+# ----------------------------------------
+# CPU SELECTION
+# ----------------------------------------
+print_section_header "CPU SELECTION"
+
+echo -e "\033[1;33mChoose your CPU type:\033[0m"
+echo -e "  \033[1;37m1)\033[0m Intel"
+echo -e "  \033[1;37m2)\033[0m AMD"
 echo
 read -p "Enter your choice (1-2): " cpu_choice
 
@@ -272,62 +295,66 @@ case $cpu_choice in
     1)
         CPU_MICROCODE="intel-ucode"
         CPU_TYPE="Intel"
-        echo "✓ Selected Intel CPU. Will install intel-ucode."
+        echo -e "\033[1;32m✓ Selected Intel CPU. Will install intel-ucode.\033[0m\n"
         ;;
     2)
         CPU_MICROCODE="amd-ucode"
         CPU_TYPE="AMD"
-        echo "✓ Selected AMD CPU. Will install amd-ucode."
+        echo -e "\033[1;32m✓ Selected AMD CPU. Will install amd-ucode.\033[0m\n"
         ;;
     *)
-        echo "⚠ Invalid choice. Defaulting to AMD."
+        echo -e "\033[1;33m⚠ Invalid choice. Defaulting to AMD.\033[0m\n"
         CPU_MICROCODE="amd-ucode"
         CPU_TYPE="AMD"
         ;;
 esac
 
-# --------------------------------------------------------------------------------------------------------------------------
-# GPU Selection
-# --------------------------------------------------------------------------------------------------------------------------
-echo -e "\n=== GPU Selection ==="
-echo "  1) NVIDIA"
-echo "  2) AMD/Intel (Open Source)"
-echo "  3) None/VM"
+# ----------------------------------------
+# GPU SELECTION
+# ----------------------------------------
+print_section_header "GPU SELECTION"
+
+echo -e "\033[1;33mChoose your GPU type:\033[0m"
+echo -e "  \033[1;37m1)\033[0m NVIDIA"
+echo -e "  \033[1;37m2)\033[0m AMD/Intel (Open Source)"
+echo -e "  \033[1;37m3)\033[0m None/VM"
 echo
 read -p "Enter your choice (1-3): " gpu_choice
 
 case $gpu_choice in
     1)
         GPU_TYPE="NVIDIA"
-        echo -e "\n=== NVIDIA Driver Selection ==="
-        echo "  Do you want to use NVIDIA open drivers?"
-        echo "  (No will install proprietary drivers)"
+        echo -e "\033[1;32m✓ Selected NVIDIA GPU.\033[0m"
+        
+        echo -e "\n\033[1;33mNVIDIA Driver Selection:\033[0m"
+        echo -e "  Do you want to use NVIDIA open drivers?"
+        echo -e "  (No will install proprietary drivers)"
         echo
         read -p "Use NVIDIA open drivers? [y/N]: " nvidia_open_choice
         
         case $nvidia_open_choice in
             [Yy]*)
-            NVIDIA_DRIVER_TYPE="Open"
-            echo "✓ Selected NVIDIA open source drivers."
-            ;;
+                NVIDIA_DRIVER_TYPE="Open"
+                echo -e "\033[1;32m✓ Selected NVIDIA open source drivers.\033[0m\n"
+                ;;
             *)
-            NVIDIA_DRIVER_TYPE="Proprietary"
-            echo "✓ Selected NVIDIA proprietary drivers."
-            ;;
+                NVIDIA_DRIVER_TYPE="Proprietary"
+                echo -e "\033[1;32m✓ Selected NVIDIA proprietary drivers.\033[0m\n"
+                ;;
         esac
         ;;
     2)
         GPU_TYPE="AMD/Intel"
         NVIDIA_DRIVER_TYPE="none"
-        echo "✓ Selected AMD/Intel GPU. Will use open source drivers."
+        echo -e "\033[1;32m✓ Selected AMD/Intel GPU. Will use open source drivers.\033[0m\n"
         ;;
     3)
         GPU_TYPE="None/VM"
         NVIDIA_DRIVER_TYPE="none"
-        echo "✓ Selected None/VM. Will use basic drivers."
+        echo -e "\033[1;32m✓ Selected None/VM. Will use basic drivers.\033[0m\n"
         ;;
     *)
-        echo "⚠ Invalid choice. Defaulting to AMD/Intel."
+        echo -e "\033[1;33m⚠ Invalid choice. Defaulting to AMD/Intel.\033[0m\n"
         gpu_choice=2
         GPU_TYPE="AMD/Intel"
         NVIDIA_DRIVER_TYPE="none"
@@ -425,7 +452,7 @@ while true; do
 
             # Let user select a layout by number
             while true; do
-                echo -n "Enter the number of your keyboard layout: "
+                echo -n "\nEnter the number of your keyboard layout: "
                 read -r layout_choice
                 
                 # Validate input
@@ -479,7 +506,7 @@ while true; do
 
             # Let user select a locale by number
             while true; do
-                echo -n "Enter the number of your desired locale: "
+                echo -n "\nEnter the number of your desired locale: "
                 read -r locale_choice
                 
                 # Validate input
