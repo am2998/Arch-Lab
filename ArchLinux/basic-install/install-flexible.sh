@@ -1,9 +1,8 @@
 #!/bin/bash
 
-# EXT4 + EFISTUB 
-# Hyprland
-
 cat <<'EOF'
+
+
  ______                                             ______                       __              _______   ________  __       __ 
 /      |                                           /      \                     /  |            /       \ /        |/  |  _  /  |
 $$$$$$/        __    __   _______   ______        /$$$$$$  |  ______    _______ $$ |____        $$$$$$$  |$$$$$$$$/ $$ | / \ $$ |
@@ -17,85 +16,10 @@ $$$$$$/        $$$$$$/  $$$$$$$/   $$$$$$$/       $$/   $$/ $$/        $$$$$$$/ 
 EOF
 
 
-exec > >(tee -a result.log) 2>&1
-
-
-# --------------------------------------------------------------------------------------------------------------------------
-# Prompt for all user and system settings at the beginning                                                                                     
-# --------------------------------------------------------------------------------------------------------------------------
-
-get_password() {
-        local prompt=$1
-        local password_var
-        local password_recheck_var
-
-        while true; do
-                echo -n "$prompt: "; read -r -s password_var; echo
-                echo -n "Re-enter password: "; read -r -s password_recheck_var; echo
-                if [ "$password_var" = "$password_recheck_var" ]; then
-                        eval "$2='$password_var'"
-                        break
-                else
-                        echo "Passwords do not match. Please enter a new password."
-                fi
-        done
-}
 
 echo -e "\n\n# --------------------------------------------------------------------------------------------------------------------------"
 echo -e "# Initial configuration                                                               "
 echo -e "# --------------------------------------------------------------------------------------------------------------------------\n"
-
-# --------------------------------------------------------------------------------------------------------------------------
-# CPU Selection
-# --------------------------------------------------------------------------------------------------------------------------
-echo -e "\n=== CPU Selection ==="
-echo "  1) Intel"
-echo "  2) AMD"
-echo
-read -p "Enter your choice (1-2): " cpu_choice
-
-case $cpu_choice in
-    1)
-        CPU_MICROCODE="intel-ucode"
-        CPU_TYPE="Intel"
-        echo "✓ Selected Intel CPU. Will install intel-ucode."
-        ;;
-    2)
-        CPU_MICROCODE="amd-ucode"
-        CPU_TYPE="AMD"
-        echo "✓ Selected AMD CPU. Will install amd-ucode."
-        ;;
-    *)
-        echo "⚠ Invalid choice. Defaulting to AMD."
-        CPU_MICROCODE="amd-ucode"
-        CPU_TYPE="AMD"
-        ;;
-esac
-
-# --------------------------------------------------------------------------------------------------------------------------
-# Boot Method Selection
-# --------------------------------------------------------------------------------------------------------------------------
-echo -e "\n=== Boot Method Selection ==="
-echo "  1) EFISTUB"
-echo "  2) ZFSBootMenu"
-echo
-read -p "Enter your choice (1-2): " boot_choice
-
-case $boot_choice in
-    1)
-        BOOT_METHOD="EFISTUB"
-        echo "✓ Selected EFISTUB for boot method."
-        ;;
-    2)
-        BOOT_METHOD="ZFSBootMenu"
-        echo "✓ Selected ZFSBootMenu for boot method."
-        ;;
-    *)
-        echo "⚠ Invalid choice. Defaulting to EFISTUB."
-        boot_choice=1
-        BOOT_METHOD="EFISTUB"
-        ;;
-esac
 
 # --------------------------------------------------------------------------------------------------------------------------
 # Desktop Environment Selection
@@ -132,6 +56,7 @@ case $de_choice in
         ;;
 esac
 
+
 # --------------------------------------------------------------------------------------------------------------------------
 # System Information
 # --------------------------------------------------------------------------------------------------------------------------
@@ -143,9 +68,54 @@ echo -n "Enter the username: "; read -r USER
 # --------------------------------------------------------------------------------------------------------------------------
 # Password Configuration
 # --------------------------------------------------------------------------------------------------------------------------
+
+get_password() {
+        local prompt=$1
+        local password_var
+        local password_recheck_var
+
+        while true; do
+                echo -n "$prompt: "; read -r -s password_var; echo
+                echo -n "Re-enter password: "; read -r -s password_recheck_var; echo
+                if [ "$password_var" = "$password_recheck_var" ]; then
+                        eval "$2='$password_var'"
+                        break
+                else
+                        echo "Passwords do not match. Please enter a new password."
+                fi
+        done
+}
+
 echo -e "\n=== Password Configuration ==="
 get_password "Enter the password for user $USER" USERPASS
 get_password "Enter the password for user root" ROOTPASS
+
+# --------------------------------------------------------------------------------------------------------------------------
+# CPU Selection 
+# --------------------------------------------------------------------------------------------------------------------------
+echo -e "\n=== CPU Selection ==="
+echo "  1) Intel"
+echo "  2) AMD"
+echo
+read -p "Enter your choice (1-2): " cpu_choice
+
+case $cpu_choice in
+    1)
+        CPU_MICROCODE="intel-ucode"
+        CPU_TYPE="Intel"
+        echo "✓ Selected Intel CPU. Will install intel-ucode."
+        ;;
+    2)
+        CPU_MICROCODE="amd-ucode"
+        CPU_TYPE="AMD"
+        echo "✓ Selected AMD CPU. Will install amd-ucode."
+        ;;
+    *)
+        echo "⚠ Invalid choice. Defaulting to AMD."
+        CPU_MICROCODE="amd-ucode"
+        CPU_TYPE="AMD"
+        ;;
+esac
 
 # --------------------------------------------------------------------------------------------------------------------------
 # GPU Selection
@@ -177,23 +147,23 @@ case $gpu_choice in
             ;;
         esac
         ;;
-        2)
+    2)
         GPU_TYPE="AMD/Intel"
         NVIDIA_DRIVER_TYPE="none"
         echo "✓ Selected AMD/Intel GPU. Will use open source drivers."
         ;;
-        3)
+    3)
         GPU_TYPE="None/VM"
         NVIDIA_DRIVER_TYPE="none"
         echo "✓ Selected None/VM. Will use basic drivers."
         ;;
-        *)
+    *)
         echo "⚠ Invalid choice. Defaulting to AMD/Intel."
         gpu_choice=2
         GPU_TYPE="AMD/Intel"
         NVIDIA_DRIVER_TYPE="none"
         ;;
-    esac
+esac
 
 # --------------------------------------------------------------------------------------------------------------------------
 # Configuration Summary
@@ -203,16 +173,15 @@ display_summary() {
     echo "╔═══════════════════════════════════════════════╗"
     echo "║             Configuration Summary             ║"
     echo "╠═══════════════════════════════════════════════╣"
-    echo "║ 1) CPU Type:            $(printf "%-21s" "$CPU_TYPE") ║"
-    echo "║ 2) Boot Method:         $(printf "%-21s" "$BOOT_METHOD") ║"
-    echo "║ 3) Desktop Environment: $(printf "%-21s" "$DE_TYPE") ║"
-    echo "║ 4) Hostname:            $(printf "%-21s" "$HOSTNAME") ║"
-    echo "║ 5) Keyboard Layout:     $(printf "%-21s" "$KEYBOARD_LAYOUT") ║"
-    echo "║ 6) Username:            $(printf "%-21s" "$USER") ║"
-    echo "║ 7) Passwords:           $(printf "%-21s" "[Hidden]") ║"
-    echo "║ 8) GPU Type:            $(printf "%-21s" "$GPU_TYPE") ║"
+    echo "║ 1) Desktop Environment: $(printf "%-21s" "$DE_TYPE") ║"
+    echo "║ 2) Hostname:            $(printf "%-21s" "$HOSTNAME") ║"
+    echo "║ 3) Keyboard Layout:     $(printf "%-21s" "$KEYBOARD_LAYOUT") ║"
+    echo "║ 4) Username:            $(printf "%-21s" "$USER") ║"
+    echo "║ 5) Passwords:           $(printf "%-21s" "[Hidden]") ║"
+    echo "║ 6) CPU Type:            $(printf "%-21s" "$CPU_TYPE") ║"
+    echo "║ 7) GPU Type:            $(printf "%-21s" "$GPU_TYPE") ║"
     if [ "$GPU_TYPE" = "NVIDIA" ]; then
-    echo "║ 9) NVIDIA Driver:       $(printf "%-21s" "$NVIDIA_DRIVER_TYPE") ║"
+    echo "║ 8) NVIDIA Driver:       $(printf "%-21s" "$NVIDIA_DRIVER_TYPE") ║"
     fi
     echo "╚═══════════════════════════════════════════════╝"
 }
@@ -222,33 +191,11 @@ display_summary
 
 # Allow user to modify choices
 while true; do
-    echo -en "\nWould you like to modify any settings? (Enter the number to change, or 'c' to continue): "
+    echo -en "\nWould you like to modify any settings? (Enter the number to change, 'c' to confirm, 'a' to abort): "
     read choice
     
     case $choice in
-        1)  # CPU Type
-            echo -e "\n=== CPU Selection ==="
-            echo "  1) Intel"
-            echo "  2) AMD"
-            read -p "Enter your choice (1-2): " cpu_choice
-            case $cpu_choice in
-                1) CPU_MICROCODE="intel-ucode"; CPU_TYPE="Intel" ;;
-                2) CPU_MICROCODE="amd-ucode"; CPU_TYPE="AMD" ;;
-                *) echo "⚠ Invalid choice. No changes made." ;;
-            esac
-            ;;
-        2)  # Boot Method
-            echo -e "\n=== Boot Method Selection ==="
-            echo "  1) EFISTUB"
-            echo "  2) ZFSBootMenu"
-            read -p "Enter your choice (1-2): " boot_choice
-            case $boot_choice in
-                1) BOOT_METHOD="EFISTUB" ;;
-                2) BOOT_METHOD="ZFSBootMenu" ;;
-                *) echo "⚠ Invalid choice. No changes made." ;;
-            esac
-            ;;
-        3)  # Desktop Environment
+        1)  # Desktop Environment
             echo -e "\n=== Desktop Environment Selection ==="
             echo "  1) Hyprland"
             echo "  2) XFCE4"
@@ -263,25 +210,63 @@ while true; do
                 *) echo "⚠ Invalid choice. No changes made." ;;
             esac
             ;;
-        4)  # Hostname
+        2)  # Hostname
             echo -n "Enter hostname: "; read -r HOSTNAME
             ;;
-        5)  # Keyboard Layout
+        3)  # Keyboard Layout
             echo -n "Enter keyboard layout (e.g. us, it, de): "; read -r KEYBOARD_LAYOUT
             ;;
-        6)  # Username
+        4)  # Username
             echo -n "Enter the username: "; read -r USER
             ;;
-        7)  # Passwords
+        5)  # Passwords
             echo -e "\n=== Password Configuration ==="
             get_password "Enter the password for user $USER" USERPASS
             get_password "Enter the password for user root" ROOTPASS
             ;;
+        6)  # CPU Type
+            echo -e "\n=== CPU Selection ==="
+            echo "  1) Intel"
+            echo "  2) AMD"
+            read -p "Enter your choice (1-2): " cpu_choice
+            case $cpu_choice in
+                1) CPU_MICROCODE="intel-ucode"; CPU_TYPE="Intel" ;;
+                2) CPU_MICROCODE="amd-ucode"; CPU_TYPE="AMD" ;;
+                *) echo "⚠ Invalid choice. No changes made." ;;
+            esac
+            ;;
+        7)  # GPU Type
+            echo -e "\n=== GPU Selection ==="
+            echo "  1) NVIDIA"
+            echo "  2) AMD/Intel (Open Source)"
+            echo "  3) None/VM"
+            read -p "Enter your choice (1-3): " gpu_choice
+            case $gpu_choice in
+                1)
+                    GPU_TYPE="NVIDIA"
+                    echo "  Do you want to use NVIDIA open drivers?"
+                    echo "  (No will install proprietary drivers)"
+                    read -p "Use NVIDIA open drivers? [y/N]: " nvidia_open_choice
+                    case $nvidia_open_choice in
+                        [Yy]*) NVIDIA_DRIVER_TYPE="Open" ;;
+                        *) NVIDIA_DRIVER_TYPE="Proprietary" ;;
+                    esac
+                    ;;
+                2) GPU_TYPE="AMD/Intel"; NVIDIA_DRIVER_TYPE="none" ;;
+                3) GPU_TYPE="None/VM"; NVIDIA_DRIVER_TYPE="none" ;;
+                *) echo "⚠ Invalid choice. No changes made." ;;
+            esac
+            ;;
         c|C)
+            echo "✓ Proceeding with installation..."
             break
             ;;
+        a|A)
+            echo "⚠ Installation aborted."
+            exit 1
+            ;;
         *)
-            echo -en "Invalid option. Please enter a number between 1-7 or 'c' to continue: "
+            echo -en "Invalid option. Please enter a valid number, 'c' to confirm, 'a' to abort: "
             ;;
     esac
     
@@ -289,13 +274,6 @@ while true; do
     display_summary
 done
 
-echo -en "\nDo you want to proceed with installation? [y/N]: "
-read confirm
-if [[ "$confirm" != "y" && "$confirm" != "Y" ]]; then
-    echo "⚠ Installation aborted."
-    exit 1
-fi
-echo "✓ Proceeding with installation..."
 
 echo -e "\n\n# --------------------------------------------------------------------------------------------------------------------------"
 echo -e "# Clean System Disk"
@@ -366,7 +344,7 @@ echo -e "\n\n# -----------------------------------------------------------------
 echo -e "# Install Base"
 echo -e "# --------------------------------------------------------------------------------------------------------------------------\n"
 
-pacstrap /mnt linux-lts linux-lts-headers booster base base-devel linux-firmware zram-generator reflector sudo networkmanager efibootmgr $CPU_MICROCODE wget
+pacstrap /mnt linux-lts linux-lts-headers mkinitcpio base base-devel linux-firmware zram-generator reflector sudo networkmanager efibootmgr $CPU_MICROCODE wget
 
 
 echo -e "\n\n# --------------------------------------------------------------------------------------------------------------------------"
@@ -390,7 +368,6 @@ env \
     USERPASS="$USERPASS" \
     ROOTPASS="$ROOTPASS" \
     CPU_MICROCODE="$CPU_MICROCODE" \
-    boot_choice="$boot_choice" \
     de_choice="$de_choice" \
     GPU_TYPE="$GPU_TYPE" \
     NVIDIA_DRIVER_TYPE="$NVIDIA_DRIVER_TYPE" \
@@ -403,17 +380,17 @@ echo -e "\n\n# -----------------------------------------------------------------
 echo -e "# Configure Mirrors"
 echo -e "# --------------------------------------------------------------------------------------------------------------------------\n"
 
-reflector --country "Italy" --latest 10 --sort rate --protocol https --age 7 --save /etc/pacman.d/mirrorlist
-cat /etc/pacman.d/mirrorlist
+# reflector --country "Italy" --latest 10 --sort rate --protocol https --age 7 --save /etc/pacman.d/mirrorlist
+# cat /etc/pacman.d/mirrorlist
 
 
 echo -e "\n\n# --------------------------------------------------------------------------------------------------------------------------"
 echo -e "# Setup ZFS"
 echo -e "# --------------------------------------------------------------------------------------------------------------------------\n"
 
-echo -e "
+echo -e '
 [archzfs]
-Server = https://archzfs.com/$repo/x86_64" >> /etc/pacman.conf
+Server = https://github.com/archzfs/archzfs/releases/download/experimental' >> /etc/pacman.conf
 
 # ArchZFS GPG keys (see https://wiki.archlinux.org/index.php/Unofficial_user_repositories#archzfs)
 pacman-key -r DDF7DB817396A49B2A2723F7403BD972F75D9D76
@@ -424,37 +401,24 @@ systemctl enable zfs.target zfs-import-cache zfs-mount zfs-import.target
 
 
 echo -e "\n\n# --------------------------------------------------------------------------------------------------------------------------"
-echo -e "# EFI"
+echo -e "# ZFSBootMenu"
 echo -e "# --------------------------------------------------------------------------------------------------------------------------\n"
 
-echo "Setting up boot method ($boot_choice)..."
-
-case $boot_choice in
-        1)
-                echo "Setting up EFISTUB..."
-                efibootmgr --create --disk $DISK --part 1 \
-                                     --label "Arch" \
-                                     --loader /vmlinuz-linux-lts \
-                                     --unicode "root=UUID=$(blkid -s UUID -o value ${DISK}${PARTITION_2}) rw initrd=\\$CPU_MICROCODE.img initrd=\initramfs-linux-lts.img"
-                ;;
-        2)
-                echo "Setting up ZFSBootMenu..."
-                mkdir -p /boot/EFI/zbm
-                wget https://get.zfsbootmenu.org/latest.EFI -O /boot/EFI/zbm/zfsbootmenu.EFI
+echo "Setting up ZFSBootMenu..."
+mkdir -p /efi/EFI/zbm
+wget https://get.zfsbootmenu.org/latest.EFI -O /efi/EFI/zbm/zfsbootmenu.EFI
+ 
+efibootmgr --disk $DISK --part 1 --create \
+                     --label "ZFSBootMenu" \
+                     --loader '\EFI\zbm\zfsbootmenu.EFI' \
+                     --unicode "spl_hostid=$(hostid) zbm.timeout=3 zbm.prefer=zroot zbm.import_policy=hostid" \
+                     --verbose
+zfs set org.zfsbootmenu:commandline="noresume init_on_alloc=0 rw spl.spl_hostid=$(hostid)" zroot/rootfs
                 
-                efibootmgr --disk $DISK --part 1 --create \
-                                     --label "Arch" \
-                                     --loader '\EFI\zbm\zfsbootmenu.EFI' \
-                                     --unicode "spl_hostid=$(hostid) zbm.timeout=3 zbm.prefer=zroot zbm.import_policy=hostid" \
-                                     --verbose
-                zfs set org.zfsbootmenu:commandline="noresume init_on_alloc=0 rw spl.spl_hostid=$(hostid)" zroot/rootfs
-                ;;
-esac
 
-
-echo -e "\n\n# --------------------------------------------------------------------------------------------------------------------------"
-echo -e "# Configure mkinitcpio"
-echo -e "# --------------------------------------------------------------------------------------------------------------------------\n"
+# --------------------------------------------------------------------------------------------------------------------------
+# Configure mkinitcpio
+# --------------------------------------------------------------------------------------------------------------------------
 
 sed -i 's/\(filesystems\) \(fsck\)/\1 zfs \2/' /etc/mkinitcpio.conf
 
@@ -480,91 +444,6 @@ sysctl --system
 
 
 echo -e "\n\n# --------------------------------------------------------------------------------------------------------------------------"
-echo -e "# Enable Multilib Repo"
-echo -e "# --------------------------------------------------------------------------------------------------------------------------\n"
-
-sed -i '/\[multilib\]/,/Include/ s/^#//' /etc/pacman.conf
-pacman -Syy
-
-
-echo -e "\n\n# --------------------------------------------------------------------------------------------------------------------------"
-echo -e "# Install Utilities"
-echo -e "# --------------------------------------------------------------------------------------------------------------------------\n"
-
-pacman -S --noconfirm flatpak firefox man nano git
-
-
-echo -e "\n\n# --------------------------------------------------------------------------------------------------------------------------"
-echo -e "# Configure Audio"
-echo -e "# --------------------------------------------------------------------------------------------------------------------------\n"
-
-pacman -S --noconfirm pipewire wireplumber pipewire-pulse alsa-plugins alsa-firmware sof-firmware alsa-card-profiles pavucontrol-qt
-
-
-echo -e "\n\n# --------------------------------------------------------------------------------------------------------------------------"
-echo -e "# GPU Drivers"
-echo -e "# --------------------------------------------------------------------------------------------------------------------------\n"
-
-# Install appropriate GPU drivers based on earlier selection
-if [ "$GPU_TYPE" = "NVIDIA" ]; then
-    if [ "$NVIDIA_DRIVER_TYPE" = "open" ]; then
-        echo "Installing NVIDIA open drivers..."
-        pacman -S --noconfirm nvidia-open-lts nvidia-settings nvidia-utils opencl-nvidia libxnvctrl
-    else
-        echo "Installing NVIDIA proprietary drivers..."
-        pacman -S --noconfirm nvidia-lts nvidia-settings nvidia-utils opencl-nvidia libxnvctrl
-    fi
-elif [ "$GPU_TYPE" = "AMD/Intel" ]; then
-    echo "Installing AMD/Intel GPU drivers..."
-    pacman -S --noconfirm mesa lib32-mesa vulkan-radeon lib32-vulkan-radeon libva-mesa-driver lib32-libva-mesa-driver mesa-vdpau lib32-mesa-vdpau
-elif [ "$GPU_TYPE" = "None/VM" ]; then
-    echo "Installing basic video drivers for VM/basic system..."
-    pacman -S --noconfirm mesa xf86-video-fbdev
-fi
-
-
-echo -e "\n\n# --------------------------------------------------------------------------------------------------------------------------"
-echo -e "# Desktop Environment"
-echo -e "# --------------------------------------------------------------------------------------------------------------------------\n"
-
-echo "Installing desktop environment ($de_choice)..."
-
-case $de_choice in
-        1)
-                echo "Installing Hyprland..."
-                pacman -S --noconfirm hyprland egl-wayland sddm
-                find /usr/share/wayland-sessions -type f -not -name "hyprland.desktop" -delete
-                mkdir -p /etc/sddm.conf.d/
-                sed -i 's/^.*$/[Theme]\nCurrent=breeze/' /etc/sddm.conf.d/theme.conf 2>/dev/null || sed -e '$a[Theme]\nCurrent=breeze' -i /etc/sddm.conf.d/theme.conf
-                systemctl enable sddm
-                wget -P /home/$USER https://raw.githubusercontent.com/mylinuxforwork/dotfiles/main/setup-arch.sh 
-                ;;
-        2)
-                echo "Installing XFCE4..."
-                pacman -S --noconfirm xfce4 xfce4-goodies lightdm lightdm-gtk-greeter
-                systemctl enable lightdm
-                ;;
-        3)
-                echo "Installing KDE Plasma..."
-                pacman -S --noconfirm plasma sddm
-                mkdir -p /etc/sddm.conf.d/
-                sed -i 's/^.*$/[Theme]\nCurrent=breeze/' /etc/sddm.conf.d/theme.conf 2>/dev/null || sed -e '$a[Theme]\nCurrent=breeze' -i /etc/sddm.conf.d/theme.conf
-                systemctl enable sddm
-                ;;
-        4)
-                echo "Installing GNOME..."
-                pacman -S --noconfirm gnome gdm
-                systemctl enable gdm
-                ;;
-        *)
-                echo "Invalid choice. Installing Hyprland as default..."
-                pacman -S --noconfirm hyprland egl-wayland
-                find /usr/share/wayland-sessions -type f -not -name "hyprland.desktop" -delete
-                ;;
-esac
-
-
-echo -e "\n\n# --------------------------------------------------------------------------------------------------------------------------"
 echo -e "# System setup"
 echo -e "# --------------------------------------------------------------------------------------------------------------------------\n"
 
@@ -582,7 +461,6 @@ timedatectl set-ntp true
 sed -i '/^#en_US.UTF-8/s/^#//g' /etc/locale.gen && locale-gen
 
 
-
 echo -e "\n\n# --------------------------------------------------------------------------------------------------------------------------"
 echo -e "# Create User"
 echo -e "# --------------------------------------------------------------------------------------------------------------------------\n"
@@ -591,15 +469,9 @@ useradd -m $USER
 echo "$USER:$USERPASS" | chpasswd
 echo -e "\n\n$USER ALL=(ALL:ALL) NOPASSWD: ALL" >> /etc/sudoers
 
+echo "User $USER created"
+
 echo "root:$ROOTPASS" | chpasswd
-
-
-echo -e "\n\n# --------------------------------------------------------------------------------------------------------------------------"
-echo -e "# Install Yay"
-echo -e "# --------------------------------------------------------------------------------------------------------------------------\n"
-
-su -c "cd /tmp && git clone https://aur.archlinux.org/yay.git && cd yay && echo $USERPASS | makepkg -si --noconfirm" $USER
-echo "Yay installation completed"
 
 
 echo -e "\n\n# --------------------------------------------------------------------------------------------------------------------------"
@@ -611,6 +483,109 @@ systemctl mask ldconfig.service
 systemctl mask geoclue
 
 
+echo -e "\n\n# --------------------------------------------------------------------------------------------------------------------------"
+echo -e "# Desktop Environment"
+echo -e "# --------------------------------------------------------------------------------------------------------------------------\n"
+
+echo "Installing desktop environment ($de_choice)..."
+
+case $de_choice in
+        1)
+                echo "Installing Hyprland..."
+                pacman -S --noconfirm hyprland egl-wayland
+                find /usr/share/wayland-sessions -type f -not -name "hyprland.desktop" -delete
+                mkdir -p /etc/systemd/system/getty@tty1.service.d 
+
+                echo -e "
+                [Service]
+                ExecStart=
+                ExecStart=-/sbin/agetty -o '-p -f -- \\u' --noclear --autologin $USER %I $TERM" >> /etc/systemd/system/getty@tty1.service.d/autologin.conf
+
+                echo -e "[[ $(tty) == /dev/tty1 ]] && Hyprland > /dev/null" >> /home/$USER/.bash_profile
+
+
+                groupadd -r autologin
+                gpasswd -a $USER autologin
+
+                su -c "cd && wget https://raw.githubusercontent.com/mylinuxforwork/dotfiles/main/setup-arch.sh && chmod +x setup-arch.sh" $USER
+                ;;
+        2)
+                echo "Installing XFCE4..."
+                pacman -S --noconfirm xfce4 xfce4-goodies lightdm lightdm-gtk-greeter
+                systemctl enable lightdm
+                ;;
+        3)
+                echo "Installing KDE Plasma..."
+                pacman -S --noconfirm plasma sddm
+                mkdir -p /etc/sddm.conf.d/
+                echo -e "[Theme]\nCurrent=breeze" > /etc/sddm.conf.d/theme.conf
+                systemctl enable sddm
+                ;;
+        4)
+                echo "Installing GNOME..."
+                pacman -S --noconfirm gnome gdm
+                systemctl enable gdm
+                ;;
+        *)
+                echo "Invalid choice. Installing Hyprland as default..."
+                pacman -S --noconfirm hyprland egl-wayland
+                find /usr/share/wayland-sessions -type f -not -name "hyprland.desktop" -delete
+                ;;
+esac
+
+
+echo -e "\n\n# --------------------------------------------------------------------------------------------------------------------------"
+echo -e "# Enable Multilib Repo"
+echo -e "# --------------------------------------------------------------------------------------------------------------------------\n"
+
+sed -i '/\[multilib\]/,/Include/ s/^#//' /etc/pacman.conf
+pacman -Syy
+
+
+echo -e "\n\n# --------------------------------------------------------------------------------------------------------------------------"
+echo -e "# Install Yay"
+echo -e "# --------------------------------------------------------------------------------------------------------------------------\n"
+
+# su -c "cd /tmp && git clone https://aur.archlinux.org/yay.git && cd yay && echo $USERPASS | makepkg -si --noconfirm" $USER
+# echo "Yay installation completed"
+
+
+echo -e "\n\n# --------------------------------------------------------------------------------------------------------------------------"
+echo -e "# Install Utilities"
+echo -e "# --------------------------------------------------------------------------------------------------------------------------\n"
+
+#pacman -S --noconfirm flatpak firefox man nano git
+
+
+echo -e "\n\n# --------------------------------------------------------------------------------------------------------------------------"
+echo -e "# Configure Audio"
+echo -e "# --------------------------------------------------------------------------------------------------------------------------\n"
+
+#pacman -S --noconfirm pipewire wireplumber pipewire-pulse alsa-plugins alsa-firmware sof-firmware alsa-card-profiles pavucontrol-qt
+
+
+echo -e "\n\n# --------------------------------------------------------------------------------------------------------------------------"
+echo -e "# GPU Drivers"
+echo -e "# --------------------------------------------------------------------------------------------------------------------------\n"
+
+# # Install appropriate GPU drivers based on earlier selection
+# if [ "$GPU_TYPE" = "NVIDIA" ]; then
+#     if [ "$NVIDIA_DRIVER_TYPE" = "open" ]; then
+#         echo "Installing NVIDIA open drivers..."
+#         pacman -S --noconfirm nvidia-open-lts nvidia-settings nvidia-utils opencl-nvidia libxnvctrl
+#     else
+#         echo "Installing NVIDIA proprietary drivers..."
+#         pacman -S --noconfirm nvidia-lts nvidia-settings nvidia-utils opencl-nvidia libxnvctrl
+#     fi
+# elif [ "$GPU_TYPE" = "AMD/Intel" ]; then
+#     echo "Installing AMD/Intel GPU drivers..."
+#     pacman -S --noconfirm mesa lib32-mesa vulkan-radeon lib32-vulkan-radeon libva-mesa-driver lib32-libva-mesa-driver mesa-vdpau lib32-mesa-vdpau
+# elif [ "$GPU_TYPE" = "None/VM" ]; then
+#     echo "Installing basic video drivers for VM/basic system..."
+#     pacman -S --noconfirm mesa xf86-video-fbdev
+# fi
+
+
 END
 
 
@@ -618,3 +593,7 @@ END
 # Umount and reboot
 # --------------------------------------------------------------------------------------------------------------------------
 
+umount -R /mnt
+zfs umount -a
+zpool export -a
+reboot
