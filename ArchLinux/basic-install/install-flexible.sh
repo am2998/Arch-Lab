@@ -30,9 +30,9 @@ echo "  2) XFCE4"
 echo "  3) KDE Plasma"
 echo "  4) GNOME"
 echo
-read -p "Enter your choice (1-4): " de_choice
+read -p "Enter your choice (1-4): " DE_CHOICE
 
-case $de_choice in
+case $DE_CHOICE in
     1)
         DE_TYPE="Hyprland"
         echo "✓ Selected Hyprland for desktop environment."
@@ -51,7 +51,7 @@ case $de_choice in
         ;;
     *)
         echo "⚠ Invalid choice. Defaulting to Hyprland."
-        de_choice=1
+        DE_CHOICE=1
         DE_TYPE="Hyprland"
         ;;
 esac
@@ -201,8 +201,8 @@ while true; do
             echo "  2) XFCE4"
             echo "  3) KDE Plasma"
             echo "  4) GNOME"
-            read -p "Enter your choice (1-4): " de_choice
-            case $de_choice in
+            read -p "Enter your choice (1-4): " DE_CHOICE
+            case $DE_CHOICE in
                 1) DE_TYPE="Hyprland" ;;
                 2) DE_TYPE="XFCE4" ;;
                 3) DE_TYPE="KDE Plasma" ;;
@@ -368,7 +368,7 @@ env \
     USERPASS="$USERPASS" \
     ROOTPASS="$ROOTPASS" \
     CPU_MICROCODE="$CPU_MICROCODE" \
-    de_choice="$de_choice" \
+    DE_CHOICE="$DE_CHOICE" \
     GPU_TYPE="$GPU_TYPE" \
     NVIDIA_DRIVER_TYPE="$NVIDIA_DRIVER_TYPE" \
     arch-chroot /mnt /bin/bash <<END
@@ -487,9 +487,9 @@ echo -e "\n\n# -----------------------------------------------------------------
 echo -e "# Desktop Environment"
 echo -e "# --------------------------------------------------------------------------------------------------------------------------\n"
 
-echo "Installing desktop environment ($de_choice)..."
+echo "Installing desktop environment ($DE_CHOICE)..."
 
-case $de_choice in
+case $DE_CHOICE in
         1)
                 echo "Installing Hyprland..."
                 pacman -S --noconfirm hyprland egl-wayland

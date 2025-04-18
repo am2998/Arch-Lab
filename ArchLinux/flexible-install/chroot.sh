@@ -1,5 +1,7 @@
 #!/bin/bash
 
+echo -e "\033[1;92m✅ Successfully arch-chrooted in new installation\033[0m\n"
+
 # Define commands script
 CHECK_FUNCTIONS_SCRIPT="/install/functions.sh"
 
@@ -128,11 +130,21 @@ run_command "mkinitcpio -p linux-lts" "generate initial ramdisk"
 # ----------------------------------------
 print_section_header "CONFIGURING ZRAM"
 
-run_command "bash -c 'cat > /etc/systemd/zram-generator.conf <<EOF
+# Check if we're in advanced mode with custom ZRAM settings
+if [ "$INSTALL_MODE" = "advanced" ]; then
+    echo -e "\033[1;94m⚙️ Configuring ZRAM with custom settings...\033[0m"
+    run_command "bash -c 'cat > /etc/systemd/zram-generator.conf <<EOF
+[zram0]
+zram-size = $ZRAM_SIZE
+compression-algorithm = $ZRAM_COMPRESSION
+EOF'" "create ZRAM configuration with custom settings"
+else
+    run_command "bash -c 'cat > /etc/systemd/zram-generator.conf <<EOF
 [zram0]
 zram-size = min(ram, 32768)
 compression-algorithm = zstd
-EOF'" "create ZRAM configuration"
+EOF'" "create ZRAM configuration with default settings"
+fi
 
 echo -e "\033[1;94m⚙️ Setting up ZRAM kernel parameters...\033[0m"
 echo "vm.swappiness = 180" >> /etc/sysctl.d/99-vm-zram-parameters.conf
@@ -183,18 +195,21 @@ run_command "echo \"root:$ROOTPASS\" | chpasswd" "set root password"
 print_section_header "CONFIGURING SERVICES"
 
 run_command "systemctl enable NetworkManager" "enable NetworkManager"
-run_command "systemctl mask ldconfig.service" "mask ldconfig service"
-run_command "systemctl mask geoclue" "mask geoclue service"
+
 
 # ----------------------------------------
 # DESKTOP ENVIRONMENT
 # ----------------------------------------
 print_section_header "INSTALLING DESKTOP ENVIRONMENT"
 
-echo -e "\033[1;94m🖥️ Selected desktop environment: \033[1;97m$de_choice\033[0m"
+# Debug output to check what value we're receiving
+echo -e "\033[1;94m🖥️ Received desktop environment value: \033[1;97m$DE_CHOICE\033[0m"
 
-case $de_choice in
-        1)
+# Ensure the variable is a number for proper comparison
+DE_CHOICE=$(echo "$DE_CHOICE" | tr -d '"') # Remove any quotes that might be present
+
+case "$DE_CHOICE" in
+        "1")
                 echo -e "\033[1;92m✨ Installing Hyprland...\033[0m"
                 run_command "pacman -S --noconfirm hyprland egl-wayland" "install Hyprland"
                 run_command "find /usr/share/wayland-sessions -type f -not -name \"hyprland.desktop\" -delete" "clean up wayland sessions"
@@ -213,25 +228,25 @@ case $de_choice in
 
                 run_command "su -c \"cd && wget https://raw.githubusercontent.com/mylinuxforwork/dotfiles/main/setup-arch.sh && chmod +x setup-arch.sh\" $USER" "download setup script for user"
                 ;;
-        2)
+        "2")
                 echo -e "\033[1;92m✨ Installing XFCE4...\033[0m"
                 run_command "pacman -S --noconfirm xfce4 xfce4-goodies lightdm lightdm-gtk-greeter" "install XFCE4"
                 run_command "systemctl enable lightdm" "enable LightDM"
                 ;;
-        3)
+        "3")
                 echo -e "\033[1;92m✨ Installing KDE Plasma...\033[0m"
                 run_command "pacman -S --noconfirm plasma sddm" "install KDE Plasma"
                 mkdir -p /etc/sddm.conf.d/
                 echo -e "[Theme]\nCurrent=breeze" > /etc/sddm.conf.d/theme.conf
                 run_command "systemctl enable sddm" "enable SDDM"
                 ;;
-        4)
+        "4")
                 echo -e "\033[1;92m✨ Installing GNOME...\033[0m"
                 run_command "pacman -S --noconfirm gnome gdm" "install GNOME"
                 run_command "systemctl enable gdm" "enable GDM"
                 ;;
         *)
-                echo -e "\033[1;91m❌ Invalid choice. Installing Hyprland as default...\033[0m"
+                echo -e "\033[1;91m❌ Invalid choice '$DE_CHOICE'. Installing Hyprland as default...\033[0m"
                 run_command "pacman -S --noconfirm hyprland egl-wayland" "install Hyprland"
                 run_command "find /usr/share/wayland-sessions -type f -not -name \"hyprland.desktop\" -delete" "clean up wayland sessions"
                 ;;

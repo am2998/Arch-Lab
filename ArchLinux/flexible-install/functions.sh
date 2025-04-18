@@ -70,6 +70,17 @@ run_command() {
     local retry_prompt="${3:-true}"
     local silent="${4:-false}"
     
+    # Check if this is a critical command that should not be skipped
+    local is_critical=false
+    if [[ "$desc" == *"zfs"* ]] || [[ "$desc" == *"ZFS"* ]] || 
+       [[ "$desc" == *"disk"* ]] || [[ "$desc" == *"partition"* ]] || 
+       [[ "$desc" == *"mkinitcpio"* ]] || [[ "$desc" == *"ZFSBootMenu"* ]] ||
+       [[ "$desc" == *"format"* ]] || [[ "$desc" == *"mount"* ]] || 
+       [[ "$desc" == *"bootloader"* ]] || [[ "$desc" == *"boot"* ]]; then
+        is_critical=true
+        retry_prompt="critical"
+    fi
+    
     if [ "$silent" != "true" ]; then
         echo -e "\n\033[1;94m⚙️ \033[1;38;5;87mExecuting:\033[0m \033[1;38;5;195m$desc\033[0m"
     fi
@@ -88,15 +99,38 @@ run_command() {
             fi
             return 0
         else
-            handle_error "$desc" "$retry_prompt"
-            local retry_status=$?
-            
-            if [ $retry_status -eq 0 ]; then
-                # User chose to retry
+            if [ "$retry_prompt" = "critical" ]; then
+                echo -e "\033[1;31m❌ Error: Failed to $desc\033[0m" >&2
+                echo -e "\033[1;31m⚠️  This is a critical operation and cannot be skipped.\033[0m" >&2
+                while true; do
+                    read -p $'\n\033[1;33mRetry? (y) or Abort installation (a): \033[0m' choice
+                    case "$choice" in
+                        [Yy]*)
+                            echo -e "\n\033[1;34m🔄 Retrying\033[0m"
+                            break
+                            ;;
+                        [Aa]*)
+                            echo -e "\n\033[1;31m🛑 Aborting installation\033[0m"
+                            exit 1
+                            ;;
+                        *)
+                            echo -e "\n\033[1;35m❓ Invalid choice. Please enter 'y' or 'a'\033[0m"
+                            ;;
+                    esac
+                done
+                # Continue retrying since this is a critical command
                 continue
             else
-                # User chose to skip
-                return 1
+                handle_error "$desc" "$retry_prompt"
+                local retry_status=$?
+                
+                if [ $retry_status -eq 0 ]; then
+                    # User chose to retry
+                    continue
+                else
+                    # User chose to skip
+                    return 1
+                fi
             fi
         fi
     done

@@ -15,6 +15,9 @@ echo -e "\033[1;38;5;45m         Flexible Installation Script\033[0m"
 echo -e "\033[1;38;5;243m           (A script for Arch Linux installation)\033[0m\n"
 
 
+# ----------------------------------------
+# NETWORK VERIFICATION
+# ----------------------------------------
 print_section_header "NETWORK VERIFICATION"
 
 # Verify network connection
@@ -26,6 +29,43 @@ else
     echo -e "\033[1;93m💡 Try: iwctl $0\033[0m"
     exit 1
 fi
+
+# ----------------------------------------
+# MODE SELECTION
+# ----------------------------------------
+print_section_header "INSTALLATION MODE"
+
+echo -e "\033[1;94mSelect installation mode:\033[0m"
+echo -e "  \033[1;37m1)\033[0m \033[1;38;5;82mSimple\033[0m (Recommended, fewer questions with sensible defaults)"
+echo -e "  \033[1;37m2)\033[0m \033[1;38;5;208mAdvanced\033[0m (More customization options, detailed configuration)"
+echo
+
+while true; do
+    echo -en "\033[1;94mEnter your choice (1-2): \033[0m"
+    read -r moDE_CHOICE
+    
+    case $moDE_CHOICE in
+        1)
+            INSTALL_MODE="simple"
+            echo -e "\033[1;92m✅ Selected Simple mode\033[0m\n"
+            
+            # Set default values for advanced options
+            ZRAM_SIZE="min(ram, 32768)"  # Default ZRAM size (in MB)
+            EFI_PART_SIZE="1G"           # Default EFI partition size
+            ZFS_COMPRESSION="lz4"        # Default ZFS compression algorithm
+            break
+            ;;
+        2)
+            INSTALL_MODE="advanced"
+            echo -e "\033[1;92m✅ Selected Advanced mode\033[0m\n"
+            break
+            ;;
+        *)
+            echo -e "\033[1;91m❌ Invalid choice. Please enter 1 or 2.\033[0m"
+            ;;
+    esac
+done
+
 
 # ----------------------------------------
 # SETUP: INITIAL VARIABLES
@@ -144,14 +184,14 @@ source $CHECK_FUNCTIONS_SCRIPT
 print_section_header "DESKTOP ENVIRONMENT SELECTION"
 
 echo -e "\033[1;33mChoose your desktop environment:\033[0m"
-echo -e "  \033[1;37m1)\033[0m Hyprland"
-echo -e "  \033[1;37m2)\033[0m XFCE4"
-echo -e "  \033[1;37m3)\033[0m KDE Plasma"
-echo -e "  \033[1;37m4)\033[0m GNOME"
+echo -e "  \033[1;37m1)\033[0m \033[1;38;5;51mHyprland\033[0m"
+echo -e "  \033[1;37m2)\033[0m \033[1;38;5;220mXFCE4\033[0m"
+echo -e "  \033[1;37m3)\033[0m \033[1;38;5;39mKDE Plasma\033[0m"
+echo -e "  \033[1;37m4)\033[0m \033[1;38;5;202mGNOME\033[0m"
 echo
-read -p "Enter your choice (1-4): " de_choice
+read -p "Enter your choice (1-4): " DE_CHOICE
 
-case $de_choice in
+case $DE_CHOICE in
     1)
         DE_TYPE="Hyprland"
         echo -e "\033[1;32m✓ Selected Hyprland for desktop environment.\033[0m\n"
@@ -170,7 +210,7 @@ case $de_choice in
         ;;
     *)
         echo -e "\033[1;33m⚠ Invalid choice. Defaulting to Hyprland.\033[0m\n"
-        de_choice=1
+        DE_CHOICE=1
         DE_TYPE="Hyprland"
         ;;
 esac
@@ -439,7 +479,6 @@ echo -e "\033[1;32m✓ Username set to: \033[1;37m$USER\033[0m\n"
 # ----------------------------------------
 print_section_header "PASSWORD CONFIGURATION"
 
-echo -e "\033[1;33mSet user and root passwords:\033[0m"
 get_password "Enter the password for user $USER" USERPASS
 echo -e "\033[1;32m✓ User password set\033[0m"
 
@@ -452,8 +491,8 @@ echo -e "\033[1;32m✓ Root password set\033[0m\n"
 print_section_header "CPU SELECTION"
 
 echo -e "\033[1;33mChoose your CPU type:\033[0m"
-echo -e "  \033[1;37m1)\033[0m Intel"
-echo -e "  \033[1;37m2)\033[0m AMD"
+echo -e "  \033[1;37m1)\033[0m \033[1;38;5;39mIntel\033[0m"
+echo -e "  \033[1;37m2)\033[0m \033[1;38;5;196mAMD\033[0m"
 echo
 read -p "Enter your choice (1-2): " cpu_choice
 
@@ -481,9 +520,9 @@ esac
 print_section_header "GPU SELECTION"
 
 echo -e "\033[1;33mChoose your GPU type:\033[0m"
-echo -e "  \033[1;37m1)\033[0m NVIDIA"
-echo -e "  \033[1;37m2)\033[0m AMD/Intel (Open Source)"
-echo -e "  \033[1;37m3)\033[0m None/VM"
+echo -e "  \033[1;37m1)\033[0m \033[1;38;5;118mNVIDIA\033[0m"
+echo -e "  \033[1;37m2)\033[0m \033[1;38;5;75mAMD/Intel\033[0m (Open Source)"
+echo -e "  \033[1;37m3)\033[0m \033[1;38;5;250mNone/VM\033[0m"
 echo
 read -p "Enter your choice (1-3): " gpu_choice
 
@@ -558,6 +597,130 @@ while true; do
     esac
 done
 
+# ----------------------------------------
+# ADVANCED OPTIONS (only in advanced mode)
+# ----------------------------------------
+if [ "$INSTALL_MODE" = "advanced" ]; then
+    print_section_header "ADVANCED ZRAM CONFIGURATION"
+    
+    echo -e "\033[1;33mConfigure ZRAM settings:\033[0m"
+    
+    # Ask for ZRAM size
+    echo -e "\033[1;33mSelect ZRAM size:\033[0m"
+    echo -e "  \033[1;37m1)\033[0m \033[1;38;5;39mAuto\033[0m (min(RAM, 32GB) - recommended)"
+    echo -e "  \033[1;37m2)\033[0m \033[1;38;5;202mHalf of RAM\033[0m"
+    echo -e "  \033[1;37m3)\033[0m \033[1;38;5;118mCustom value\033[0m (specify in MB)"
+    echo
+    
+    while true; do
+        echo -en "\033[1;94mEnter your choice (1-3) [1]: \033[0m"
+        read -r zram_size_choice
+        
+        case $zram_size_choice in
+            1|"")
+                ZRAM_SIZE="min(ram, 32768)"
+                echo -e "\033[1;32m✓ Selected automatic ZRAM sizing\033[0m"
+                break
+                ;;
+            2)
+                ZRAM_SIZE="ram / 2"
+                echo -e "\033[1;32m✓ Selected half of RAM for ZRAM\033[0m"
+                break
+                ;;
+            3)
+                while true; do
+                    echo -en "\033[1;94mEnter ZRAM size in MB (e.g., 8192 for 8GB): \033[0m"
+                    read -r custom_zram_size
+                    
+                    # Validate input (simple check for numeric value)
+                    if [[ "$custom_zram_size" =~ ^[0-9]+$ ]]; then
+                        ZRAM_SIZE="$custom_zram_size"
+                        echo -e "\033[1;32m✓ ZRAM size set to: \033[1;37m${custom_zram_size}MB\033[0m"
+                        break
+                    else
+                        echo -e "\033[1;91m❌ Invalid size. Please enter a numeric value in MB.\033[0m"
+                    fi
+                done
+                break
+                ;;
+            *)
+                echo -e "\033[1;91m❌ Invalid choice. Please enter a number between 1 and 3.\033[0m"
+                ;;
+        esac
+    done
+    
+    # Ask for ZRAM compression algorithm
+    echo -e "\n\033[1;33mSelect ZRAM compression algorithm:\033[0m"
+    echo -e "  \033[1;37m1)\033[0m \033[1;38;5;39mzstd\033[0m (Best balance of speed/compression - recommended)"
+    echo -e "  \033[1;37m2)\033[0m \033[1;38;5;202mlz4\033[0m (Faster, lower compression ratio)"
+    echo -e "  \033[1;37m3)\033[0m \033[1;38;5;118mlzo-rle\033[0m (Legacy option)"
+    echo -e "  \033[1;37m4)\033[0m \033[1;38;5;196mlzo\033[0m (Older algorithm)"
+    echo
+    
+    while true; do
+        echo -en "\033[1;94mEnter your choice (1-4) [1]: \033[0m"
+        read -r zram_compression_choice
+        
+        case $zram_compression_choice in
+            1|"")
+                ZRAM_COMPRESSION="zstd"
+                echo -e "\033[1;32m✓ Selected zstd compression algorithm\033[0m\n"
+                break
+                ;;
+            2)
+                ZRAM_COMPRESSION="lz4"
+                echo -e "\033[1;32m✓ Selected lz4 compression algorithm\033[0m\n"
+                break
+                ;;
+            3)
+                ZRAM_COMPRESSION="lzo-rle"
+                echo -e "\033[1;32m✓ Selected lzo-rle compression algorithm\033[0m\n"
+                break
+                ;;
+            4)
+                ZRAM_COMPRESSION="lzo"
+                echo -e "\033[1;32m✓ Selected lzo compression algorithm\033[0m\n"
+                break
+                ;;
+            *)
+                echo -e "\033[1;91m❌ Invalid choice. Please enter a number between 1 and 4.\033[0m"
+                ;;
+        esac
+    done
+    
+    # Advanced ZFS dataset options
+    print_section_header "ADVANCED ZFS DATASET CONFIGURATION"
+    
+    echo -e "\033[1;33mConfigure ZFS datasets:\033[0m"
+    
+    # Ask if user wants to create separate datasets
+    echo -e "\033[1;33mCreate separate ZFS datasets for common directories?\033[0m"
+    echo -e "  \033[1;37m1)\033[0m \033[1;38;5;82mYes\033[0m (Recommended for flexible management)"
+    echo -e "  \033[1;37m2)\033[0m \033[1;38;5;203mNo\033[0m (Simpler, use only the root dataset)"
+    echo
+    
+    while true; do
+        echo -en "\033[1;94mEnter your choice (1-2) [1]: \033[0m"
+        read -r separate_datasets_choice
+        
+        case $separate_datasets_choice in
+            1|"")
+                SEPARATE_DATASETS="yes"
+                echo -e "\033[1;32m✓ Will create separate ZFS datasets\033[0m\n"
+                break
+                ;;
+            2)
+                SEPARATE_DATASETS="no"
+                echo -e "\033[1;32m✓ Using single root dataset\033[0m\n"
+                break
+                ;;
+            *)
+                echo -e "\033[1;91m❌ Invalid choice. Please enter 1 or 2.\033[0m"
+                ;;
+        esac
+    done
+fi
+
 # --------------------------------------------------------------------------------------------------------------------------
 # Configuration Summary
 # --------------------------------------------------------------------------------------------------------------------------
@@ -579,6 +742,11 @@ display_summary() {
     echo "║ 10) NVIDIA Driver:      $(printf "%-21s" "$NVIDIA_DRIVER_TYPE") ║"
     fi
     echo "║ 11) Audio Server:       $(printf "%-21s" "$AUDIO_SERVER") ║"
+    if [ "$INSTALL_MODE" = "advanced" ]; then
+        echo "║ 12) ZRAM Size:          $(printf "%-21s" "$ZRAM_SIZE") ║"
+        echo "║ 13) ZRAM Compression:   $(printf "%-21s" "$ZRAM_COMPRESSION") ║"
+        echo "║ 14) Separate Datasets:  $(printf "%-21s" "$SEPARATE_DATASETS") ║"
+    fi
     echo "╚═══════════════════════════════════════════════╝"
 }
 
@@ -597,8 +765,8 @@ while true; do
             echo "  2) XFCE4"
             echo "  3) KDE Plasma"
             echo "  4) GNOME"
-            read -p "Enter your choice (1-4): " de_choice
-            case $de_choice in
+            read -p "Enter your choice (1-4): " DE_CHOICE
+            case $DE_CHOICE in
                 1) DE_TYPE="Hyprland" ;;
                 2) DE_TYPE="XFCE4" ;;
                 3) DE_TYPE="KDE Plasma" ;;
@@ -816,9 +984,10 @@ while true; do
 done
 
 
-echo -e "\n\n# --------------------------------------------------------------------------------------------------------------------------"
-echo -e "# Clean System Disk"
-echo -e "# --------------------------------------------------------------------------------------------------------------------------\n"
+# ----------------------------------------
+# CLEAN SYSTEM DISK
+# ----------------------------------------
+print_section_header "CLEAN SYSTEM DISK"
 
 if lsblk | grep nvme &>/dev/null; then
         DISK="/dev/nvme0n1"
@@ -836,25 +1005,152 @@ else
 fi
 
 run_command "wipefs -a -f $DISK" "wipe disk signatures"
-(
-echo g           # Create a GPT partition table
-echo n           # Create the EFI partition
-echo             # Default, 1
-echo             # Default
-echo +1G         # 1GB for the EFI partition
-echo t           # Change partition type to EFI
-echo 1           # EFI type
-echo n           # Create the system partition
-echo             # Default, 2
-echo             # Default
-echo             # Default, use the rest of the space
-echo w           # Write the partition table
-) | run_command "fdisk $DISK" "create partitions"
+
+if [ "$INSTALL_MODE" = "advanced" ]; then
+    print_section_header "ADVANCED PARTITION CONFIGURATION"
+    
+    echo -e "\033[1;94mConfigure partition sizes:\033[0m"
+    
+    # Ask for EFI partition size
+    while true; do
+        echo -en "\033[1;94mEFI partition size (e.g., 512M, 1G) [1G]: \033[0m"
+        read -r efi_size
+        
+        # Use default if empty
+        if [ -z "$efi_size" ]; then
+            EFI_PART_SIZE="1G"
+            break
+        fi
+        
+        # Validate input format (simple check for format like 100M, 1G, etc.)
+        if [[ "$efi_size" =~ ^[0-9]+[MG]$ ]]; then
+            EFI_PART_SIZE="$efi_size"
+            echo -e "\033[1;32m✓ EFI partition size set to: \033[1;37m$EFI_PART_SIZE\033[0m"
+            break
+        else
+            echo -e "\033[1;91m❌ Invalid size format. Please use format like 512M or 1G.\033[0m"
+        fi
+    done
+    
+    # Ask if user wants to create a separate home partition
+    echo -e "\033[1;94mDo you want to create a separate home partition?\033[0m"
+    echo -e "  \033[1;37m1)\033[0m Yes (Separate partition for /home)"
+    echo -e "  \033[1;37m2)\033[0m No (Include /home in root dataset)"
+    echo
+    
+    while true; do
+        echo -en "\033[1;94mEnter your choice (1-2) [2]: \033[0m"
+        read -r home_choice
+        
+        case $home_choice in
+            1)
+                SEPARATE_HOME="yes"
+                # Ask for home partition size
+                while true; do
+                    echo -en "\033[1;94mSpecify home partition size (e.g., 100G, 50%): \033[0m"
+                    read -r home_size
+                    
+                    # Validate input format (simple check for format like 100G or 50%)
+                    if [[ "$home_size" =~ ^[0-9]+[G%]$ ]]; then
+                        HOME_PART_SIZE="$home_size"
+                        echo -e "\033[1;32m✓ Home partition size set to: \033[1;37m$HOME_PART_SIZE\033[0m"
+                        break
+                    else
+                        echo -e "\033[1;91m❌ Invalid size format. Please use format like 100G or 50%.\033[0m"
+                    fi
+                done
+                break
+                ;;
+            2|"")
+                SEPARATE_HOME="no"
+                HOME_PART_SIZE=""
+                echo -e "\033[1;32m✓ Home included in root dataset\033[0m"
+                break
+                ;;
+            *)
+                echo -e "\033[1;91m❌ Invalid choice. Please enter 1 or 2.\033[0m"
+                ;;
+        esac
+    done
+    
+    # Ask for ZFS compression algorithm
+    echo -e "\n\033[1;94mSelect ZFS compression algorithm:\033[0m"
+    echo -e "  \033[1;37m1)\033[0m \033[1;38;5;39mlz4\033[0m (Fast, good ratio, default)"
+    echo -e "  \033[1;37m2)\033[0m \033[1;38;5;202mzstd\033[0m (Better compression, slightly slower)"
+    echo -e "  \033[1;37m3)\033[0m \033[1;38;5;118mgzip\033[0m (Best compression, slowest)"
+    echo -e "  \033[1;37m4)\033[0m \033[1;38;5;196mNone\033[0m (No compression)"
+    echo
+    
+    while true; do
+        echo -en "\033[1;94mEnter your choice (1-4) [1]: \033[0m"
+        read -r compression_choice
+        
+        case $compression_choice in
+            1|"")
+                ZFS_COMPRESSION="lz4"
+                echo -e "\033[1;32m✓ Selected lz4 compression\033[0m"
+                break
+                ;;
+            2)
+                ZFS_COMPRESSION="zstd"
+                echo -e "\033[1;32m✓ Selected zstd compression\033[0m"
+                break
+                ;;
+            3)
+                ZFS_COMPRESSION="gzip"
+                echo -e "\033[1;32m✓ Selected gzip compression\033[0m"
+                break
+                ;;
+            4)
+                ZFS_COMPRESSION="off"
+                echo -e "\033[1;32m✓ Compression disabled\033[0m"
+                break
+                ;;
+            *)
+                echo -e "\033[1;91m❌ Invalid choice. Please enter a number between 1 and 4.\033[0m"
+                ;;
+        esac
+    done
+    
+    # Run fdisk with custom settings
+    (
+    echo g           # Create a GPT partition table
+    echo n           # Create the EFI partition
+    echo             # Default, 1
+    echo             # Default
+    echo +$EFI_PART_SIZE  # Use custom EFI partition size
+    echo t           # Change partition type to EFI
+    echo 1           # EFI type
+    echo n           # Create the system partition
+    echo             # Default, 2
+    echo             # Default
+    echo             # Default, use the rest of the space
+    echo w           # Write the partition table
+    ) | run_command "fdisk $DISK" "create partitions"
+
+else
+    # Use default partition sizes
+    (
+    echo g           # Create a GPT partition table
+    echo n           # Create the EFI partition
+    echo             # Default, 1
+    echo             # Default
+    echo +1G         # 1GB for the EFI partition
+    echo t           # Change partition type to EFI
+    echo 1           # EFI type
+    echo n           # Create the system partition
+    echo             # Default, 2
+    echo             # Default
+    echo             # Default, use the rest of the space
+    echo w           # Write the partition table
+    ) | run_command "fdisk $DISK" "create partitions"
+fi
 
 
-echo -e "\n\n# --------------------------------------------------------------------------------------------------------------------------"
-echo -e "# Format/Mount Partitions"
-echo -e "# --------------------------------------------------------------------------------------------------------------------------\n"
+# ----------------------------------------
+# FORMAT/MOUNT PARTITIONS
+# ----------------------------------------
+print_section_header "FORMAT/MOUNT PARTITIONS"
 
 # Setup ZFS pool with encryption if selected
 if [ "$ENCRYPT_DISK" = "yes" ]; then
@@ -865,22 +1161,22 @@ if [ "$ENCRYPT_DISK" = "yes" ]; then
     echo "$DISK_PASSWORD" > /tmp/keyfiles/zroot.key
     chmod 000 /tmp/keyfiles/zroot.key
     
-    # Create ZFS pool with encryption
+    # Create ZFS pool with encryption and user-defined compression if in advanced mode
     run_command "zpool create \
         -o ashift=12 \
-        -O acltype=posixacl -O canmount=off -O compression=lz4 \
+        -O acltype=posixacl -O canmount=off -O compression=$ZFS_COMPRESSION \
         -O dnodesize=auto -O normalization=formD -o autotrim=on \
         -O atime=off -O xattr=sa -O mountpoint=none \
         -O encryption=aes-256-gcm -O keylocation=file:///tmp/keyfiles/zroot.key -O keyformat=passphrase \
-        -R /mnt zroot ${DISK}${PARTITION_2} -f" "create encrypted ZFS pool"
+        -R /mnt zroot ${DISK}${PARTITION_2} -f" "create encrypted ZFS pool with $ZFS_COMPRESSION compression"
 else
     echo -e "\033[1;94m🌊 Creating standard ZFS pool...\033[0m"
     run_command "zpool create \
         -o ashift=12 \
-        -O acltype=posixacl -O canmount=off -O compression=lz4 \
+        -O acltype=posixacl -O canmount=off -O compression=$ZFS_COMPRESSION \
         -O dnodesize=auto -O normalization=formD -o autotrim=on \
         -O atime=off -O xattr=sa -O mountpoint=none \
-        -R /mnt zroot ${DISK}${PARTITION_2} -f" "create ZFS pool"
+        -R /mnt zroot ${DISK}${PARTITION_2} -f" "create ZFS pool with $ZFS_COMPRESSION compression"
 fi
 
 run_command "zfs create -o canmount=noauto -o mountpoint=/ zroot/rootfs" "create ZFS root dataset"
@@ -905,25 +1201,28 @@ if [ "$ENCRYPT_DISK" = "yes" ]; then
 fi
 
 
-echo -e "\n\n# --------------------------------------------------------------------------------------------------------------------------"
-echo -e "# Install Base"
-echo -e "# --------------------------------------------------------------------------------------------------------------------------\n"
+# ----------------------------------------
+# INSTALL BASE
+# ----------------------------------------
+print_section_header "INSTALL BASE"
 
 run_command "pacstrap /mnt linux-lts linux-lts-headers mkinitcpio base base-devel linux-firmware zram-generator reflector sudo networkmanager efibootmgr $CPU_MICROCODE wget" "install base packages"
 
 
-echo -e "\n\n# --------------------------------------------------------------------------------------------------------------------------"
-echo -e "# Generate Fstab"
-echo -e "# --------------------------------------------------------------------------------------------------------------------------\n"
+# ----------------------------------------
+# GENERATE FSTAB
+# ----------------------------------------
+print_section_header "GENERATING FSTAB"
 
 genfstab -U /mnt > /mnt/etc/fstab
 echo -e "\nFstab file generated:\n"
 cat /mnt/etc/fstab
 
 
-echo -e "\n\n# --------------------------------------------------------------------------------------------------------------------------"
-echo -e "# Chroot"
-echo -e "# --------------------------------------------------------------------------------------------------------------------------\n"
+# ----------------------------------------
+# CHROOT
+# ----------------------------------------
+print_section_header "ARCH-CHROOT"
 
 # Create a temporary directory in the chroot environment
 mkdir -p /mnt/install
@@ -935,8 +1234,10 @@ cp ./chroot.sh /mnt/install/
 # Make scripts executable
 chmod +x /mnt/install/chroot.sh /mnt/install/"$CHECK_FUNCTIONS_SCRIPT"
 
+echo -e "\n\033[1;94m⚙️ \033[1;38;5;87mExecuting:\033[0m \033[1;38;5;195mchroot into the new system\033[0m"
+
 # Export all environment variables needed by the chroot script
-run_command "env \
+env \
     DISK=$DISK \
     HOSTNAME=\"$HOSTNAME\" \
     KEYBOARD_LAYOUT=\"$KEYBOARD_LAYOUT\" \
@@ -945,19 +1246,68 @@ run_command "env \
     USERPASS=\"$USERPASS\" \
     ROOTPASS=\"$ROOTPASS\" \
     CPU_MICROCODE=\"$CPU_MICROCODE\" \
-    de_choice=\"$de_choice\" \
+    DE_CHOICE=\"$DE_CHOICE\" \
     GPU_TYPE=\"$GPU_TYPE\" \
     NVIDIA_DRIVER_TYPE=\"$NVIDIA_DRIVER_TYPE\" \
     MIRROR_COUNTRY=\"$MIRROR_COUNTRY\" \
     AUDIO_SERVER=\"$AUDIO_SERVER\" \
-    arch-chroot /mnt /install/chroot.sh" "chroot into the new system"
+    arch-chroot /mnt /install/chroot.sh
 
 
 # --------------------------------------------------------------------------------------------------------------------------
-# Umount and reboot
+# Cleanup and Finalize Installation
 # --------------------------------------------------------------------------------------------------------------------------
+
+# Remove installation files from the mounted system
 rm -rf /mnt/install
-umount -R /mnt
-zfs umount -a
-zpool export -a
-reboot
+
+# Print completion message
+clear
+echo -e "\033[1;38;5;40m"
+echo " ██████╗  ██████╗ ███╗   ██╗███████╗██╗"
+echo " ██╔══██╗██╔═══██╗████╗  ██║██╔════╝██║"
+echo " ██║  ██║██║   ██║██╔██╗ ██║█████╗  ██║"
+echo " ██║  ██║██║   ██║██║╚██╗██║██╔══╝  ╚═╝"
+echo " ██████╔╝╚██████╔╝██║ ╚████║███████╗██╗"
+echo " ╚═════╝  ╚═════╝ ╚═╝  ╚═══╝╚══════╝╚═╝"
+echo -e "\033[0m"
+                                  
+echo -e "\033[1;92m✅ Installation completed successfully!\033[0m"
+echo -e "\033[1;94m📋 Installation Summary:\033[0m"
+echo -e "  \033[1;97m•\033[0m Hostname: \033[1;97m$HOSTNAME\033[0m"
+echo -e "  \033[1;97m•\033[0m Username: \033[1;97m$USER\033[0m"
+echo -e "  \033[1;97m•\033[0m Desktop: \033[1;97m$DE_TYPE\033[0m"
+echo -e "  \033[1;97m•\033[0m CPU: \033[1;97m$CPU_TYPE\033[0m"
+echo -e "  \033[1;97m•\033[0m GPU: \033[1;97m$GPU_TYPE\033[0m"
+echo -e "  \033[1;97m•\033[0m Audio: \033[1;97m$AUDIO_SERVER\033[0m"
+echo
+
+# Ask user if they want to reboot now
+while true; do
+    echo -en "\033[1;93mDo you want to reboot now? [Y/n]: \033[0m"
+    read -r reboot_choice
+    
+    case $reboot_choice in
+        [Nn]*)
+            echo -e "\n\033[1;94mSystem is ready. You can reboot manually when ready with 'reboot' command.\033[0m"
+            echo -e "\033[1;93m⚠️  Remember to properly unmount filesystems before rebooting:\033[0m"
+            echo -e "  \033[1;37m•\033[0m umount -R /mnt"
+            echo -e "  \033[1;37m•\033[0m zfs umount -a"
+            echo -e "  \033[1;37m•\033[0m zpool export -a"
+            exit 0
+            ;;
+        *)
+            echo -e "\n\033[1;94m🔄 Unmounting filesystems and rebooting system...\033[0m"
+            
+            # Unmount all filesystems and export pools
+            umount -R /mnt
+            zfs umount -a
+            zpool export -a
+            
+            # Reboot the system
+            echo -e "\033[1;92m👋 Rebooting now. See you on the other side!\033[0m"
+            sleep 2
+            reboot
+            ;;
+    esac
+done
