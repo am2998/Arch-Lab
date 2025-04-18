@@ -1,19 +1,124 @@
 #!/bin/bash
+# Load common functions
+source "$(dirname "$0")/functions.sh"
 
-cat <<'EOF'
+# Display welcome banner with enhanced colors
+clear
+echo -e "\033[1;38;5;75m"
+echo "    _             _       _     _                   "
+echo "   / \   _ __ ___| |__   | |   (_)_ __  _   ___  __ "
+echo "  / _ \ | '__/ __| '_ \  | |   | | '_ \| | | \ \/ / "
+echo " / ___ \| | | (__| | | | | |___| | | | | |_| |>  <  "
+echo "/_/   \_\_|  \___|_| |_| |_____|_|_| |_|\__,_/_/\_\ "
+echo -e "\033[0m"
+echo -e "\033[1;38;5;45m         Flexible Installation Script\033[0m"
+echo -e "\033[1;38;5;243m           (A script for Arch Linux installation)\033[0m\n"
 
 
- ______                                             ______                       __              _______   ________  __       __ 
-/      |                                           /      \                     /  |            /       \ /        |/  |  _  /  |
-$$$$$$/        __    __   _______   ______        /$$$$$$  |  ______    _______ $$ |____        $$$$$$$  |$$$$$$$$/ $$ | / \ $$ |
-  $$ |        /  |  /  | /       | /      \       $$ |__$$ | /      \  /       |$$      \       $$ |__$$ |   $$ |   $$ |/$  \$$ |
-  $$ |        $$ |  $$ |/$$$$$$$/ /$$$$$$  |      $$    $$ |/$$$$$$  |/$$$$$$$/ $$$$$$$  |      $$    $$<    $$ |   $$ /$$$  $$ |
-  $$ |        $$ |  $$ |$$      \ $$    $$ |      $$$$$$$$ |$$ |  $$/ $$ |      $$ |  $$ |      $$$$$$$  |   $$ |   $$ $$/$$ $$ |
- _$$ |_       $$ \__$$ | $$$$$$  |$$$$$$$$/       $$ |  $$ |$$ |      $$ \_____ $$ |  $$ |      $$ |__$$ |   $$ |   $$$$/  $$$$ |
-/ $$   |      $$    $$/ /     $$/ $$       |      $$ |  $$ |$$ |      $$       |$$ |  $$ |      $$    $$/    $$ |   $$$/    $$$ |
-$$$$$$/        $$$$$$/  $$$$$$$/   $$$$$$$/       $$/   $$/ $$/        $$$$$$$/ $$/   $$/       $$$$$$$/     $$/    $$/      $$/ 
-                                                                                                                                                                                                                                                                 
-EOF
+print_section_header "NETWORK VERIFICATION"
+
+# Verify network connection
+echo -e "\033[1;94m🌐 Checking network connection...\033[0m"
+if ping -c 1 archlinux.org &> /dev/null; then
+    echo -e "\033[1;92m✅ Network is working properly\033[0m\n"
+else
+    echo -e "\033[1;91m❌ No network connection. Please verify your network and try again.\033[0m"
+    echo -e "\033[1;93m💡 Try: iwctl $0\033[0m"
+    exit 1
+fi
+
+# ----------------------------------------
+# SETUP: INITIAL VARIABLES
+# ----------------------------------------
+
+# Device selection: Ask user to select the device for installation
+print_section_header "INSTALLATION DEVICE SELECTION"
+
+echo -e "\033[1;94m💾 Available disks for installation:\033[0m"
+echo -e "\033[1;93m⚠️  WARNING: THE SELECTED DISK WILL BE COMPLETELY ERASED!\033[0m\n"
+
+# Display available disks
+available_disks=$(lsblk -dpno NAME,SIZE,MODEL | grep -E "/dev/(sd|nvme|vd)")
+echo -e "\033[1;38;5;195m$available_disks\033[0m\n"
+
+# Let user select a disk
+while true; do
+    echo -en "\033[1;94mEnter the full path of the disk to install to (e.g., /dev/sda): \033[0m"
+    read -r DEVICE
+    
+    # Verify disk exists
+    if lsblk "$DEVICE" &> /dev/null; then
+        echo -e "\033[1;92m✅ Selected device: \033[1;97m$DEVICE\033[0m\n"
+        break
+    else
+        echo -e "\033[1;91m❌ Invalid device. Please enter a valid device path.\033[0m"
+    fi
+done
+
+# ----------------------------------------
+# CHOOSE BOOT TYPE
+# ----------------------------------------
+print_section_header "BOOT TYPE SELECTION"
+
+echo -e "\033[1;94mSelect the boot type:\033[0m"
+echo -e "  \033[1;97m1)\033[0m \033[1;38;5;220mEFI\033[0m (Modern systems, recommended)"
+echo -e "  \033[1;97m2)\033[0m \033[1;38;5;208mBIOS\033[0m (Legacy systems)"
+echo
+
+while true; do
+    echo -en "\033[1;94mEnter your choice (1-2): \033[0m"
+    read -r boot_choice
+    
+    case $boot_choice in
+        1)
+            BOOT_TYPE="efi"
+            echo -e "\033[1;92m✅ Selected EFI boot\033[0m\n"
+            break
+            ;;
+        2)
+            BOOT_TYPE="bios"
+            echo -e "\033[1;92m✅ Selected BIOS boot\033[0m\n"
+            break
+            ;;
+        *)
+            echo -e "\033[1;91m❌ Invalid choice. Please enter 1 or 2.\033[0m"
+            ;;
+    esac
+done
+
+print_section_header "DISK ENCRYPTION SELECTION"
+
+echo -e "\033[1;94mDo you want to encrypt your disk?\033[0m"
+echo -e "\033[1;93m⚠️  NOTE: If yes, you'll need to enter a passphrase at each boot\033[0m\n"
+
+echo -e "  \033[1;97m1)\033[0m \033[1;38;5;82mYes\033[0m (More secure, requires passphrase)"
+echo -e "  \033[1;97m2)\033[0m \033[1;38;5;203mNo\033[0m (More convenient, less secure)"
+echo
+
+while true; do
+    echo -en "\033[1;94mEnter your choice (1-2): \033[0m"
+    read -r encrypt_choice
+    
+    case $encrypt_choice in
+        1)
+            ENCRYPT_DISK="yes"
+            echo -e "\033[1;92m✅ Disk encryption enabled\033[0m"
+            # Get encryption passphrase
+            get_password "Enter disk encryption passphrase" DISK_PASSWORD
+            echo -e "\033[1;92m✅ Encryption passphrase set\033[0m\n"
+            break
+            ;;
+        2)
+            ENCRYPT_DISK="no"
+            DISK_PASSWORD=""
+            echo -e "\033[1;92m✓ Disk encryption disabled\033[0m\n"
+            break
+            ;;
+        *)
+            echo -e "\033[1;91m❌ Invalid choice. Please enter 1 or 2.\033[0m"
+            ;;
+    esac
+done
 
 
 # Define commands script
@@ -205,35 +310,39 @@ done
 # ----------------------------------------
 print_section_header "LOCALE SELECTION"
 
-# List available locales and let user select one
 echo -e "\033[1;33mSelect your system locale:\033[0m"
-# Get available locales and store them in an array
-mapfile -t ALL_AVAILABLE_LOCALES < <(grep -E "^#[a-zA-Z]" /etc/locale.gen | sed 's/^#//' | sort)
 
-# Create a filtered array with only one variant per base language
-declare -a AVAILABLE_LOCALES
-declare -A seen_locales
-
-for locale in "${ALL_AVAILABLE_LOCALES[@]}"; do
-    # Extract the base language code (e.g., "en_US" from "en_US.UTF-8")
-    base_lang=$(echo "$locale" | cut -d'.' -f1 | cut -d'@' -f1)
-    
-    # If we haven't seen this base language yet, add it to our filtered list
-    if [[ -z "${seen_locales[$base_lang]}" ]]; then
-        seen_locales[$base_lang]=1
-        AVAILABLE_LOCALES+=("$locale")
-    fi
-done
+# Define an array of essential locales (UTF-8 variants for common languages)
+declare -a ESSENTIAL_LOCALES=(
+    "en_US.UTF-8"
+    "en_GB.UTF-8"
+    "de_DE.UTF-8"
+    "fr_FR.UTF-8"
+    "it_IT.UTF-8"
+    "es_ES.UTF-8"
+    "pt_BR.UTF-8"
+    "ru_RU.UTF-8"
+    "zh_CN.UTF-8"
+    "ja_JP.UTF-8"
+    "ko_KR.UTF-8"
+    "ar_SA.UTF-8"
+    "hi_IN.UTF-8"
+    "pl_PL.UTF-8"
+    "nl_NL.UTF-8"
+    "sv_SE.UTF-8"
+    "tr_TR.UTF-8"
+    "cs_CZ.UTF-8"
+)
 
 # Set the number of columns for display
-LOCALE_COLUMNS=4
-TOTAL_LOCALES=${#AVAILABLE_LOCALES[@]}
+LOCALE_COLUMNS=3
+TOTAL_LOCALES=${#ESSENTIAL_LOCALES[@]}
 
-echo -e "\nAvailable locales (primary variants only):"
+echo -e "\nAvailable locales (essential UTF-8 variants only):"
 # Display available locales in multiple columns
 for ((i=0; i<TOTAL_LOCALES; i++)); do
     # Format each entry with fixed width for alignment
-    printf "  \033[1;37m%3d)\033[0m %-22s" "$((i+1))" "${AVAILABLE_LOCALES[$i]}"
+    printf "  \033[1;37m%2d)\033[0m %-20s" "$((i+1))" "${ESSENTIAL_LOCALES[$i]}"
     # Add a newline after every LOCALE_COLUMNS items
     if (( (i+1) % LOCALE_COLUMNS == 0 )); then
         echo ""
@@ -244,18 +353,75 @@ if (( TOTAL_LOCALES % LOCALE_COLUMNS != 0 )); then
     echo ""
 fi
 
+# Add an option for custom locale selection
+echo -e "  \033[1;37m99)\033[0m Custom (show all available locales)"
+
 # Let user select a locale by number
 while true; do
     echo -en "\nEnter the number of your desired locale: "
     read -r locale_choice
     
-    # Validate input
-    if [[ "$locale_choice" =~ ^[0-9]+$ && "$locale_choice" -ge 1 && "$locale_choice" -le "${#AVAILABLE_LOCALES[@]}" ]]; then
-        SYSTEM_LOCALE="${AVAILABLE_LOCALES[$((locale_choice-1))]}"
+    if [[ "$locale_choice" = "99" ]]; then
+        # User wants to see all available locales
+        echo -e "\n\033[1;94mShowing all available locales...\033[0m"
+        # Get available locales and store them in an array
+        mapfile -t ALL_AVAILABLE_LOCALES < <(grep -E "^#[a-zA-Z]" /etc/locale.gen | sed 's/^#//' | sort)
+        
+        # Create a filtered array with only one variant per base language
+        declare -a AVAILABLE_LOCALES
+        declare -A seen_locales
+        
+        for locale in "${ALL_AVAILABLE_LOCALES[@]}"; do
+            # Extract the base language code (e.g., "en_US" from "en_US.UTF-8")
+            base_lang=$(echo "$locale" | cut -d'.' -f1 | cut -d'@' -f1)
+            
+            # If we haven't seen this base language yet, add it to our filtered list
+            if [[ -z "${seen_locales[$base_lang]}" ]]; then
+                seen_locales[$base_lang]=1
+                AVAILABLE_LOCALES+=("$locale")
+            fi
+        done
+        
+        # Set the number of columns for display
+        ALL_LOCALE_COLUMNS=3
+        TOTAL_ALL_LOCALES=${#AVAILABLE_LOCALES[@]}
+        
+        echo -e "\nAll available locales (primary variants only):"
+        # Display available locales in multiple columns
+        for ((i=0; i<TOTAL_ALL_LOCALES; i++)); do
+            # Format each entry with fixed width for alignment
+            printf "  \033[1;37m%3d)\033[0m %-20s" "$((i+1))" "${AVAILABLE_LOCALES[$i]}"
+            # Add a newline after every ALL_LOCALE_COLUMNS items
+            if (( (i+1) % ALL_LOCALE_COLUMNS == 0 )); then
+                echo ""
+            fi
+        done
+        # Add a final newline if needed
+        if (( TOTAL_ALL_LOCALES % ALL_LOCALE_COLUMNS != 0 )); then
+            echo ""
+        fi
+        
+        # Let user select a locale by number
+        while true; do
+            echo -en "\nEnter the number of your desired locale: "
+            read -r all_locale_choice
+            
+            # Validate input
+            if [[ "$all_locale_choice" =~ ^[0-9]+$ && "$all_locale_choice" -ge 1 && "$all_locale_choice" -le "${#AVAILABLE_LOCALES[@]}" ]]; then
+                SYSTEM_LOCALE="${AVAILABLE_LOCALES[$((all_locale_choice-1))]}"
+                echo -e "\033[1;32m✓ Selected locale: \033[1;37m$SYSTEM_LOCALE\033[0m\n"
+                break 2  # Break out of both loops
+            else
+                echo -e "\033[1;33m⚠ Invalid choice. Please enter a number between 1 and ${#AVAILABLE_LOCALES[@]}.\033[0m"
+            fi
+        done
+    elif [[ "$locale_choice" =~ ^[0-9]+$ && "$locale_choice" -ge 1 && "$locale_choice" -le "${#ESSENTIAL_LOCALES[@]}" ]]; then
+        # User selected from the essential locales list
+        SYSTEM_LOCALE="${ESSENTIAL_LOCALES[$((locale_choice-1))]}"
         echo -e "\033[1;32m✓ Selected locale: \033[1;37m$SYSTEM_LOCALE\033[0m\n"
         break
     else
-        echo -e "\033[1;33m⚠ Invalid choice. Please enter a number between 1 and ${#AVAILABLE_LOCALES[@]}.\033[0m"
+        echo -e "\033[1;33m⚠ Invalid choice. Please enter a valid number.\033[0m"
     fi
 done
 
@@ -361,6 +527,37 @@ case $gpu_choice in
         ;;
 esac
 
+# ----------------------------------------
+# AUDIO SELECTION
+# ----------------------------------------
+print_section_header "AUDIO SERVER SELECTION"
+
+echo -e "\033[1;33mChoose your audio server:\033[0m"
+echo -e "  \033[1;37m1)\033[0m \033[1;38;5;86mPipeWire\033[0m (Modern, low-latency, recommended)"
+echo -e "  \033[1;37m2)\033[0m \033[1;38;5;208mPulseAudio\033[0m (Traditional, widely compatible)"
+echo
+
+while true; do
+    echo -en "\033[1;94mEnter your choice (1-2): \033[0m"
+    read -r audio_choice
+    
+    case $audio_choice in
+        1)
+            AUDIO_SERVER="pipewire"
+            echo -e "\033[1;92m✅ Selected PipeWire audio server\033[0m\n"
+            break
+            ;;
+        2)
+            AUDIO_SERVER="pulseaudio"
+            echo -e "\033[1;92m✅ Selected PulseAudio audio server\033[0m\n"
+            break
+            ;;
+        *)
+            echo -e "\033[1;91m❌ Invalid choice. Please enter 1 or 2.\033[0m"
+            ;;
+    esac
+done
+
 # --------------------------------------------------------------------------------------------------------------------------
 # Configuration Summary
 # --------------------------------------------------------------------------------------------------------------------------
@@ -381,6 +578,7 @@ display_summary() {
     if [ "$GPU_TYPE" = "NVIDIA" ]; then
     echo "║ 10) NVIDIA Driver:      $(printf "%-21s" "$NVIDIA_DRIVER_TYPE") ║"
     fi
+    echo "║ 11) Audio Server:       $(printf "%-21s" "$AUDIO_SERVER") ║"
     echo "╚═══════════════════════════════════════════════╝"
 }
 
@@ -589,6 +787,17 @@ while true; do
                 *) echo "⚠ Invalid choice. No changes made." ;;
             esac
             ;;
+        10)  # Audio Server
+            echo -e "\n=== Audio Server Selection ==="
+            echo "  1) PipeWire (Modern, low-latency, recommended)"
+            echo "  2) PulseAudio (Traditional, widely compatible)"
+            read -p "Enter your choice (1-2): " audio_choice
+            case $audio_choice in
+                1) AUDIO_SERVER="pipewire" ;;
+                2) AUDIO_SERVER="pulseaudio" ;;
+                *) echo "⚠ Invalid choice. No changes made." ;;
+            esac
+            ;;
         c|C)
             echo "✓ Proceeding with installation..."
             break
@@ -647,12 +856,32 @@ echo -e "\n\n# -----------------------------------------------------------------
 echo -e "# Format/Mount Partitions"
 echo -e "# --------------------------------------------------------------------------------------------------------------------------\n"
 
-run_command "zpool create \
-    -o ashift=12 \
-    -O acltype=posixacl -O canmount=off -O compression=lz4 \
-    -O dnodesize=auto -O normalization=formD -o autotrim=on \
-    -O atime=off -O xattr=sa -O mountpoint=none \
-    -R /mnt zroot ${DISK}${PARTITION_2} -f" "create ZFS pool"
+# Setup ZFS pool with encryption if selected
+if [ "$ENCRYPT_DISK" = "yes" ]; then
+    echo -e "\033[1;94m🔐 Creating encrypted ZFS pool...\033[0m"
+    
+    # Create a temporary keyfile
+    mkdir -p /tmp/keyfiles
+    echo "$DISK_PASSWORD" > /tmp/keyfiles/zroot.key
+    chmod 000 /tmp/keyfiles/zroot.key
+    
+    # Create ZFS pool with encryption
+    run_command "zpool create \
+        -o ashift=12 \
+        -O acltype=posixacl -O canmount=off -O compression=lz4 \
+        -O dnodesize=auto -O normalization=formD -o autotrim=on \
+        -O atime=off -O xattr=sa -O mountpoint=none \
+        -O encryption=aes-256-gcm -O keylocation=file:///tmp/keyfiles/zroot.key -O keyformat=passphrase \
+        -R /mnt zroot ${DISK}${PARTITION_2} -f" "create encrypted ZFS pool"
+else
+    echo -e "\033[1;94m🌊 Creating standard ZFS pool...\033[0m"
+    run_command "zpool create \
+        -o ashift=12 \
+        -O acltype=posixacl -O canmount=off -O compression=lz4 \
+        -O dnodesize=auto -O normalization=formD -o autotrim=on \
+        -O atime=off -O xattr=sa -O mountpoint=none \
+        -R /mnt zroot ${DISK}${PARTITION_2} -f" "create ZFS pool"
+fi
 
 run_command "zfs create -o canmount=noauto -o mountpoint=/ zroot/rootfs" "create ZFS root dataset"
 
@@ -666,6 +895,14 @@ cp /etc/zfs/zpool.cache /mnt/etc/zfs/zpool.cache
 
 run_command "mkfs.fat -F32 ${DISK}${PARTITION_1}" "format EFI partition with FAT32"
 mkdir -p /mnt/efi && mount ${DISK}${PARTITION_1} /mnt/efi
+
+# If encryption was enabled, create key file directory in the installed system
+if [ "$ENCRYPT_DISK" = "yes" ]; then
+    mkdir -p /mnt/etc/zfs/keys
+    cp /tmp/keyfiles/zroot.key /mnt/etc/zfs/keys/
+    chmod 000 /mnt/etc/zfs/keys/zroot.key
+    chown root:root /mnt/etc/zfs/keys/zroot.key
+fi
 
 
 echo -e "\n\n# --------------------------------------------------------------------------------------------------------------------------"
@@ -712,6 +949,7 @@ run_command "env \
     GPU_TYPE=\"$GPU_TYPE\" \
     NVIDIA_DRIVER_TYPE=\"$NVIDIA_DRIVER_TYPE\" \
     MIRROR_COUNTRY=\"$MIRROR_COUNTRY\" \
+    AUDIO_SERVER=\"$AUDIO_SERVER\" \
     arch-chroot /mnt /install/chroot.sh" "chroot into the new system"
 
 

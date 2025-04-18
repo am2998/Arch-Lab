@@ -35,9 +35,14 @@ handle_error() {
 
 # Function to print section headers with formatting
 print_section_header() {
-    echo -e "\n\n\033[1;34m====================================================================\033[0m"
-    echo -e "\033[1;34m   $1\033[0m"
-    echo -e "\033[1;34m====================================================================\033[0m\n"
+    local title="$1"
+    # Create a header with a gradient-like effect using bold cyan for better visibility
+    echo -e "\n\n\033[1;36m╔════════════════════════════════════════════════╗\033[0m"
+    local title_length=${#title}
+    local padding=$(( (49 - title_length) / 2 ))
+    local pad_str=$(printf "%${padding}s" "")
+    echo -e "\033[1;36m${pad_str}\033[1;97m${title}\033[1;36m${pad_str}$([ $(( title_length % 2 )) -eq 1 ] && echo " ")\033[0m"
+    echo -e "\033[1;36m╚════════════════════════════════════════════════╝\033[0m\n"
 }
 
 # Function to securely get passwords with confirmation
@@ -47,13 +52,13 @@ get_password() {
         local password_recheck_var
 
         while true; do
-                echo -en "\033[1;36m$prompt: \033[0m"; read -r -s password_var; echo
-                echo -en "\033[1;36mRe-enter password: \033[0m"; read -r -s password_recheck_var; echo
+                echo -en "\033[1;93m$prompt: \033[0m"; read -r -s password_var; echo
+                echo -en "\033[1;93mRe-enter password: \033[0m"; read -r -s password_recheck_var; echo
                 if [ "$password_var" = "$password_recheck_var" ]; then
                         eval "$2='$password_var'"
                         break
                 else
-                        echo -e "\033[1;31mPasswords do not match. Please enter a new password.\033[0m"
+                        echo -e "\033[1;91m❌ Passwords do not match. Please enter a new password.\033[0m"
                 fi
         done
 }
@@ -66,7 +71,7 @@ run_command() {
     local silent="${4:-false}"
     
     if [ "$silent" != "true" ]; then
-        echo -e "\n\033[1;36m⚙️ Executing: $desc\033[0m"
+        echo -e "\n\033[1;94m⚙️ \033[1;38;5;87mExecuting:\033[0m \033[1;38;5;195m$desc\033[0m"
     fi
     
     while true; do
@@ -79,7 +84,7 @@ run_command() {
         local status=$?
         if [ $status -eq 0 ]; then
             if [ "$silent" != "true" ]; then
-                echo -e "\033[1;32m✅ Successfully completed\033[0m\n"
+                echo -e "\033[1;92m✅ Successfully completed\033[0m\n"
             fi
             return 0
         else
