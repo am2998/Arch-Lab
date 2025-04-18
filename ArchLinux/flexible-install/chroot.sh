@@ -3,17 +3,19 @@
 echo -e "\033[1;92m✅ Successfully arch-chrooted in new installation\033[0m\n"
 
 # Define commands script
-CHECK_FUNCTIONS_SCRIPT="/install/functions.sh"
+FUNCTIONS_SCRIPT="/install/functions.sh"
 
 # Check if the script exists
-if [ ! -f "$CHECK_FUNCTIONS_SCRIPT" ]; then
-    echo -e "\033[1;91m❌ Error: Required file $CHECK_FUNCTIONS_SCRIPT not found.\033[0m"
+if [ ! -f "$FUNCTIONS_SCRIPT" ]; then
+    echo -e "\033[1;91m❌ Error: Required file $FUNCTIONS_SCRIPT not found.\033[0m"
     echo -e "\033[1;93m💡 Please make sure the file exists in the current directory.\033[0m"
     exit 1
 fi
 
 # Source the check-commands functions
-source $CHECK_FUNCTIONS_SCRIPT
+source $FUNCTIONS_SCRIPT
+
+sleep 5
 
 # ----------------------------------------
 # CONFIGURING MIRRORS

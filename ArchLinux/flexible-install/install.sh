@@ -75,7 +75,7 @@ done
 print_section_header "INSTALLATION DEVICE SELECTION"
 
 echo -e "\033[1;94m💾 Available disks for installation:\033[0m"
-echo -e "\033[1;93m⚠️  WARNING: THE SELECTED DISK WILL BE COMPLETELY ERASED!\033[0m\n"
+echo -e "\033[1;93m⚠️  WARNING: THE SELECTED DISK WILL BE COMPLETELY ERASED IN SIMPLE MODE!\033[0m\n"
 
 # Display available disks
 available_disks=$(lsblk -dpno NAME,SIZE,MODEL | grep -E "/dev/(sd|nvme|vd)")
@@ -144,7 +144,7 @@ while true; do
             ENCRYPT_DISK="yes"
             echo -e "\033[1;92m✅ Disk encryption enabled\033[0m"
             # Get encryption passphrase
-            get_password "Enter disk encryption passphrase" DISK_PASSWORD
+            get_password "Enter disk encryption passphrase (At least 8 characters)" DISK_PASSWORD
             echo -e "\033[1;92m✅ Encryption passphrase set\033[0m\n"
             break
             ;;
@@ -162,17 +162,23 @@ done
 
 
 # Define commands script
-CHECK_FUNCTIONS_SCRIPT="functions.sh"
+FUNCTIONS_SCRIPT="functions.sh"
+CHROOT_SCRIPT="chroot.sh"
 
-# Check if the script exists
-if [ ! -f "$CHECK_FUNCTIONS_SCRIPT" ]; then
-    echo "Error: Required file $CHECK_FUNCTIONS_SCRIPT not found."
-    echo "Please make sure the file exists in the current directory."
+# Check if required scripts exist
+FUNCTIONS_SCRIPT="functions.sh"
+if [ ! -f "$FUNCTIONS_SCRIPT" ] || [ ! -f "$CHROOT_SCRIPT" ]; then
+    echo -e "\033[1;91m❌ Error: Required scripts not found.\033[0m"
+    echo -e "Please make sure these files exist in the current directory:"
+    [ ! -f "$FUNCTIONS_SCRIPT" ] && echo -e " - \033[1;93m$FUNCTIONS_SCRIPT\033[0m"
+    [ ! -f "$CHROOT_SCRIPT" ] && echo -e " - \033[1;93m$CHROOT_SCRIPT\033[0m"
     exit 1
 fi
 
-# Source the check-commands functions
-source $CHECK_FUNCTIONS_SCRIPT
+echo -e "\033[1;92m✅ Required scripts found.\033[0m"
+
+# Source functions script
+source $FUNCTIONS_SCRIPT
 
 # echo -e "\n\n# --------------------------------------------------------------------------------------------------------------------------"
 # echo -e "# Initial configuration                                                               "
@@ -1009,27 +1015,57 @@ run_command "wipefs -a -f $DISK" "wipe disk signatures"
 if [ "$INSTALL_MODE" = "advanced" ]; then
     print_section_header "ADVANCED PARTITION CONFIGURATION"
     
+    # Get the total disk size
+    DISK_SIZE=$(lsblk -bdn -o SIZE $DISK | awk '{print $1}')
+    DISK_SIZE_GB=$(( DISK_SIZE / 1073741824 ))
+    echo -e "\033[1;94mDisk size: \033[1;97m${DISK_SIZE_GB}GB\033[0m"
     echo -e "\033[1;94mConfigure partition sizes:\033[0m"
     
-    # Ask for EFI partition size
+    # EFI partition size - use default
+    EFI_PART_SIZE="1G"
+    echo -e "\033[1;94mEFI partition size: \033[1;97m$EFI_PART_SIZE\033[0m (standard size)"
+    
+    # Ask for root partition size (installation partition)
+    echo -e "\033[1;94mSpecify installation partition size:\033[0m"
+    echo -e "  \033[1;37m1)\033[0m Use all available space (recommended)"
+    echo -e "  \033[1;37m2)\033[0m Specify custom size (for multi-boot or future partitioning)"
+    echo
+    
     while true; do
-        echo -en "\033[1;94mEFI partition size (e.g., 512M, 1G) [1G]: \033[0m"
-        read -r efi_size
+        echo -en "\033[1;94mEnter your choice (1-2) [1]: \033[0m"
+        read -r root_size_choice
         
-        # Use default if empty
-        if [ -z "$efi_size" ]; then
-            EFI_PART_SIZE="1G"
-            break
-        fi
-        
-        # Validate input format (simple check for format like 100M, 1G, etc.)
-        if [[ "$efi_size" =~ ^[0-9]+[MG]$ ]]; then
-            EFI_PART_SIZE="$efi_size"
-            echo -e "\033[1;32m✓ EFI partition size set to: \033[1;37m$EFI_PART_SIZE\033[0m"
-            break
-        else
-            echo -e "\033[1;91m❌ Invalid size format. Please use format like 512M or 1G.\033[0m"
-        fi
+        case $root_size_choice in
+            1|"")
+                ROOT_PART_SIZE="MAX"
+                echo -e "\033[1;32m✓ Using all available space for installation\033[0m"
+                break
+                ;;
+            2)
+                while true; do
+                    echo -en "\033[1;94mEnter installation partition size in GB (e.g., 50 for 50GB): \033[0m"
+                    read -r custom_root_size
+                    
+                    # Validate input (simple check for numeric value)
+                    if [[ "$custom_root_size" =~ ^[0-9]+$ ]]; then
+                        # Check if specified size is reasonable (at least 20GB, less than 95% of disk)
+                        if (( custom_root_size >= 20 && custom_root_size <= DISK_SIZE_GB * 95 / 100 )); then
+                            ROOT_PART_SIZE="${custom_root_size}G"
+                            echo -e "\033[1;32m✓ Installation partition size set to: \033[1;37m${custom_root_size}GB\033[0m"
+                            break
+                        else
+                            echo -e "\033[1;91m❌ Invalid size. Please enter a value between 20 and $((DISK_SIZE_GB * 95 / 100)) GB.\033[0m"
+                        fi
+                    else
+                        echo -e "\033[1;91m❌ Invalid size format. Please enter a numeric value in GB.\033[0m"
+                    fi
+                done
+                break
+                ;;
+            *)
+                echo -e "\033[1;91m❌ Invalid choice. Please enter 1 or 2.\033[0m"
+                ;;
+        esac
     done
     
     # Ask if user wants to create a separate home partition
@@ -1114,18 +1150,23 @@ if [ "$INSTALL_MODE" = "advanced" ]; then
     
     # Run fdisk with custom settings
     (
-    echo g           # Create a GPT partition table
-    echo n           # Create the EFI partition
-    echo             # Default, 1
-    echo             # Default
-    echo +$EFI_PART_SIZE  # Use custom EFI partition size
-    echo t           # Change partition type to EFI
-    echo 1           # EFI type
-    echo n           # Create the system partition
-    echo             # Default, 2
-    echo             # Default
-    echo             # Default, use the rest of the space
-    echo w           # Write the partition table
+    echo g                                # Create a GPT partition table
+    echo n                                # Create the EFI partition
+    echo                                  # Default, 1
+    echo                                  # Default
+    echo +$EFI_PART_SIZE                  # Use custom EFI partition size
+    echo t                                # Change partition type to EFI
+    echo 1                                # EFI type
+    echo n                                # Create the system partition
+    echo                                  # Default, 2
+    echo                                  # Default
+    # Use user-specified root partition size if not MAX
+    if [ "$ROOT_PART_SIZE" != "MAX" ]; then
+        echo +$ROOT_PART_SIZE            # Use custom root partition size
+    else
+        echo                             # Use remaining space
+    fi
+    echo w                                # Write the partition table
     ) | run_command "fdisk $DISK" "create partitions"
 
 else
@@ -1206,7 +1247,7 @@ fi
 # ----------------------------------------
 print_section_header "INSTALL BASE"
 
-run_command "pacstrap /mnt linux-lts linux-lts-headers mkinitcpio base base-devel linux-firmware zram-generator reflector sudo networkmanager efibootmgr $CPU_MICROCODE wget" "install base packages"
+run_command "pacstrap /mnt linux-lts linux-lts-headers mkinitcpio base base-devel linux-firmware zram-generator reflector sudo networkmanager efibootmgr $CPU_MICROCODE wget" "install base packages" 
 
 
 # ----------------------------------------
@@ -1218,6 +1259,8 @@ genfstab -U /mnt > /mnt/etc/fstab
 echo -e "\nFstab file generated:\n"
 cat /mnt/etc/fstab
 
+echo -e "\n\033[1;94mFSTAB completed. Press Enter to continue with installation...\033[0m"
+read -r
 
 # ----------------------------------------
 # CHROOT
@@ -1227,31 +1270,70 @@ print_section_header "ARCH-CHROOT"
 # Create a temporary directory in the chroot environment
 mkdir -p /mnt/install
 
-# Copy the chroot script and check-commands script to the temporary directory in the chroot
-cp ./"$CHECK_FUNCTIONS_SCRIPT" /mnt/install/
-cp ./chroot.sh /mnt/install/
+# Copy the chroot script and functions script to the temporary directory in the chroot
+echo -e "\033[1;94m📂 Copying required scripts to chroot environment...\033[0m"
+cp "./$FUNCTIONS_SCRIPT" /mnt/install/ || { 
+    echo -e "\033[1;91m❌ Failed to copy $FUNCTIONS_SCRIPT to /mnt/install/\033[0m"; 
+    exit 1; 
+}
+cp "./$CHROOT_SCRIPT" /mnt/install/ || { 
+    echo -e "\033[1;91m❌ Failed to copy $CHROOT_SCRIPT to /mnt/install/\033[0m"; 
+    exit 1; 
+}
 
 # Make scripts executable
-chmod +x /mnt/install/chroot.sh /mnt/install/"$CHECK_FUNCTIONS_SCRIPT"
+chmod +x /mnt/install/"$CHROOT_SCRIPT" /mnt/install/"$FUNCTIONS_SCRIPT"
+echo -e "\033[1;92m✅ Setup for chroot environment completed\033[0m"
 
-echo -e "\n\033[1;94m⚙️ \033[1;38;5;87mExecuting:\033[0m \033[1;38;5;195mchroot into the new system\033[0m"
+
+echo -e "\n\033[1;94m⚙️ \033[1;38;5;87mExecuting:\033[0m \033[1;38;5;195march-chroot into the new system\033[0m"
 
 # Export all environment variables needed by the chroot script
-env \
-    DISK=$DISK \
-    HOSTNAME=\"$HOSTNAME\" \
-    KEYBOARD_LAYOUT=\"$KEYBOARD_LAYOUT\" \
-    SYSTEM_LOCALE=\"$SYSTEM_LOCALE\" \
-    USER=\"$USER\" \
-    USERPASS=\"$USERPASS\" \
-    ROOTPASS=\"$ROOTPASS\" \
-    CPU_MICROCODE=\"$CPU_MICROCODE\" \
-    DE_CHOICE=\"$DE_CHOICE\" \
-    GPU_TYPE=\"$GPU_TYPE\" \
-    NVIDIA_DRIVER_TYPE=\"$NVIDIA_DRIVER_TYPE\" \
-    MIRROR_COUNTRY=\"$MIRROR_COUNTRY\" \
-    AUDIO_SERVER=\"$AUDIO_SERVER\" \
-    arch-chroot /mnt /install/chroot.sh
+# Note: Using set -x to show the command being executed for debugging
+
+arch-chroot /mnt bash -c "
+export DISK='$DISK' 
+export HOSTNAME='$HOSTNAME'
+export KEYBOARD_LAYOUT='$KEYBOARD_LAYOUT'
+export SYSTEM_LOCALE='$SYSTEM_LOCALE'
+export USER='$USER'
+export USERPASS='$USERPASS'
+export ROOTPASS='$ROOTPASS'
+export CPU_MICROCODE='$CPU_MICROCODE'
+export DE_CHOICE=$DE_CHOICE
+export GPU_TYPE='$GPU_TYPE'
+export NVIDIA_DRIVER_TYPE='$NVIDIA_DRIVER_TYPE'
+export MIRROR_COUNTRY='$MIRROR_COUNTRY'
+export AUDIO_SERVER='$AUDIO_SERVER'
+export INSTALL_MODE='$INSTALL_MODE'
+export ZRAM_SIZE='$ZRAM_SIZE'
+export ZRAM_COMPRESSION='$ZRAM_COMPRESSION'
+export SEPARATE_DATASETS='$SEPARATE_DATASETS'
+cd /install && ./chroot.sh
+"
+# chroot_exit_status=$?
+
+
+# # Check if chroot script executed successfully
+# if [ $chroot_exit_status -ne 0 ]; then
+#     echo -e "\033[1;91m❌ Chroot script failed with status $chroot_exit_status.\033[0m"
+#     echo -e "\033[1;93m💡 Check the output above for errors.\033[0m"
+    
+#     # Offer to show logs 
+#     echo -en "\033[1;94mWould you like to see the chroot script for debugging? [y/N]: \033[0m"
+#     read -r show_script
+#     case $show_script in
+#         [Yy]*)
+#             echo -e "\n\033[1;94mContents of $CHROOT_SCRIPT:\033[0m"
+#             cat "./$CHROOT_SCRIPT"
+#             ;;
+#     esac
+    
+#     echo -e "\n\033[1;91mInstallation failed. Please fix the issues and try again.\033[0m"
+#     exit 1
+# else
+#     echo -e "\033[1;92m✅ Chroot commands executed successfully\033[0m"
+# fi
 
 
 # --------------------------------------------------------------------------------------------------------------------------
@@ -1293,7 +1375,7 @@ while true; do
             echo -e "\033[1;93m⚠️  Remember to properly unmount filesystems before rebooting:\033[0m"
             echo -e "  \033[1;37m•\033[0m umount -R /mnt"
             echo -e "  \033[1;37m•\033[0m zfs umount -a"
-            echo -e "  \033[1;37m•\033[0m zpool export -a"
+            echo -e "  \033[1;37m•\033[0m zpool export -a\n\n"
             exit 0
             ;;
         *)
