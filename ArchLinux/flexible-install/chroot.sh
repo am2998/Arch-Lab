@@ -86,7 +86,6 @@ EOF'" "create ZFS load-key service"
     # Update ZFSBootMenu configuration for encryption
     run_command "zfs set org.zfsbootmenu:keysource=zroot/rootfs zroot/rootfs" "set ZFSBootMenu keysource property"
     
-    echo -e "\033[1;92m✅ ZFS encryption setup complete.\033[0m"
 else
     echo -e "\033[1;94mℹ️ ZFS encryption not enabled, skipping encryption setup.\033[0m"
 fi
@@ -270,8 +269,6 @@ run_command "pacman -Syy" "refresh package databases"
 print_section_header "INSTALLING AUR HELPER"
 
 #run_command "su -c \"cd /tmp && git clone https://aur.archlinux.org/yay.git && cd yay && echo $USERPASS | makepkg -si --noconfirm\" $USER" "install Yay AUR helper"
-echo -e "\033[1;92m✅ Yay installation completed\033[0m"
-
 
 # ----------------------------------------
 # UTILITIES INSTALLATION
@@ -308,7 +305,6 @@ LimitNOFILE=65536
 WantedBy=default.target
 EOF'" "create PipeWire user service"
 
-    echo -e "\033[1;92m✅ PipeWire audio system installed successfully\033[0m"
 else
     echo -e "\033[1;92m✨ Installing PulseAudio audio system...\033[0m"
     run_command "pacman -S --noconfirm pulseaudio pulseaudio-alsa pulseaudio-bluetooth alsa-utils alsa-plugins alsa-firmware sof-firmware alsa-card-profiles pavucontrol" "install PulseAudio and related packages"
@@ -329,7 +325,6 @@ LimitNOFILE=65536
 WantedBy=default.target
 EOF'" "create PulseAudio user service"
 
-    echo -e "\033[1;92m✅ PulseAudio audio system installed successfully\033[0m"
 fi
 
 # Set user permissions
@@ -340,7 +335,7 @@ chown -R $USER:$USER /home/$USER/.config
 # ----------------------------------------
 print_section_header "CONFIGURING GPU DRIVERS"
 
-Install appropriate GPU drivers based on earlier selection
+#Install appropriate GPU drivers based on earlier selection
 if [ "$GPU_TYPE" = "NVIDIA" ]; then
     if [ "$NVIDIA_DRIVER_TYPE" = "open" ]; then
         echo -e "\033[1;94m🎮 Installing NVIDIA open drivers...\033[0m"

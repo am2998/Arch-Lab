@@ -31,6 +31,30 @@ else
 fi
 
 # ----------------------------------------
+# SUPPORT SCRIPTS
+# ----------------------------------------
+
+# Define commands script
+FUNCTIONS_SCRIPT="functions.sh"
+CHROOT_SCRIPT="chroot.sh"
+
+# Check if required scripts exist
+FUNCTIONS_SCRIPT="functions.sh"
+if [ ! -f "$FUNCTIONS_SCRIPT" ] || [ ! -f "$CHROOT_SCRIPT" ]; then
+    echo -e "\033[1;91m❌ Error: Required scripts not found.\033[0m"
+    echo -e "Please make sure these files exist in the current directory:"
+    [ ! -f "$FUNCTIONS_SCRIPT" ] && echo -e " - \033[1;93m$FUNCTIONS_SCRIPT\033[0m"
+    [ ! -f "$CHROOT_SCRIPT" ] && echo -e " - \033[1;93m$CHROOT_SCRIPT\033[0m"
+    exit 1
+fi
+
+echo -e "\033[1;94m📂 Searching for required support scripts...\033[0m"
+echo -e "\033[1;92m✅ Required scripts found.\033[0m"
+
+# Source functions script
+source $FUNCTIONS_SCRIPT
+
+# ----------------------------------------
 # MODE SELECTION
 # ----------------------------------------
 print_section_header "INSTALLATION MODE"
@@ -126,59 +150,6 @@ while true; do
     esac
 done
 
-print_section_header "DISK ENCRYPTION SELECTION"
-
-echo -e "\033[1;94mDo you want to encrypt your disk?\033[0m"
-echo -e "\033[1;93m⚠️  NOTE: If yes, you'll need to enter a passphrase at each boot\033[0m\n"
-
-echo -e "  \033[1;97m1)\033[0m \033[1;38;5;82mYes\033[0m (More secure, requires passphrase)"
-echo -e "  \033[1;97m2)\033[0m \033[1;38;5;203mNo\033[0m (More convenient, less secure)"
-echo
-
-while true; do
-    echo -en "\033[1;94mEnter your choice (1-2): \033[0m"
-    read -r encrypt_choice
-    
-    case $encrypt_choice in
-        1)
-            ENCRYPT_DISK="yes"
-            echo -e "\033[1;92m✅ Disk encryption enabled\033[0m"
-            # Get encryption passphrase
-            get_password "Enter disk encryption passphrase (At least 8 characters)" DISK_PASSWORD
-            echo -e "\033[1;92m✅ Encryption passphrase set\033[0m\n"
-            break
-            ;;
-        2)
-            ENCRYPT_DISK="no"
-            DISK_PASSWORD=""
-            echo -e "\033[1;92m✓ Disk encryption disabled\033[0m\n"
-            break
-            ;;
-        *)
-            echo -e "\033[1;91m❌ Invalid choice. Please enter 1 or 2.\033[0m"
-            ;;
-    esac
-done
-
-
-# Define commands script
-FUNCTIONS_SCRIPT="functions.sh"
-CHROOT_SCRIPT="chroot.sh"
-
-# Check if required scripts exist
-FUNCTIONS_SCRIPT="functions.sh"
-if [ ! -f "$FUNCTIONS_SCRIPT" ] || [ ! -f "$CHROOT_SCRIPT" ]; then
-    echo -e "\033[1;91m❌ Error: Required scripts not found.\033[0m"
-    echo -e "Please make sure these files exist in the current directory:"
-    [ ! -f "$FUNCTIONS_SCRIPT" ] && echo -e " - \033[1;93m$FUNCTIONS_SCRIPT\033[0m"
-    [ ! -f "$CHROOT_SCRIPT" ] && echo -e " - \033[1;93m$CHROOT_SCRIPT\033[0m"
-    exit 1
-fi
-
-echo -e "\033[1;92m✅ Required scripts found.\033[0m"
-
-# Source functions script
-source $FUNCTIONS_SCRIPT
 
 # echo -e "\n\n# --------------------------------------------------------------------------------------------------------------------------"
 # echo -e "# Initial configuration                                                               "
@@ -607,8 +578,168 @@ done
 # ADVANCED OPTIONS (only in advanced mode)
 # ----------------------------------------
 if [ "$INSTALL_MODE" = "advanced" ]; then
-    print_section_header "ADVANCED ZRAM CONFIGURATION"
+
+    print_section_header "ADVANCED PARTITION CONFIGURATION"
     
+    # Get the total disk size
+    DISK_SIZE=$(lsblk -bdn -o SIZE $DISK | awk '{print $1}')
+    DISK_SIZE_GB=$(( DISK_SIZE / 1073741824 ))
+    echo -e "\033[1;94mDisk size: \033[1;97m${DISK_SIZE_GB}GB\033[0m"
+    echo -e "\033[1;94mConfigure partition sizes:\033[0m"
+    
+    # EFI partition size - use default
+    EFI_PART_SIZE="1G"
+    echo -e "\033[1;94mEFI partition size: \033[1;97m$EFI_PART_SIZE\033[0m (standard size)"
+    
+    # Ask for root partition size (installation partition)
+    echo -e "\033[1;94mSpecify installation partition size:\033[0m"
+    echo -e "  \033[1;37m1)\033[0m Use all available space (recommended)"
+    echo -e "  \033[1;37m2)\033[0m Specify custom size (for multi-boot or future partitioning)"
+    echo
+    
+    while true; do
+        echo -en "\033[1;94mEnter your choice (1-2) [1]: \033[0m"
+        read -r root_size_choice
+        
+        case $root_size_choice in
+            1|"")
+                ROOT_PART_SIZE="MAX"
+                echo -e "\033[1;32m✓ Using all available space for installation\033[0m"
+                break
+                ;;
+            2)
+                while true; do
+                    echo -en "\033[1;94mEnter installation partition size in GB (e.g., 50 for 50GB): \033[0m"
+                    read -r custom_root_size
+                    
+                    # Validate input (simple check for numeric value)
+                    if [[ "$custom_root_size" =~ ^[0-9]+$ ]]; then
+                        # Check if specified size is reasonable (at least 20GB, less than 95% of disk)
+                        if (( custom_root_size >= 20 && custom_root_size <= DISK_SIZE_GB * 95 / 100 )); then
+                            ROOT_PART_SIZE="${custom_root_size}G"
+                            echo -e "\033[1;32m✓ Installation partition size set to: \033[1;37m${custom_root_size}GB\033[0m"
+                            break
+                        else
+                            echo -e "\033[1;91m❌ Invalid size. Please enter a value between 20 and $((DISK_SIZE_GB * 95 / 100)) GB.\033[0m"
+                        fi
+                    else
+                        echo -e "\033[1;91m❌ Invalid size format. Please enter a numeric value in GB.\033[0m"
+                    fi
+                done
+                break
+                ;;
+            *)
+                echo -e "\033[1;91m❌ Invalid choice. Please enter 1 or 2.\033[0m"
+                ;;
+        esac
+    done
+
+    print_section_header "ADVANCED ZFS CONFIGURATION"
+
+    # Advanced ZFS dataset options    
+    echo -e "\033[1;33mConfigure ZFS datasets:\033[0m"
+    
+    # Ask if user wants to create separate datasets
+    echo -e "\033[1;33mCreate separate ZFS datasets for common directories?\033[0m"
+    echo -e "  \033[1;37m1)\033[0m \033[1;38;5;82mYes\033[0m (Recommended for flexible management)"
+    echo -e "  \033[1;37m2)\033[0m \033[1;38;5;203mNo\033[0m (Simpler, use only the root dataset)"
+    echo
+    
+    while true; do
+        echo -en "\033[1;94mEnter your choice (1-2) [1]: \033[0m"
+        read -r separate_datasets_choice
+        
+        case $separate_datasets_choice in
+            1|"")
+                SEPARATE_DATASETS="yes"
+                echo -e "\033[1;32m✓ Will create separate ZFS datasets\033[0m\n"
+                break
+                ;;
+            2)
+                SEPARATE_DATASETS="no"
+                echo -e "\033[1;32m✓ Using single root dataset\033[0m\n"
+                break
+                ;;
+            *)
+                echo -e "\033[1;91m❌ Invalid choice. Please enter 1 or 2.\033[0m"
+                ;;
+        esac
+    done
+
+    echo -e "\033[1;94mDo you want encryption?\033[0m"
+    echo -e "\033[1;93m⚠️  NOTE: If yes, you'll need to enter a passphrase at each boot\033[0m\n"
+    
+    echo -e "  \033[1;97m1)\033[0m \033[1;38;5;82mYes\033[0m (More secure, requires passphrase)"
+    echo -e "  \033[1;97m2)\033[0m \033[1;38;5;203mNo\033[0m (More convenient, less secure)"
+    echo
+    
+    while true; do
+        echo -en "\033[1;94mEnter your choice (1-2): \033[0m"
+        read -r encrypt_choice
+        
+        case $encrypt_choice in
+            1)
+                ENCRYPT_DISK="yes"
+                echo -e "\033[1;92m✅ Disk encryption enabled\033[0m"
+                # Get encryption passphrase
+                get_password "Enter disk encryption passphrase (At least 8 characters)" DISK_PASSWORD
+                echo -e "\033[1;92m✅ Encryption passphrase set\033[0m\n"
+                break
+                ;;
+            2)
+                ENCRYPT_DISK="no"
+                DISK_PASSWORD=""
+                echo -e "\033[1;92m✓ Disk encryption disabled\033[0m\n"
+                break
+                ;;
+            *)
+                echo -e "\033[1;91m❌ Invalid choice. Please enter 1 or 2.\033[0m"
+                ;;
+        esac
+    done
+    
+    # Ask for ZFS compression algorithm
+    echo -e "\n\033[1;94mSelect ZFS compression algorithm:\033[0m"
+    echo -e "  \033[1;37m1)\033[0m \033[1;38;5;39mlz4\033[0m (Fast, good ratio, default)"
+    echo -e "  \033[1;37m2)\033[0m \033[1;38;5;202mzstd\033[0m (Better compression, slightly slower)"
+    echo -e "  \033[1;37m3)\033[0m \033[1;38;5;118mgzip\033[0m (Best compression, slowest)"
+    echo -e "  \033[1;37m4)\033[0m \033[1;38;5;196mNone\033[0m (No compression)"
+    echo
+    
+    while true; do
+        echo -en "\033[1;94mEnter your choice (1-4) [1]: \033[0m"
+        read -r compression_choice
+        
+        case $compression_choice in
+            1|"")
+                ZFS_COMPRESSION="lz4"
+                echo -e "\033[1;32m✓ Selected lz4 compression\033[0m"
+                break
+                ;;
+            2)
+                ZFS_COMPRESSION="zstd"
+                echo -e "\033[1;32m✓ Selected zstd compression\033[0m"
+                break
+                ;;
+            3)
+                ZFS_COMPRESSION="gzip"
+                echo -e "\033[1;32m✓ Selected gzip compression\033[0m"
+                break
+                ;;
+            4)
+                ZFS_COMPRESSION="off"
+                echo -e "\033[1;32m✓ Compression disabled\033[0m"
+                break
+                ;;
+            *)
+                echo -e "\033[1;91m❌ Invalid choice. Please enter a number between 1 and 4.\033[0m"
+                ;;
+        esac
+    done
+
+    
+    print_section_header "ADVANCED ZRAM CONFIGURATION"
+
     echo -e "\033[1;33mConfigure ZRAM settings:\033[0m"
     
     # Ask for ZRAM size
@@ -694,37 +825,6 @@ if [ "$INSTALL_MODE" = "advanced" ]; then
         esac
     done
     
-    # Advanced ZFS dataset options
-    print_section_header "ADVANCED ZFS DATASET CONFIGURATION"
-    
-    echo -e "\033[1;33mConfigure ZFS datasets:\033[0m"
-    
-    # Ask if user wants to create separate datasets
-    echo -e "\033[1;33mCreate separate ZFS datasets for common directories?\033[0m"
-    echo -e "  \033[1;37m1)\033[0m \033[1;38;5;82mYes\033[0m (Recommended for flexible management)"
-    echo -e "  \033[1;37m2)\033[0m \033[1;38;5;203mNo\033[0m (Simpler, use only the root dataset)"
-    echo
-    
-    while true; do
-        echo -en "\033[1;94mEnter your choice (1-2) [1]: \033[0m"
-        read -r separate_datasets_choice
-        
-        case $separate_datasets_choice in
-            1|"")
-                SEPARATE_DATASETS="yes"
-                echo -e "\033[1;32m✓ Will create separate ZFS datasets\033[0m\n"
-                break
-                ;;
-            2)
-                SEPARATE_DATASETS="no"
-                echo -e "\033[1;32m✓ Using single root dataset\033[0m\n"
-                break
-                ;;
-            *)
-                echo -e "\033[1;91m❌ Invalid choice. Please enter 1 or 2.\033[0m"
-                ;;
-        esac
-    done
 fi
 
 # --------------------------------------------------------------------------------------------------------------------------
@@ -1012,141 +1112,6 @@ fi
 
 run_command "wipefs -a -f $DISK" "wipe disk signatures"
 
-if [ "$INSTALL_MODE" = "advanced" ]; then
-    print_section_header "ADVANCED PARTITION CONFIGURATION"
-    
-    # Get the total disk size
-    DISK_SIZE=$(lsblk -bdn -o SIZE $DISK | awk '{print $1}')
-    DISK_SIZE_GB=$(( DISK_SIZE / 1073741824 ))
-    echo -e "\033[1;94mDisk size: \033[1;97m${DISK_SIZE_GB}GB\033[0m"
-    echo -e "\033[1;94mConfigure partition sizes:\033[0m"
-    
-    # EFI partition size - use default
-    EFI_PART_SIZE="1G"
-    echo -e "\033[1;94mEFI partition size: \033[1;97m$EFI_PART_SIZE\033[0m (standard size)"
-    
-    # Ask for root partition size (installation partition)
-    echo -e "\033[1;94mSpecify installation partition size:\033[0m"
-    echo -e "  \033[1;37m1)\033[0m Use all available space (recommended)"
-    echo -e "  \033[1;37m2)\033[0m Specify custom size (for multi-boot or future partitioning)"
-    echo
-    
-    while true; do
-        echo -en "\033[1;94mEnter your choice (1-2) [1]: \033[0m"
-        read -r root_size_choice
-        
-        case $root_size_choice in
-            1|"")
-                ROOT_PART_SIZE="MAX"
-                echo -e "\033[1;32m✓ Using all available space for installation\033[0m"
-                break
-                ;;
-            2)
-                while true; do
-                    echo -en "\033[1;94mEnter installation partition size in GB (e.g., 50 for 50GB): \033[0m"
-                    read -r custom_root_size
-                    
-                    # Validate input (simple check for numeric value)
-                    if [[ "$custom_root_size" =~ ^[0-9]+$ ]]; then
-                        # Check if specified size is reasonable (at least 20GB, less than 95% of disk)
-                        if (( custom_root_size >= 20 && custom_root_size <= DISK_SIZE_GB * 95 / 100 )); then
-                            ROOT_PART_SIZE="${custom_root_size}G"
-                            echo -e "\033[1;32m✓ Installation partition size set to: \033[1;37m${custom_root_size}GB\033[0m"
-                            break
-                        else
-                            echo -e "\033[1;91m❌ Invalid size. Please enter a value between 20 and $((DISK_SIZE_GB * 95 / 100)) GB.\033[0m"
-                        fi
-                    else
-                        echo -e "\033[1;91m❌ Invalid size format. Please enter a numeric value in GB.\033[0m"
-                    fi
-                done
-                break
-                ;;
-            *)
-                echo -e "\033[1;91m❌ Invalid choice. Please enter 1 or 2.\033[0m"
-                ;;
-        esac
-    done
-    
-    # Ask if user wants to create a separate home partition
-    echo -e "\033[1;94mDo you want to create a separate home partition?\033[0m"
-    echo -e "  \033[1;37m1)\033[0m Yes (Separate partition for /home)"
-    echo -e "  \033[1;37m2)\033[0m No (Include /home in root dataset)"
-    echo
-    
-    while true; do
-        echo -en "\033[1;94mEnter your choice (1-2) [2]: \033[0m"
-        read -r home_choice
-        
-        case $home_choice in
-            1)
-                SEPARATE_HOME="yes"
-                # Ask for home partition size
-                while true; do
-                    echo -en "\033[1;94mSpecify home partition size (e.g., 100G, 50%): \033[0m"
-                    read -r home_size
-                    
-                    # Validate input format (simple check for format like 100G or 50%)
-                    if [[ "$home_size" =~ ^[0-9]+[G%]$ ]]; then
-                        HOME_PART_SIZE="$home_size"
-                        echo -e "\033[1;32m✓ Home partition size set to: \033[1;37m$HOME_PART_SIZE\033[0m"
-                        break
-                    else
-                        echo -e "\033[1;91m❌ Invalid size format. Please use format like 100G or 50%.\033[0m"
-                    fi
-                done
-                break
-                ;;
-            2|"")
-                SEPARATE_HOME="no"
-                HOME_PART_SIZE=""
-                echo -e "\033[1;32m✓ Home included in root dataset\033[0m"
-                break
-                ;;
-            *)
-                echo -e "\033[1;91m❌ Invalid choice. Please enter 1 or 2.\033[0m"
-                ;;
-        esac
-    done
-    
-    # Ask for ZFS compression algorithm
-    echo -e "\n\033[1;94mSelect ZFS compression algorithm:\033[0m"
-    echo -e "  \033[1;37m1)\033[0m \033[1;38;5;39mlz4\033[0m (Fast, good ratio, default)"
-    echo -e "  \033[1;37m2)\033[0m \033[1;38;5;202mzstd\033[0m (Better compression, slightly slower)"
-    echo -e "  \033[1;37m3)\033[0m \033[1;38;5;118mgzip\033[0m (Best compression, slowest)"
-    echo -e "  \033[1;37m4)\033[0m \033[1;38;5;196mNone\033[0m (No compression)"
-    echo
-    
-    while true; do
-        echo -en "\033[1;94mEnter your choice (1-4) [1]: \033[0m"
-        read -r compression_choice
-        
-        case $compression_choice in
-            1|"")
-                ZFS_COMPRESSION="lz4"
-                echo -e "\033[1;32m✓ Selected lz4 compression\033[0m"
-                break
-                ;;
-            2)
-                ZFS_COMPRESSION="zstd"
-                echo -e "\033[1;32m✓ Selected zstd compression\033[0m"
-                break
-                ;;
-            3)
-                ZFS_COMPRESSION="gzip"
-                echo -e "\033[1;32m✓ Selected gzip compression\033[0m"
-                break
-                ;;
-            4)
-                ZFS_COMPRESSION="off"
-                echo -e "\033[1;32m✓ Compression disabled\033[0m"
-                break
-                ;;
-            *)
-                echo -e "\033[1;91m❌ Invalid choice. Please enter a number between 1 and 4.\033[0m"
-                ;;
-        esac
-    done
     
     # Run fdisk with custom settings
     (
@@ -1197,10 +1162,11 @@ print_section_header "FORMAT/MOUNT PARTITIONS"
 if [ "$ENCRYPT_DISK" = "yes" ]; then
     echo -e "\033[1;94m🔐 Creating encrypted ZFS pool...\033[0m"
     
-    # Create a temporary keyfile
-    mkdir -p /tmp/keyfiles
-    echo "$DISK_PASSWORD" > /tmp/keyfiles/zroot.key
-    chmod 000 /tmp/keyfiles/zroot.key
+    # Create key file directory in the installed system
+    mkdir -p /mnt/etc/zfs
+    echo "$DISK_PASSWORD" > /mnt/etc/zfs/zroot.key
+    chmod 000 /mnt/etc/zfs/zroot.key
+    chown root:root /mnt/etc/zfs/keys/zroot.key
     
     # Create ZFS pool with encryption and user-defined compression if in advanced mode
     run_command "zpool create \
@@ -1208,8 +1174,10 @@ if [ "$ENCRYPT_DISK" = "yes" ]; then
         -O acltype=posixacl -O canmount=off -O compression=$ZFS_COMPRESSION \
         -O dnodesize=auto -O normalization=formD -o autotrim=on \
         -O atime=off -O xattr=sa -O mountpoint=none \
-        -O encryption=aes-256-gcm -O keylocation=file:///tmp/keyfiles/zroot.key -O keyformat=passphrase \
+        -O encryption=aes-256-gcm -O keylocation=file:///etc/zfs/zroot.key -O keyformat=passphrase \
         -R /mnt zroot ${DISK}${PARTITION_2} -f" "create encrypted ZFS pool with $ZFS_COMPRESSION compression"
+
+
 else
     echo -e "\033[1;94m🌊 Creating standard ZFS pool...\033[0m"
     run_command "zpool create \
@@ -1233,13 +1201,7 @@ cp /etc/zfs/zpool.cache /mnt/etc/zfs/zpool.cache
 run_command "mkfs.fat -F32 ${DISK}${PARTITION_1}" "format EFI partition with FAT32"
 mkdir -p /mnt/efi && mount ${DISK}${PARTITION_1} /mnt/efi
 
-# If encryption was enabled, create key file directory in the installed system
-if [ "$ENCRYPT_DISK" = "yes" ]; then
-    mkdir -p /mnt/etc/zfs/keys
-    cp /tmp/keyfiles/zroot.key /mnt/etc/zfs/keys/
-    chmod 000 /mnt/etc/zfs/keys/zroot.key
-    chown root:root /mnt/etc/zfs/keys/zroot.key
-fi
+
 
 
 # ----------------------------------------
@@ -1249,7 +1211,6 @@ print_section_header "INSTALL BASE"
 
 run_command "pacstrap /mnt linux-lts linux-lts-headers mkinitcpio base base-devel linux-firmware zram-generator reflector sudo networkmanager efibootmgr $CPU_MICROCODE wget" "install base packages" 
 
-
 # ----------------------------------------
 # GENERATE FSTAB
 # ----------------------------------------
@@ -1258,9 +1219,6 @@ print_section_header "GENERATING FSTAB"
 genfstab -U /mnt > /mnt/etc/fstab
 echo -e "\nFstab file generated:\n"
 cat /mnt/etc/fstab
-
-echo -e "\n\033[1;94mFSTAB completed. Press Enter to continue with installation...\033[0m"
-read -r
 
 # ----------------------------------------
 # CHROOT
