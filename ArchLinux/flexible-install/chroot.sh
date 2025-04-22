@@ -49,46 +49,6 @@ run_command "pacman-key --lsign-key DDF7DB817396A49B2A2723F7403BD972F75D9D76" "s
 run_command "pacman -Sy --noconfirm zfs-dkms" "install ZFS DKMS"
 run_command "systemctl enable zfs.target zfs-import-cache zfs-mount zfs-import.target" "enable ZFS services"
 
-# ----------------------------------------
-# ZFS ENCRYPTION SETUP
-# ----------------------------------------
-print_section_header "CONFIGURING ZFS ENCRYPTION"
-
-# Check if encryption was enabled
-if [ -f "/etc/zfs/keys/zroot.key" ]; then
-    echo -e "\033[1;94m🔐 Setting up ZFS encryption support...\033[0m"
-    
-    # Create systemd service to load the encryption key during boot
-    echo -e "\033[1;94m📝 Creating systemd service for ZFS encryption...\033[0m"
-    
-    run_command "bash -c 'cat > /etc/systemd/system/zfs-load-key.service <<EOF
-[Unit]
-Description=Load ZFS encryption keys
-DefaultDependencies=no
-Before=zfs-mount.service
-After=zfs-import.target
-
-[Service]
-Type=oneshot
-RemainAfterExit=yes
-ExecStart=/usr/bin/zfs load-key -a
-
-[Install]
-WantedBy=zfs-mount.service
-EOF'" "create ZFS load-key service"
-
-    # Enable the service
-    run_command "systemctl enable zfs-load-key.service" "enable ZFS load-key service"
-    
-    # Configure ZFSBootMenu to properly handle encryption
-    echo -e "\033[1;94m⚙️ Configuring ZFSBootMenu for encryption support...\033[0m"
-    
-    # Update ZFSBootMenu configuration for encryption
-    run_command "zfs set org.zfsbootmenu:keysource=zroot/rootfs zroot/rootfs" "set ZFSBootMenu keysource property"
-    
-else
-    echo -e "\033[1;94mℹ️ ZFS encryption not enabled, skipping encryption setup.\033[0m"
-fi
 
 # ----------------------------------------
 # ZFSBOOTMENU SETUP
@@ -99,22 +59,13 @@ echo -e "\033[1;94m💾 Downloading and configuring ZFSBootMenu...\033[0m"
 mkdir -p /efi/EFI/zbm
 run_command "wget https://get.zfsbootmenu.org/latest.EFI -O /efi/EFI/zbm/zfsbootmenu.EFI" "download ZFSBootMenu EFI file"
 
-# Create EFI boot entry with appropriate parameters
-if [ -f "/etc/zfs/keys/zroot.key" ]; then
-    # Add encryption-specific parameters
-    run_command "efibootmgr --disk $DISK --part 1 --create \
-                     --label \"ZFSBootMenu\" \
-                     --loader '\\EFI\\zbm\\zfsbootmenu.EFI' \
-                     --unicode \"spl_hostid=$(hostid) zbm.timeout=10 zbm.prefer=zroot zbm.import_policy=hostid zbm.allow_failback=yes\" \
-                     --verbose" "create EFI boot entry for ZFSBootMenu with encryption support"
-else
-    # Standard parameters
-    run_command "efibootmgr --disk $DISK --part 1 --create \
-                     --label \"ZFSBootMenu\" \
-                     --loader '\\EFI\\zbm\\zfsbootmenu.EFI' \
-                     --unicode \"spl_hostid=$(hostid) zbm.timeout=3 zbm.prefer=zroot zbm.import_policy=hostid\" \
-                     --verbose" "create EFI boot entry for ZFSBootMenu"
-fi
+# Standard parameters
+run_command "efibootmgr --disk $DISK --part 1 --create \
+                 --label \"ZFSBootMenu\" \
+                 --loader '\\EFI\\zbm\\zfsbootmenu.EFI' \
+                 --unicode \"spl_hostid=$(hostid) zbm.timeout=3 zbm.prefer=zroot zbm.import_policy=hostid\" \
+                 --verbose" "create EFI boot entry for ZFSBootMenu"
+
 
 run_command "zfs set org.zfsbootmenu:commandline=\"noresume init_on_alloc=0 rw spl.spl_hostid=$(hostid)\" zroot/rootfs" "set ZFSBootMenu commandline property"
 
@@ -125,6 +76,20 @@ print_section_header "CONFIGURING MKINITCPIO"
 
 run_command "sed -i 's/\(filesystems\) \(fsck\)/\1 zfs \2/' /etc/mkinitcpio.conf" "add ZFS hooks to mkinitcpio.conf"
 run_command "mkinitcpio -p linux-lts" "generate initial ramdisk"
+
+# Check if encryption was enabled
+if [ -f "/etc/zfs/zroot.key" ]; then
+    echo -e "\033[1;94m🔐 Setting up ZFS encryption keys...\033[0m"
+
+    # Add zroot.key to the FILES array in mkinitcpio.conf
+    run_command "sed -i 's|^FILES=.*|FILES=(/etc/zfs/zroot.key)|' /etc/mkinitcpio.conf" "add encryption key to mkinitcpio FILES array"
+    run_command "mkinitcpio -p linux-lts" "regenerate initial ramdisk with encryption support"
+    FILES=(/etc/zfs/zroot.key)
+    
+    
+else
+    echo -e "\033[1;94mℹ️ ZFS encryption not enabled, skipping encryption setup.\033[0m"
+fi
 
 # ----------------------------------------
 # ZRAM CONFIGURATION
@@ -186,8 +151,6 @@ run_command "useradd -m $USER" "create user"
 run_command "echo \"$USER:$USERPASS\" | chpasswd" "set user password"
 echo -e "\n\n$USER ALL=(ALL:ALL) NOPASSWD: ALL" >> /etc/sudoers
 
-echo -e "\033[1;92m✅ User $USER created successfully\033[0m"
-
 run_command "echo \"root:$ROOTPASS\" | chpasswd" "set root password"
 
 # ----------------------------------------
@@ -202,9 +165,6 @@ run_command "systemctl enable NetworkManager" "enable NetworkManager"
 # DESKTOP ENVIRONMENT
 # ----------------------------------------
 print_section_header "INSTALLING DESKTOP ENVIRONMENT"
-
-# Debug output to check what value we're receiving
-echo -e "\033[1;94m🖥️ Received desktop environment value: \033[1;97m$DE_CHOICE\033[0m"
 
 # Ensure the variable is a number for proper comparison
 DE_CHOICE=$(echo "$DE_CHOICE" | tr -d '"') # Remove any quotes that might be present
