@@ -219,7 +219,7 @@ esac
 # ----------------------------------------
 print_section_header "CONFIGURING REPOSITORIES"
 
-#run_command "sed -i '/\[multilib\]/,/Include/ s/^#//' /etc/pacman.conf" "enable multilib repository"
+run_command "sed -i '/\[multilib\]/,/Include/ s/^#//' /etc/pacman.conf" "enable multilib repository"
 run_command "pacman -Syy" "refresh package databases"
 
 
@@ -228,7 +228,7 @@ run_command "pacman -Syy" "refresh package databases"
 # ----------------------------------------
 print_section_header "INSTALLING AUR HELPER"
 
-#run_command "su -c \"cd /tmp && git clone https://aur.archlinux.org/yay.git && cd yay && echo $USERPASS | makepkg -si --noconfirm\" $USER" "install Yay AUR helper"
+run_command "su -c \"cd /tmp && git clone https://aur.archlinux.org/yay.git && cd yay && echo $USERPASS | makepkg -si --noconfirm\" $USER" "install Yay AUR helper"
 
 # ----------------------------------------
 # UTILITIES INSTALLATION
@@ -248,44 +248,11 @@ echo -e "\033[1;94m🔊 Setting up audio server: \033[1;97m$AUDIO_SERVER\033[0m"
 if [ "$AUDIO_SERVER" = "pipewire" ]; then
     echo -e "\033[1;92m✨ Installing PipeWire audio system...\033[0m"
     run_command "pacman -S --noconfirm pipewire wireplumber pipewire-pulse pipewire-alsa alsa-plugins alsa-firmware sof-firmware alsa-card-profiles pavucontrol" "install PipeWire and related packages"
-    
-    # Enable PipeWire for the user
-    mkdir -p /home/$USER/.config/systemd/user/
-    run_command "bash -c 'cat > /home/$USER/.config/systemd/user/pipewire.service <<EOF
-[Unit]
-Description=Multimedia Service
-After=pipewire.socket
-
-[Service]
-ExecStart=/usr/bin/pipewire
-Restart=on-failure
-LimitNOFILE=65536
-
-[Install]
-WantedBy=default.target
-EOF'" "create PipeWire user service"
+    systemctl enable pipewire pipewire-pulse wireplumber 
 
 else
     echo -e "\033[1;92m✨ Installing PulseAudio audio system...\033[0m"
     run_command "pacman -S --noconfirm pulseaudio pulseaudio-alsa pulseaudio-bluetooth alsa-utils alsa-plugins alsa-firmware sof-firmware alsa-card-profiles pavucontrol" "install PulseAudio and related packages"
-    
-    # Enable PulseAudio for the user
-    mkdir -p /home/$USER/.config/systemd/user/
-    run_command "bash -c 'cat > /home/$USER/.config/systemd/user/pulseaudio.service <<EOF
-[Unit]
-Description=Sound Service
-After=pulseaudio.socket
-
-[Service]
-ExecStart=/usr/bin/pulseaudio --daemonize=no
-Restart=on-failure
-LimitNOFILE=65536
-
-[Install]
-WantedBy=default.target
-EOF'" "create PulseAudio user service"
-
-fi
 
 # Set user permissions
 chown -R $USER:$USER /home/$USER/.config
@@ -296,18 +263,18 @@ chown -R $USER:$USER /home/$USER/.config
 print_section_header "CONFIGURING GPU DRIVERS"
 
 #Install appropriate GPU drivers based on earlier selection
-if [ "$GPU_TYPE" = "NVIDIA" ]; then
-    if [ "$NVIDIA_DRIVER_TYPE" = "open" ]; then
-        echo -e "\033[1;94m🎮 Installing NVIDIA open drivers...\033[0m"
-        run_command "pacman -S --noconfirm nvidia-open-lts nvidia-settings nvidia-utils opencl-nvidia libxnvctrl" "install NVIDIA open drivers"
-    else
-        echo -e "\033[1;94m🎮 Installing NVIDIA proprietary drivers...\033[0m"
-        run_command "pacman -S --noconfirm nvidia-lts nvidia-settings nvidia-utils opencl-nvidia libxnvctrl" "install NVIDIA proprietary drivers"
-    fi
-elif [ "$GPU_TYPE" = "AMD/Intel" ]; then
-    echo -e "\033[1;94m🎮 Installing AMD/Intel GPU drivers...\033[0m"
-    run_command "pacman -S --noconfirm mesa lib32-mesa vulkan-radeon lib32-vulkan-radeon libva-mesa-driver lib32-libva-mesa-driver mesa-vdpau lib32-mesa-vdpau" "install AMD/Intel GPU drivers"
-elif [ "$GPU_TYPE" = "None/VM" ]; then
-    echo -e "\033[1;94m🎮 Installing basic video drivers for VM/basic system...\033[0m"
-    run_command "pacman -S --noconfirm mesa xf86-video-fbdev" "install basic video drivers"
-fi
+# if [ "$GPU_TYPE" = "NVIDIA" ]; then
+#     if [ "$NVIDIA_DRIVER_TYPE" = "open" ]; then
+#         echo -e "\033[1;94m🎮 Installing NVIDIA open drivers...\033[0m"
+#         run_command "pacman -S --noconfirm nvidia-open-lts nvidia-settings nvidia-utils opencl-nvidia libxnvctrl" "install NVIDIA open drivers"
+#     else
+#         echo -e "\033[1;94m🎮 Installing NVIDIA proprietary drivers...\033[0m"
+#         run_command "pacman -S --noconfirm nvidia-lts nvidia-settings nvidia-utils opencl-nvidia libxnvctrl" "install NVIDIA proprietary drivers"
+#     fi
+# elif [ "$GPU_TYPE" = "AMD/Intel" ]; then
+#     echo -e "\033[1;94m🎮 Installing AMD/Intel GPU drivers...\033[0m"
+#     run_command "pacman -S --noconfirm mesa lib32-mesa vulkan-radeon lib32-vulkan-radeon libva-mesa-driver lib32-libva-mesa-driver mesa-vdpau lib32-mesa-vdpau" "install AMD/Intel GPU drivers"
+# elif [ "$GPU_TYPE" = "None/VM" ]; then
+#     echo -e "\033[1;94m🎮 Installing basic video drivers for VM/basic system...\033[0m"
+#     run_command "pacman -S --noconfirm mesa xf86-video-fbdev" "install basic video drivers"
+# fi

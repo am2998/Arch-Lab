@@ -150,10 +150,312 @@ while true; do
     esac
 done
 
+# ----------------------------------------
+# ADVANCED OPTIONS (only in advanced mode)
+# ----------------------------------------
+if [ "$INSTALL_MODE" = "advanced" ]; then
+    print_section_header "ADVANCED PARTITION CONFIGURATION"
+    
+    # Get the total disk size
+    # Get disk size in GB
+    DISK_SIZE_GB=$(lsblk -dn -o SIZE $DEVICE --bytes | numfmt --to=iec --format="%.0f" --from=auto | sed 's/[^0-9]//g')
+    echo -e "\033[1;94mDisk size: \033[1;97m${DISK_SIZE_GB}GB\033[0m"
+    
+    # EFI partition size configuration
+    echo -e "\033[1;94mConfigure EFI partition size:\033[0m"
+    echo -e "  \033[1;37m1)\033[0m Use default (1GB - recommended)"
+    echo -e "  \033[1;37m2)\033[0m Specify custom size"
+    echo
+    
+    while true; do
+        echo -en "\033[1;94mEnter your choice (1-2) [1]: \033[0m"
+        read -r efi_size_choice
+        
+        case $efi_size_choice in
+            1|"")
+                EFI_PART_SIZE="1G"
+                echo -e "\033[1;32m✓ Using default EFI partition size: \033[1;37m1GB\033[0m"
+                break
+                ;;
+            2)
+                while true; do
+                    echo -en "\033[1;94mEnter EFI partition size in MB (e.g., 512 for 512MB): \033[0m"
+                    read -r custom_efi_size
+                    
+                    # Validate input (simple check for numeric value)
+                    if [[ "$custom_efi_size" =~ ^[0-9]+$ ]]; then
+                        if (( custom_efi_size >= 100 && custom_efi_size <= 2048 )); then
+                            EFI_PART_SIZE="${custom_efi_size}M"
+                            echo -e "\033[1;32m✓ EFI partition size set to: \033[1;37m${custom_efi_size}MB\033[0m"
+                            break
+                        else
+                            echo -e "\033[1;91m❌ Invalid size. Please enter a value between 100 and 2048 MB.\033[0m"
+                        fi
+                    else
+                        echo -e "\033[1;91m❌ Invalid size format. Please enter a numeric value in MB.\033[0m"
+                    fi
+                done
+                break
+                ;;
+            *)
+                echo -e "\033[1;91m❌ Invalid choice. Please enter 1 or 2.\033[0m"
+                ;;
+        esac
+    done
+    
+    # Root partition size configuration
+    echo -e "\n\033[1;94mConfigure root partition size:\033[0m"
+    echo -e "  \033[1;37m1)\033[0m Use all available space (recommended)"
+    echo -e "  \033[1;37m2)\033[0m Specify custom size (for multi-boot or future partitioning)"
+    echo
+    
+    while true; do
+        echo -en "\033[1;94mEnter your choice (1-2) [1]: \033[0m"
+        read -r root_size_choice
+        
+        case $root_size_choice in
+            1|"")
+                ROOT_PART_SIZE="MAX"
+                echo -e "\033[1;32m✓ Using all available space for root partition\033[0m"
+                break
+                ;;
+            2)
+                while true; do
+                    echo -en "\033[1;94mEnter root partition size in GB (e.g., 50 for 50GB): \033[0m"
+                    read -r custom_root_size
+                    
+                    # Validate input (simple check for numeric value)
+                    if [[ "$custom_root_size" =~ ^[0-9]+$ ]]; then
+                        # Calculate max safe size - hardcode an upper limit to avoid integer overflow
+                        if [ "$DISK_SIZE_GB" -gt 1000 ]; then
+                            max_safe_size=950  # Cap at 950GB for very large disks
+                        else
+                            # Use bc for floating point calculation to avoid integer errors
+                            max_safe_size=$(echo "$DISK_SIZE_GB * 0.95" | bc 2>/dev/null | cut -d. -f1)
+                            # Fallback if bc fails
+                            if [ -z "$max_safe_size" ]; then
+                                max_safe_size=50
+                            fi
+                        fi
+                        
+                        # Check if specified size is reasonable (at least 20GB, less than max_safe_size)
+                        if [ "$custom_root_size" -ge 20 ] && [ "$custom_root_size" -le "$max_safe_size" ]; then
+                            ROOT_PART_SIZE="${custom_root_size}G"
+                            echo -e "\033[1;32m✓ Root partition size set to: \033[1;37m${custom_root_size}GB\033[0m"
+                            break
+                        else
+                            echo -e "\033[1;91m❌ Invalid size. Please enter a value between 20 and ${max_safe_size} GB.\033[0m"
+                        fi
+                    else
+                        echo -e "\033[1;91m❌ Invalid size format. Please enter a numeric value in GB.\033[0m"
+                    fi
+                done
+                break
+                ;;
+            *)
+                echo -e "\033[1;91m❌ Invalid choice. Please enter 1 or 2.\033[0m"
+                ;;
+        esac
+    done
 
-# echo -e "\n\n# --------------------------------------------------------------------------------------------------------------------------"
-# echo -e "# Initial configuration                                                               "
-# echo -e "# --------------------------------------------------------------------------------------------------------------------------\n"
+    print_section_header "DISK ENCRYPTION CONFIGURATION"
+    
+    echo -e "\033[1;94mDo you want to encrypt your disk?\033[0m"
+    echo -e "\033[1;93m⚠️  NOTE: If yes, you'll need to enter a passphrase at each boot\033[0m\n"
+
+    echo -e "  \033[1;97m1)\033[0m \033[1;38;5;82mYes\033[0m (More secure, requires passphrase)"
+    echo -e "  \033[1;97m2)\033[0m \033[1;38;5;203mNo\033[0m (More convenient, less secure)"
+    echo
+    
+    while true; do
+        echo -en "\033[1;94mEnter your choice (1-2): \033[0m"
+        read -r encrypt_choice
+        
+        case $encrypt_choice in
+            1)
+                ENCRYPT_DISK="yes"
+                echo -e "\033[1;92m✅ Disk encryption enabled\033[0m"
+                # Get encryption passphrase
+                get_password "Enter disk encryption passphrase (At least 8 characters)" DISK_PASSWORD
+                echo -e "\033[1;92m✅ Encryption passphrase set\033[0m\n"
+                break
+                ;;
+            2)
+                ENCRYPT_DISK="no"
+                DISK_PASSWORD=""
+                echo -e "\033[1;92m✓ Disk encryption disabled\033[0m\n"
+                break
+                ;;
+            *)
+                echo -e "\033[1;91m❌ Invalid choice. Please enter 1 or 2.\033[0m"
+                ;;
+        esac
+    done
+
+    print_section_header "ADVANCED ZFS CONFIGURATION"
+    
+    # Ask for ZFS compression algorithm
+    echo -e "\n\033[1;94mSelect ZFS compression algorithm:\033[0m"
+    echo -e "  \033[1;37m1)\033[0m \033[1;38;5;39mlz4\033[0m (Fast, good ratio, default)"
+    echo -e "  \033[1;37m2)\033[0m \033[1;38;5;202mzstd\033[0m (Better compression, slightly slower)"
+    echo -e "  \033[1;37m3)\033[0m \033[1;38;5;118mgzip\033[0m (Best compression, slowest)"
+    echo -e "  \033[1;37m4)\033[0m \033[1;38;5;196mNone\033[0m (No compression)"
+    echo
+    
+    while true; do
+        echo -en "\033[1;94mEnter your choice (1-4) [1]: \033[0m"
+        read -r compression_choice
+        
+        case $compression_choice in
+            1|"")
+                ZFS_COMPRESSION="lz4"
+                echo -e "\033[1;32m✓ Selected lz4 compression\033[0m"
+                break
+                ;;
+            2)
+                ZFS_COMPRESSION="zstd"
+                echo -e "\033[1;32m✓ Selected zstd compression\033[0m"
+                break
+                ;;
+            3)
+                ZFS_COMPRESSION="gzip"
+                echo -e "\033[1;32m✓ Selected gzip compression\033[0m"
+                break
+                ;;
+            4)
+                ZFS_COMPRESSION="off"
+                echo -e "\033[1;32m✓ Compression disabled\033[0m"
+                break
+                ;;
+            *)
+                echo -e "\033[1;91m❌ Invalid choice. Please enter a number between 1 and 4.\033[0m"
+                ;;
+        esac
+    done
+    
+    # ZFS Dataset Configuration
+    echo -e "\n\033[1;94mConfigure ZFS datasets structure:\033[0m"
+    echo -e "  \033[1;37m1)\033[0m \033[1;38;5;82mSimple\033[0m (Single root dataset only)"
+    echo -e "  \033[1;37m2)\033[0m \033[1;38;5;39mAdvanced\033[0m (Separate datasets for system directories)"
+    echo
+    
+    while true; do
+        echo -en "\033[1;94mEnter your choice (1-2) [2]: \033[0m"
+        read -r datasets_choice
+        
+        case $datasets_choice in
+            1)
+                SEPARATE_DATASETS="no"
+                echo -e "\033[1;32m✓ Selected simple dataset structure\033[0m"
+                break
+                ;;
+            2|"")
+                SEPARATE_DATASETS="yes"
+                echo -e "\033[1;32m✓ Selected advanced dataset structure\033[0m"
+                break
+                ;;
+            *)
+                echo -e "\033[1;91m❌ Invalid choice. Please enter 1 or 2.\033[0m"
+                ;;
+        esac
+    done
+    
+    print_section_header "ADVANCED ZRAM CONFIGURATION"
+    
+    echo -e "\033[1;94mConfiguring ZRAM (compressed RAM swap):\033[0m"
+    
+    # Ask for ZRAM size
+    echo -e "\033[1;94mSelect ZRAM size:\033[0m"
+    echo -e "  \033[1;37m1)\033[0m \033[1;38;5;39mAuto\033[0m (min(RAM, 32GB) - recommended)"
+    echo -e "  \033[1;37m2)\033[0m \033[1;38;5;202mHalf of RAM\033[0m"
+    echo -e "  \033[1;37m3)\033[0m \033[1;38;5;118mCustom value\033[0m (specify in MB)"
+    echo
+    
+    while true; do
+        echo -en "\033[1;94mEnter your choice (1-3) [1]: \033[0m"
+        read -r zram_size_choice
+        
+        case $zram_size_choice in
+            1|"")
+                ZRAM_SIZE="min(ram, 32768)"
+                echo -e "\033[1;32m✓ Selected automatic ZRAM sizing\033[0m"
+                break
+                ;;
+            2)
+                ZRAM_SIZE="ram / 2"
+                echo -e "\033[1;32m✓ Selected half of RAM for ZRAM\033[0m"
+                break
+                ;;
+            3)
+                while true; do
+                    echo -en "\033[1;94mEnter ZRAM size in MB (e.g., 8192 for 8GB): \033[0m"
+                    read -r custom_zram_size
+                    
+                    # Validate input (simple check for numeric value)
+                    if [[ "$custom_zram_size" =~ ^[0-9]+$ ]]; then
+                        ZRAM_SIZE="$custom_zram_size"
+                        echo -e "\033[1;32m✓ ZRAM size set to: \033[1;37m${custom_zram_size}MB\033[0m"
+                        break
+                    else
+                        echo -e "\033[1;91m❌ Invalid size. Please enter a numeric value in MB.\033[0m"
+                    fi
+                done
+                break
+                ;;
+            *)
+                echo -e "\033[1;91m❌ Invalid choice. Please enter a number between 1 and 3.\033[0m"
+                ;;
+        esac
+    done
+    
+    # Ask for ZRAM compression algorithm
+    echo -e "\n\033[1;94mSelect ZRAM compression algorithm:\033[0m"
+    echo -e "  \033[1;37m1)\033[0m \033[1;38;5;39mzstd\033[0m (Best balance of speed/compression - recommended)"
+    echo -e "  \033[1;37m2)\033[0m \033[1;38;5;202mlz4\033[0m (Faster, lower compression ratio)"
+    echo -e "  \033[1;37m3)\033[0m \033[1;38;5;118mlzo-rle\033[0m (Legacy option)"
+    echo -e "  \033[1;37m4)\033[0m \033[1;38;5;196mlzo\033[0m (Older algorithm)"
+    echo
+    
+    while true; do
+        echo -en "\033[1;94mEnter your choice (1-4) [1]: \033[0m"
+        read -r zram_compression_choice
+        
+        case $zram_compression_choice in
+            1|"")
+                ZRAM_COMPRESSION="zstd"
+                echo -e "\033[1;32m✓ Selected zstd compression algorithm\033[0m\n"
+                break
+                ;;
+            2)
+                ZRAM_COMPRESSION="lz4"
+                echo -e "\033[1;32m✓ Selected lz4 compression algorithm\033[0m\n"
+                break
+                ;;
+            3)
+                ZRAM_COMPRESSION="lzo-rle"
+                echo -e "\033[1;32m✓ Selected lzo-rle compression algorithm\033[0m\n"
+                break
+                ;;
+            4)
+                ZRAM_COMPRESSION="lzo"
+                echo -e "\033[1;32m✓ Selected lzo compression algorithm\033[0m\n"
+                break
+                ;;
+            *)
+                echo -e "\033[1;91m❌ Invalid choice. Please enter a number between 1 and 4.\033[0m"
+                ;;
+        esac
+    done
+else
+    # Set default values for simple mode
+    EFI_PART_SIZE="1G"
+    ROOT_PART_SIZE="MAX"
+    ENCRYPT_DISK="no"
+    ZFS_COMPRESSION="lz4"
+    SEPARATE_DATASETS="no"
+    ZRAM_SIZE="min(ram, 32768)"
+    ZRAM_COMPRESSION="zstd"
+fi
 
 # ----------------------------------------
 # DESKTOP ENVIRONMENT SELECTION
@@ -574,313 +876,6 @@ while true; do
     esac
 done
 
-# ----------------------------------------
-# ADVANCED OPTIONS (only in advanced mode)
-# ----------------------------------------
-if [ "$INSTALL_MODE" = "advanced" ]; then
-    print_section_header "ADVANCED PARTITION CONFIGURATION"
-    
-    # Get the total disk size
-    # Get disk size in GB
-    DISK_SIZE_GB=$(lsblk -dn -o SIZE $DEVICE --bytes | numfmt --to=iec --format="%.0f" --from=auto | sed 's/[^0-9]//g')
-    echo -e "\033[1;94mDisk size: \033[1;97m${DISK_SIZE_GB}GB\033[0m"
-    
-    # EFI partition size configuration
-    echo -e "\033[1;94mConfigure EFI partition size:\033[0m"
-    echo -e "  \033[1;37m1)\033[0m Use default (1GB - recommended)"
-    echo -e "  \033[1;37m2)\033[0m Specify custom size"
-    echo
-    
-    while true; do
-        echo -en "\033[1;94mEnter your choice (1-2) [1]: \033[0m"
-        read -r efi_size_choice
-        
-        case $efi_size_choice in
-            1|"")
-                EFI_PART_SIZE="1G"
-                echo -e "\033[1;32m✓ Using default EFI partition size: \033[1;37m1GB\033[0m"
-                break
-                ;;
-            2)
-                while true; do
-                    echo -en "\033[1;94mEnter EFI partition size in MB (e.g., 512 for 512MB): \033[0m"
-                    read -r custom_efi_size
-                    
-                    # Validate input (simple check for numeric value)
-                    if [[ "$custom_efi_size" =~ ^[0-9]+$ ]]; then
-                        if (( custom_efi_size >= 100 && custom_efi_size <= 2048 )); then
-                            EFI_PART_SIZE="${custom_efi_size}M"
-                            echo -e "\033[1;32m✓ EFI partition size set to: \033[1;37m${custom_efi_size}MB\033[0m"
-                            break
-                        else
-                            echo -e "\033[1;91m❌ Invalid size. Please enter a value between 100 and 2048 MB.\033[0m"
-                        fi
-                    else
-                        echo -e "\033[1;91m❌ Invalid size format. Please enter a numeric value in MB.\033[0m"
-                    fi
-                done
-                break
-                ;;
-            *)
-                echo -e "\033[1;91m❌ Invalid choice. Please enter 1 or 2.\033[0m"
-                ;;
-        esac
-    done
-    
-    # Root partition size configuration
-    echo -e "\n\033[1;94mConfigure root partition size:\033[0m"
-    echo -e "  \033[1;37m1)\033[0m Use all available space (recommended)"
-    echo -e "  \033[1;37m2)\033[0m Specify custom size (for multi-boot or future partitioning)"
-    echo
-    
-    while true; do
-        echo -en "\033[1;94mEnter your choice (1-2) [1]: \033[0m"
-        read -r root_size_choice
-        
-        case $root_size_choice in
-            1|"")
-                ROOT_PART_SIZE="MAX"
-                echo -e "\033[1;32m✓ Using all available space for root partition\033[0m"
-                break
-                ;;
-            2)
-                while true; do
-                    echo -en "\033[1;94mEnter root partition size in GB (e.g., 50 for 50GB): \033[0m"
-                    read -r custom_root_size
-                    
-                    # Validate input (simple check for numeric value)
-                    if [[ "$custom_root_size" =~ ^[0-9]+$ ]]; then
-                        # Calculate max safe size - hardcode an upper limit to avoid integer overflow
-                        if [ "$DISK_SIZE_GB" -gt 1000 ]; then
-                            max_safe_size=950  # Cap at 950GB for very large disks
-                        else
-                            # Use bc for floating point calculation to avoid integer errors
-                            max_safe_size=$(echo "$DISK_SIZE_GB * 0.95" | bc 2>/dev/null | cut -d. -f1)
-                            # Fallback if bc fails
-                            if [ -z "$max_safe_size" ]; then
-                                max_safe_size=50
-                            fi
-                        fi
-                        
-                        # Check if specified size is reasonable (at least 20GB, less than max_safe_size)
-                        if [ "$custom_root_size" -ge 20 ] && [ "$custom_root_size" -le "$max_safe_size" ]; then
-                            ROOT_PART_SIZE="${custom_root_size}G"
-                            echo -e "\033[1;32m✓ Root partition size set to: \033[1;37m${custom_root_size}GB\033[0m"
-                            break
-                        else
-                            echo -e "\033[1;91m❌ Invalid size. Please enter a value between 20 and ${max_safe_size} GB.\033[0m"
-                        fi
-                    else
-                        echo -e "\033[1;91m❌ Invalid size format. Please enter a numeric value in GB.\033[0m"
-                    fi
-                done
-                break
-                ;;
-            *)
-                echo -e "\033[1;91m❌ Invalid choice. Please enter 1 or 2.\033[0m"
-                ;;
-        esac
-    done
-
-    print_section_header "DISK ENCRYPTION CONFIGURATION"
-    
-    echo -e "\033[1;94mDo you want to encrypt your disk?\033[0m"
-    echo -e "\033[1;93m⚠️  NOTE: If yes, you'll need to enter a passphrase at each boot\033[0m\n"
-
-    echo -e "  \033[1;97m1)\033[0m \033[1;38;5;82mYes\033[0m (More secure, requires passphrase)"
-    echo -e "  \033[1;97m2)\033[0m \033[1;38;5;203mNo\033[0m (More convenient, less secure)"
-    echo
-    
-    while true; do
-        echo -en "\033[1;94mEnter your choice (1-2): \033[0m"
-        read -r encrypt_choice
-        
-        case $encrypt_choice in
-            1)
-                ENCRYPT_DISK="yes"
-                echo -e "\033[1;92m✅ Disk encryption enabled\033[0m"
-                # Get encryption passphrase
-                get_password "Enter disk encryption passphrase (At least 8 characters)" DISK_PASSWORD
-                echo -e "\033[1;92m✅ Encryption passphrase set\033[0m\n"
-                break
-                ;;
-            2)
-                ENCRYPT_DISK="no"
-                DISK_PASSWORD=""
-                echo -e "\033[1;92m✓ Disk encryption disabled\033[0m\n"
-                break
-                ;;
-            *)
-                echo -e "\033[1;91m❌ Invalid choice. Please enter 1 or 2.\033[0m"
-                ;;
-        esac
-    done
-
-    print_section_header "ADVANCED ZFS CONFIGURATION"
-    
-    # Ask for ZFS compression algorithm
-    echo -e "\n\033[1;94mSelect ZFS compression algorithm:\033[0m"
-    echo -e "  \033[1;37m1)\033[0m \033[1;38;5;39mlz4\033[0m (Fast, good ratio, default)"
-    echo -e "  \033[1;37m2)\033[0m \033[1;38;5;202mzstd\033[0m (Better compression, slightly slower)"
-    echo -e "  \033[1;37m3)\033[0m \033[1;38;5;118mgzip\033[0m (Best compression, slowest)"
-    echo -e "  \033[1;37m4)\033[0m \033[1;38;5;196mNone\033[0m (No compression)"
-    echo
-    
-    while true; do
-        echo -en "\033[1;94mEnter your choice (1-4) [1]: \033[0m"
-        read -r compression_choice
-        
-        case $compression_choice in
-            1|"")
-                ZFS_COMPRESSION="lz4"
-                echo -e "\033[1;32m✓ Selected lz4 compression\033[0m"
-                break
-                ;;
-            2)
-                ZFS_COMPRESSION="zstd"
-                echo -e "\033[1;32m✓ Selected zstd compression\033[0m"
-                break
-                ;;
-            3)
-                ZFS_COMPRESSION="gzip"
-                echo -e "\033[1;32m✓ Selected gzip compression\033[0m"
-                break
-                ;;
-            4)
-                ZFS_COMPRESSION="off"
-                echo -e "\033[1;32m✓ Compression disabled\033[0m"
-                break
-                ;;
-            *)
-                echo -e "\033[1;91m❌ Invalid choice. Please enter a number between 1 and 4.\033[0m"
-                ;;
-        esac
-    done
-    
-    # ZFS Dataset Configuration
-    echo -e "\n\033[1;94mConfigure ZFS datasets structure:\033[0m"
-    echo -e "  \033[1;37m1)\033[0m \033[1;38;5;82mSimple\033[0m (Single root dataset only)"
-    echo -e "  \033[1;37m2)\033[0m \033[1;38;5;39mAdvanced\033[0m (Separate datasets for system directories)"
-    echo
-    
-    while true; do
-        echo -en "\033[1;94mEnter your choice (1-2) [2]: \033[0m"
-        read -r datasets_choice
-        
-        case $datasets_choice in
-            1)
-                SEPARATE_DATASETS="no"
-                echo -e "\033[1;32m✓ Selected simple dataset structure\033[0m"
-                break
-                ;;
-            2|"")
-                SEPARATE_DATASETS="yes"
-                echo -e "\033[1;32m✓ Selected advanced dataset structure\033[0m"
-                break
-                ;;
-            *)
-                echo -e "\033[1;91m❌ Invalid choice. Please enter 1 or 2.\033[0m"
-                ;;
-        esac
-    done
-    
-    print_section_header "ADVANCED ZRAM CONFIGURATION"
-    
-    echo -e "\033[1;94mConfiguring ZRAM (compressed RAM swap):\033[0m"
-    
-    # Ask for ZRAM size
-    echo -e "\033[1;94mSelect ZRAM size:\033[0m"
-    echo -e "  \033[1;37m1)\033[0m \033[1;38;5;39mAuto\033[0m (min(RAM, 32GB) - recommended)"
-    echo -e "  \033[1;37m2)\033[0m \033[1;38;5;202mHalf of RAM\033[0m"
-    echo -e "  \033[1;37m3)\033[0m \033[1;38;5;118mCustom value\033[0m (specify in MB)"
-    echo
-    
-    while true; do
-        echo -en "\033[1;94mEnter your choice (1-3) [1]: \033[0m"
-        read -r zram_size_choice
-        
-        case $zram_size_choice in
-            1|"")
-                ZRAM_SIZE="min(ram, 32768)"
-                echo -e "\033[1;32m✓ Selected automatic ZRAM sizing\033[0m"
-                break
-                ;;
-            2)
-                ZRAM_SIZE="ram / 2"
-                echo -e "\033[1;32m✓ Selected half of RAM for ZRAM\033[0m"
-                break
-                ;;
-            3)
-                while true; do
-                    echo -en "\033[1;94mEnter ZRAM size in MB (e.g., 8192 for 8GB): \033[0m"
-                    read -r custom_zram_size
-                    
-                    # Validate input (simple check for numeric value)
-                    if [[ "$custom_zram_size" =~ ^[0-9]+$ ]]; then
-                        ZRAM_SIZE="$custom_zram_size"
-                        echo -e "\033[1;32m✓ ZRAM size set to: \033[1;37m${custom_zram_size}MB\033[0m"
-                        break
-                    else
-                        echo -e "\033[1;91m❌ Invalid size. Please enter a numeric value in MB.\033[0m"
-                    fi
-                done
-                break
-                ;;
-            *)
-                echo -e "\033[1;91m❌ Invalid choice. Please enter a number between 1 and 3.\033[0m"
-                ;;
-        esac
-    done
-    
-    # Ask for ZRAM compression algorithm
-    echo -e "\n\033[1;94mSelect ZRAM compression algorithm:\033[0m"
-    echo -e "  \033[1;37m1)\033[0m \033[1;38;5;39mzstd\033[0m (Best balance of speed/compression - recommended)"
-    echo -e "  \033[1;37m2)\033[0m \033[1;38;5;202mlz4\033[0m (Faster, lower compression ratio)"
-    echo -e "  \033[1;37m3)\033[0m \033[1;38;5;118mlzo-rle\033[0m (Legacy option)"
-    echo -e "  \033[1;37m4)\033[0m \033[1;38;5;196mlzo\033[0m (Older algorithm)"
-    echo
-    
-    while true; do
-        echo -en "\033[1;94mEnter your choice (1-4) [1]: \033[0m"
-        read -r zram_compression_choice
-        
-        case $zram_compression_choice in
-            1|"")
-                ZRAM_COMPRESSION="zstd"
-                echo -e "\033[1;32m✓ Selected zstd compression algorithm\033[0m\n"
-                break
-                ;;
-            2)
-                ZRAM_COMPRESSION="lz4"
-                echo -e "\033[1;32m✓ Selected lz4 compression algorithm\033[0m\n"
-                break
-                ;;
-            3)
-                ZRAM_COMPRESSION="lzo-rle"
-                echo -e "\033[1;32m✓ Selected lzo-rle compression algorithm\033[0m\n"
-                break
-                ;;
-            4)
-                ZRAM_COMPRESSION="lzo"
-                echo -e "\033[1;32m✓ Selected lzo compression algorithm\033[0m\n"
-                break
-                ;;
-            *)
-                echo -e "\033[1;91m❌ Invalid choice. Please enter a number between 1 and 4.\033[0m"
-                ;;
-        esac
-    done
-else
-    # Set default values for simple mode
-    EFI_PART_SIZE="1G"
-    ROOT_PART_SIZE="MAX"
-    ENCRYPT_DISK="no"
-    ZFS_COMPRESSION="lz4"
-    SEPARATE_DATASETS="no"
-    ZRAM_SIZE="min(ram, 32768)"
-    ZRAM_COMPRESSION="zstd"
-fi
-
 # --------------------------------------------------------------------------------------------------------------------------
 # Configuration Summary
 # --------------------------------------------------------------------------------------------------------------------------
@@ -889,24 +884,53 @@ display_summary() {
     echo "╔═══════════════════════════════════════════════╗"
     echo "║             Configuration Summary             ║"
     echo "╠═══════════════════════════════════════════════╣"
-    echo "║ 1) Desktop Environment: $(printf "%-21s" "$DE_TYPE") ║"
-    echo "║ 2) Hostname:            $(printf "%-21s" "$HOSTNAME") ║"
-    echo "║ 3) Keyboard Layout:     $(printf "%-21s" "$KEYBOARD_LAYOUT") ║"
-    echo "║ 4) Locale:              $(printf "%-21s" "$SYSTEM_LOCALE") ║"
-    echo "║ 5) Mirror Country:      $(printf "%-21s" "${MIRROR_COUNTRY:-Worldwide}") ║"
-    echo "║ 6) Username:            $(printf "%-21s" "$USER") ║"
-    echo "║ 7) Passwords:           $(printf "%-21s" "[Hidden]") ║"
-    echo "║ 8) CPU Type:            $(printf "%-21s" "$CPU_TYPE") ║"
-    echo "║ 9) GPU Type:            $(printf "%-21s" "$GPU_TYPE") ║"
-    if [ "$GPU_TYPE" = "NVIDIA" ]; then
-    echo "║ 10) NVIDIA Driver:      $(printf "%-21s" "$NVIDIA_DRIVER_TYPE") ║"
-    fi
-    echo "║ 11) Audio Server:       $(printf "%-21s" "$AUDIO_SERVER") ║"
+    # System-critical choices first
+    echo "║ 1) Boot Type:            $(printf "%-21s" "$BOOT_TYPE") ║"
+    echo "║ 2) Target Device:        $(printf "%-21s" "$DEVICE") ║"
+    
+    # Advanced partition settings
     if [ "$INSTALL_MODE" = "advanced" ]; then
-        echo "║ 12) ZRAM Size:          $(printf "%-21s" "$ZRAM_SIZE") ║"
-        echo "║ 13) ZRAM Compression:   $(printf "%-21s" "$ZRAM_COMPRESSION") ║"
-        echo "║ 14) Separate Datasets:  $(printf "%-21s" "$SEPARATE_DATASETS") ║"
+        echo "║ 3) EFI Part Size:        $(printf "%-21s" "$EFI_PART_SIZE") ║"
+        echo "║ 4) Root Part Size:       $(printf "%-21s" "$ROOT_PART_SIZE") ║"
+        echo "║ 5) Disk Encryption:      $(printf "%-21s" "${ENCRYPT_DISK^}") ║"
+        echo "║ 6) ZFS Compression:      $(printf "%-21s" "$ZFS_COMPRESSION") ║"
+        echo "║ 7) Separate Datasets:    $(printf "%-21s" "$SEPARATE_DATASETS") ║"
+        # Make numbering dynamic based on whether advanced mode is on
+        NUM_OFFSET=5
+    else
+        # Simple mode has fewer options
+        NUM_OFFSET=0
     fi
+    
+    # Hardware settings
+    echo "║ $((3+NUM_OFFSET)) CPU Type:            $(printf "%-21s" "$CPU_TYPE") ║"
+    echo "║ $((4+NUM_OFFSET)) GPU Type:            $(printf "%-21s" "$GPU_TYPE") ║"
+    if [ "$GPU_TYPE" = "NVIDIA" ]; then
+        echo "║ $((5+NUM_OFFSET)) NVIDIA Driver:       $(printf "%-21s" "$NVIDIA_DRIVER_TYPE") ║"
+        # Adjust offset when NVIDIA is selected
+        NVIDIA_OFFSET=1
+    else
+        NVIDIA_OFFSET=0
+    fi
+    echo "║ $((5+NUM_OFFSET+NVIDIA_OFFSET)) Audio Server:        $(printf "%-21s" "$AUDIO_SERVER") ║"
+    
+    # User configuration
+    echo "║ $((6+NUM_OFFSET+NVIDIA_OFFSET)) Hostname:           $(printf "%-21s" "$HOSTNAME") ║"
+    echo "║ $((7+NUM_OFFSET+NVIDIA_OFFSET)) Username:           $(printf "%-21s" "$USER") ║"
+    echo "║ $((8+NUM_OFFSET+NVIDIA_OFFSET)) Passwords:          $(printf "%-21s" "[Hidden]") ║"
+    
+    # System preferences
+    echo "║ $((9+NUM_OFFSET+NVIDIA_OFFSET)) Desktop Environment: $(printf "%-21s" "$DE_TYPE") ║"
+    echo "║ $((10+NUM_OFFSET+NVIDIA_OFFSET)) Keyboard Layout:    $(printf "%-21s" "$KEYBOARD_LAYOUT") ║"
+    echo "║ $((11+NUM_OFFSET+NVIDIA_OFFSET)) System Locale:      $(printf "%-21s" "$SYSTEM_LOCALE") ║"
+    echo "║ $((12+NUM_OFFSET+NVIDIA_OFFSET)) Mirror Country:     $(printf "%-21s" "${MIRROR_COUNTRY:-Worldwide}") ║"
+    
+    # ZRAM configuration (in advanced mode)
+    if [ "$INSTALL_MODE" = "advanced" ]; then
+        echo "║ $((13+NUM_OFFSET+NVIDIA_OFFSET)) ZRAM Size:          $(printf "%-21s" "$ZRAM_SIZE") ║"
+        echo "║ $((14+NUM_OFFSET+NVIDIA_OFFSET)) ZRAM Compression:   $(printf "%-21s" "$ZRAM_COMPRESSION") ║"
+    fi
+    
     echo "╚═══════════════════════════════════════════════╝"
 }
 
