@@ -23,14 +23,14 @@ check_dependencies() {
   
   # Install required Python packages
   echo "Installing required Python packages..."
-  pip install --user -r "$SCRIPT_DIR/gui-installer/requirements.txt"
+  pip install --user -r "$SCRIPT_DIR/requirements.txt"
 }
 
 # Run the installer
 run_installer() {
   echo "Starting Arch Linux GUI Installer..."
   cd "$SCRIPT_DIR"
-  python "$SCRIPT_DIR/gui-installer/main.py"
+  python "$SCRIPT_DIR/main.py"
 }
 
 # Main
