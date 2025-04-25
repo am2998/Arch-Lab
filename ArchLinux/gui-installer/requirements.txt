@@ -1,4 +1,0 @@
-tkinter
-pillow
-ttkthemes
-ttkbootstrap>=1.0.0
