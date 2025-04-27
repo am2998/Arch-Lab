@@ -99,7 +99,10 @@ done
 print_section_header "INSTALLATION DEVICE SELECTION"
 
 echo -e "\033[1;94m💾 Available disks for installation:\033[0m"
-echo -e "\033[1;93m⚠️  WARNING: THE SELECTED DISK WILL BE COMPLETELY ERASED IN SIMPLE MODE!\033[0m\n"
+if [ "$INSTALL_MODE" = "simple" ]; then
+    echo -e "\033[1;93m⚠️  WARNING: THE SELECTED DISK WILL BE COMPLETELY ERASED IN SIMPLE MODE!\033[0m\n"
+fi
+
 
 # Display available disks
 available_disks=$(lsblk -dpno NAME,SIZE,MODEL | grep -E "/dev/(sd|nvme|vd)")
@@ -903,32 +906,32 @@ display_summary() {
     fi
     
     # Hardware settings
-    echo "║ $((3+NUM_OFFSET)) CPU Type:            $(printf "%-21s" "$CPU_TYPE") ║"
-    echo "║ $((4+NUM_OFFSET)) GPU Type:            $(printf "%-21s" "$GPU_TYPE") ║"
+    printf "║ %2d) CPU Type:            %-21s ║\n" "$((3+NUM_OFFSET))" "$CPU_TYPE" 
+    printf "║ %2d) GPU Type:            %-21s ║\n" "$((4+NUM_OFFSET))" "$GPU_TYPE"
     if [ "$GPU_TYPE" = "NVIDIA" ]; then
-        echo "║ $((5+NUM_OFFSET)) NVIDIA Driver:       $(printf "%-21s" "$NVIDIA_DRIVER_TYPE") ║"
+        printf "║ %2d) NVIDIA Driver:       %-21s ║\n" "$((5+NUM_OFFSET))" "$NVIDIA_DRIVER_TYPE"
         # Adjust offset when NVIDIA is selected
         NVIDIA_OFFSET=1
     else
         NVIDIA_OFFSET=0
     fi
-    echo "║ $((5+NUM_OFFSET+NVIDIA_OFFSET)) Audio Server:        $(printf "%-21s" "$AUDIO_SERVER") ║"
+    printf "║ %2d) Audio Server:        %-21s ║\n" "$((5+NUM_OFFSET+NVIDIA_OFFSET))" "$AUDIO_SERVER"
     
     # User configuration
-    echo "║ $((6+NUM_OFFSET+NVIDIA_OFFSET)) Hostname:           $(printf "%-21s" "$HOSTNAME") ║"
-    echo "║ $((7+NUM_OFFSET+NVIDIA_OFFSET)) Username:           $(printf "%-21s" "$USER") ║"
-    echo "║ $((8+NUM_OFFSET+NVIDIA_OFFSET)) Passwords:          $(printf "%-21s" "[Hidden]") ║"
+    printf "║ %2d) Hostname:           %-21s ║\n" "$((6+NUM_OFFSET+NVIDIA_OFFSET))" "$HOSTNAME"
+    printf "║ %2d) Username:           %-21s ║\n" "$((7+NUM_OFFSET+NVIDIA_OFFSET))" "$USER"
+    printf "║ %2d) Passwords:          %-21s ║\n" "$((8+NUM_OFFSET+NVIDIA_OFFSET))" "[Hidden]"
     
     # System preferences
-    echo "║ $((9+NUM_OFFSET+NVIDIA_OFFSET)) Desktop Environment: $(printf "%-21s" "$DE_TYPE") ║"
-    echo "║ $((10+NUM_OFFSET+NVIDIA_OFFSET)) Keyboard Layout:    $(printf "%-21s" "$KEYBOARD_LAYOUT") ║"
-    echo "║ $((11+NUM_OFFSET+NVIDIA_OFFSET)) System Locale:      $(printf "%-21s" "$SYSTEM_LOCALE") ║"
-    echo "║ $((12+NUM_OFFSET+NVIDIA_OFFSET)) Mirror Country:     $(printf "%-21s" "${MIRROR_COUNTRY:-Worldwide}") ║"
+    printf "║ %2d) Desktop Environment: %-21s ║\n" "$((9+NUM_OFFSET+NVIDIA_OFFSET))" "$DE_TYPE"
+    printf "║ %2d) Keyboard Layout:    %-21s ║\n" "$((10+NUM_OFFSET+NVIDIA_OFFSET))" "$KEYBOARD_LAYOUT"
+    printf "║ %2d) System Locale:      %-21s ║\n" "$((11+NUM_OFFSET+NVIDIA_OFFSET))" "$SYSTEM_LOCALE"
+    printf "║ %2d) Mirror Country:     %-21s ║\n" "$((12+NUM_OFFSET+NVIDIA_OFFSET))" "${MIRROR_COUNTRY:-Worldwide}"
     
     # ZRAM configuration (in advanced mode)
     if [ "$INSTALL_MODE" = "advanced" ]; then
-        echo "║ $((13+NUM_OFFSET+NVIDIA_OFFSET)) ZRAM Size:          $(printf "%-21s" "$ZRAM_SIZE") ║"
-        echo "║ $((14+NUM_OFFSET+NVIDIA_OFFSET)) ZRAM Compression:   $(printf "%-21s" "$ZRAM_COMPRESSION") ║"
+        printf "║ %2d) ZRAM Size:          %-21s ║\n" "$((13+NUM_OFFSET+NVIDIA_OFFSET))" "$ZRAM_SIZE"
+        printf "║ %2d) ZRAM Compression:   %-21s ║\n" "$((14+NUM_OFFSET+NVIDIA_OFFSET))" "$ZRAM_COMPRESSION"
     fi
     
     echo "╚═══════════════════════════════════════════════╝"
@@ -1290,8 +1293,6 @@ print_section_header "INSTALL BASE"
 
 run_command "pacstrap /mnt linux-lts linux-lts-headers mkinitcpio base base-devel linux-firmware zram-generator reflector sudo networkmanager efibootmgr $CPU_MICROCODE wget" "install base packages" 
 
-# Create directory that contains zfs key
-mkdir /mnt/etc/zfs
 cp /etc/zfs/zroot.key /mnt/etc/zfs
 
 # ----------------------------------------
@@ -1352,29 +1353,6 @@ export ZRAM_COMPRESSION='$ZRAM_COMPRESSION'
 export SEPARATE_DATASETS='$SEPARATE_DATASETS'
 cd /install && ./chroot.sh
 "
-# chroot_exit_status=$?
-
-
-# # Check if chroot script executed successfully
-# if [ $chroot_exit_status -ne 0 ]; then
-#     echo -e "\033[1;91m❌ Chroot script failed with status $chroot_exit_status.\033[0m"
-#     echo -e "\033[1;93m💡 Check the output above for errors.\033[0m"
-    
-#     # Offer to show logs 
-#     echo -en "\033[1;94mWould you like to see the chroot script for debugging? [y/N]: \033[0m"
-#     read -r show_script
-#     case $show_script in
-#         [Yy]*)
-#             echo -e "\n\033[1;94mContents of $CHROOT_SCRIPT:\033[0m"
-#             cat "./$CHROOT_SCRIPT"
-#             ;;
-#     esac
-    
-#     echo -e "\n\033[1;91mInstallation failed. Please fix the issues and try again.\033[0m"
-#     exit 1
-# else
-#     echo -e "\033[1;92m✅ Chroot commands executed successfully\033[0m"
-# fi
 
 
 # --------------------------------------------------------------------------------------------------------------------------
@@ -1395,15 +1373,55 @@ echo " ██████╔╝╚██████╔╝██║ ╚███
 echo " ╚═════╝  ╚═════╝ ╚═╝  ╚═══╝╚══════╝╚═╝"
 echo -e "\033[0m"
                                   
-echo -e "\033[1;92m✅ Installation completed successfully!\033[0m"
-echo -e "\033[1;94m📋 Installation Summary:\033[0m"
-echo -e "  \033[1;97m•\033[0m Hostname: \033[1;97m$HOSTNAME\033[0m"
-echo -e "  \033[1;97m•\033[0m Username: \033[1;97m$USER\033[0m"
-echo -e "  \033[1;97m•\033[0m Desktop: \033[1;97m$DE_TYPE\033[0m"
-echo -e "  \033[1;97m•\033[0m CPU: \033[1;97m$CPU_TYPE\033[0m"
-echo -e "  \033[1;97m•\033[0m GPU: \033[1;97m$GPU_TYPE\033[0m"
-echo -e "  \033[1;97m•\033[0m Audio: \033[1;97m$AUDIO_SERVER\033[0m"
+echo -e "\n\033[1;38;5;82m✅ Installation completed successfully!\033[0m"
+echo -e "\033[1;38;5;75m📋 Installation Summary:\033[0m"
 echo
+
+# System Information
+echo -e "\033[1;38;5;219m📌 System Information:\033[0m"
+echo -e "  \033[1;97m🖥️\033[0m Hostname: \033[1;97m$HOSTNAME\033[0m"
+echo -e "  \033[1;97m👤\033[0m Username: \033[1;97m$USER\033[0m"
+echo -e "  \033[1;97m🔣\033[0m Keyboard: \033[1;97m$KEYBOARD_LAYOUT\033[0m"
+echo -e "  \033[1;97m🌐\033[0m Locale: \033[1;97m$SYSTEM_LOCALE\033[0m"
+echo -e "  \033[1;97m🌍\033[0m Mirrors: \033[1;97m${MIRROR_COUNTRY:-Worldwide}\033[0m"
+echo
+
+# Hardware Configuration
+echo -e "\033[1;38;5;117m⚙️ Hardware Configuration:\033[0m"
+echo -e "  \033[1;97m💽\033[0m Target Device: \033[1;97m$DEVICE\033[0m"
+echo -e "  \033[1;97m🖿\033[0m Boot Type: \033[1;97m${BOOT_TYPE^}\033[0m"
+echo -e "  \033[1;97m🔌\033[0m CPU: \033[1;97m$CPU_TYPE ($CPU_MICROCODE)\033[0m"
+echo -e "  \033[1;97m📺\033[0m GPU: \033[1;97m$GPU_TYPE\033[0m"
+if [ "$GPU_TYPE" = "NVIDIA" ]; then
+    echo -e "  \033[1;97m🎮\033[0m NVIDIA Drivers: \033[1;97m$NVIDIA_DRIVER_TYPE\033[0m"
+fi
+echo -e "  \033[1;97m🔊\033[0m Audio Server: \033[1;97m$AUDIO_SERVER\033[0m"
+echo
+
+# Storage Configuration
+echo -e "\033[1;38;5;220m💾 Storage Configuration:\033[0m"
+echo -e "  \033[1;97m🔐\033[0m Disk Encryption: \033[1;97m${ENCRYPT_DISK^}\033[0m"
+echo -e "  \033[1;97m📁\033[0m ZFS Compression: \033[1;97m$ZFS_COMPRESSION\033[0m"
+if [ "$INSTALL_MODE" = "advanced" ]; then
+    echo -e "  \033[1;97m📊\033[0m EFI Partition: \033[1;97m$EFI_PART_SIZE\033[0m"
+    echo -e "  \033[1;97m📊\033[0m Root Partition: \033[1;97m$ROOT_PART_SIZE\033[0m"
+    echo -e "  \033[1;97m📂\033[0m Separate Datasets: \033[1;97m${SEPARATE_DATASETS^}\033[0m"
+fi
+echo
+
+# Software Configuration
+echo -e "\033[1;38;5;114m🖱️ Software Configuration:\033[0m"
+echo -e "  \033[1;97m🖥️\033[0m Desktop Environment: \033[1;97m$DE_TYPE\033[0m"
+echo -e "  \033[1;97m📇\033[0m Install Mode: \033[1;97m${INSTALL_MODE^}\033[0m"
+echo
+
+# Performance Configuration
+echo -e "\033[1;38;5;208m⚡ Performance Configuration:\033[0m"
+echo -e "  \033[1;97m💭\033[0m ZRAM Size: \033[1;97m$ZRAM_SIZE\033[0m"
+echo -e "  \033[1;97m🗜️\033[0m ZRAM Compression: \033[1;97m$ZRAM_COMPRESSION\033[0m"
+echo
+
+echo -e "\033[1;38;5;87m🚀 Your new Arch Linux system is ready!\033[0m"
 
 # Ask user if they want to reboot now
 while true; do
