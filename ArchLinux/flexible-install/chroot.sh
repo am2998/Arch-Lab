@@ -235,7 +235,7 @@ run_command "su -c \"cd /tmp && git clone https://aur.archlinux.org/yay.git && c
 # ----------------------------------------
 print_section_header "INSTALLING UTILITIES"
 
-#run_command "pacman -S --noconfirm flatpak firefox man nano git" "install base utilities"
+run_command "pacman -S --noconfirm flatpak firefox man nano git" "install base utilities"
 
 
 # ----------------------------------------
@@ -262,19 +262,19 @@ chown -R $USER:$USER /home/$USER/.config
 # ----------------------------------------
 print_section_header "CONFIGURING GPU DRIVERS"
 
-#Install appropriate GPU drivers based on earlier selection
-# if [ "$GPU_TYPE" = "NVIDIA" ]; then
-#     if [ "$NVIDIA_DRIVER_TYPE" = "open" ]; then
-#         echo -e "\033[1;94m🎮 Installing NVIDIA open drivers...\033[0m"
-#         run_command "pacman -S --noconfirm nvidia-open-lts nvidia-settings nvidia-utils opencl-nvidia libxnvctrl" "install NVIDIA open drivers"
-#     else
-#         echo -e "\033[1;94m🎮 Installing NVIDIA proprietary drivers...\033[0m"
-#         run_command "pacman -S --noconfirm nvidia-lts nvidia-settings nvidia-utils opencl-nvidia libxnvctrl" "install NVIDIA proprietary drivers"
-#     fi
-# elif [ "$GPU_TYPE" = "AMD/Intel" ]; then
-#     echo -e "\033[1;94m🎮 Installing AMD/Intel GPU drivers...\033[0m"
-#     run_command "pacman -S --noconfirm mesa lib32-mesa vulkan-radeon lib32-vulkan-radeon libva-mesa-driver lib32-libva-mesa-driver mesa-vdpau lib32-mesa-vdpau" "install AMD/Intel GPU drivers"
-# elif [ "$GPU_TYPE" = "None/VM" ]; then
-#     echo -e "\033[1;94m🎮 Installing basic video drivers for VM/basic system...\033[0m"
-#     run_command "pacman -S --noconfirm mesa xf86-video-fbdev" "install basic video drivers"
-# fi
+Install appropriate GPU drivers based on earlier selection
+if [ "$GPU_TYPE" = "NVIDIA" ]; then
+    if [ "$NVIDIA_DRIVER_TYPE" = "open" ]; then
+        echo -e "\033[1;94m🎮 Installing NVIDIA open drivers...\033[0m"
+        run_command "pacman -S --noconfirm nvidia-open-lts nvidia-settings nvidia-utils opencl-nvidia libxnvctrl" "install NVIDIA open drivers"
+    else
+        echo -e "\033[1;94m🎮 Installing NVIDIA proprietary drivers...\033[0m"
+        run_command "pacman -S --noconfirm nvidia-lts nvidia-settings nvidia-utils opencl-nvidia libxnvctrl" "install NVIDIA proprietary drivers"
+    fi
+elif [ "$GPU_TYPE" = "AMD/Intel" ]; then
+    echo -e "\033[1;94m🎮 Installing AMD/Intel GPU drivers...\033[0m"
+    run_command "pacman -S --noconfirm mesa lib32-mesa vulkan-radeon lib32-vulkan-radeon libva-mesa-driver lib32-libva-mesa-driver mesa-vdpau lib32-mesa-vdpau" "install AMD/Intel GPU drivers"
+elif [ "$GPU_TYPE" = "None/VM" ]; then
+    echo -e "\033[1;94m🎮 Installing basic video drivers for VM/basic system...\033[0m"
+    run_command "pacman -S --noconfirm mesa xf86-video-fbdev" "install basic video drivers"
+fi

@@ -821,11 +821,11 @@ case $gpu_choice in
         
         case $nvidia_open_choice in
             [Yy]*)
-                NVIDIA_DRIVER_TYPE="Open"
+                NVIDIA_DRIVER_TYPE="open"
                 echo -e "\033[1;32m✓ Selected NVIDIA open source drivers.\033[0m\n"
                 ;;
             *)
-                NVIDIA_DRIVER_TYPE="Proprietary"
+                NVIDIA_DRIVER_TYPE="proprietary"
                 echo -e "\033[1;32m✓ Selected NVIDIA proprietary drivers.\033[0m\n"
                 ;;
         esac
@@ -887,53 +887,61 @@ print_section_header "CONFIGURATION SUMMARY"
 # Function to display summary of selected options
 display_summary() {
     echo -e "\033[1;94m📋 Configuration Summary:\033[0m"
-    echo -e "┌───────────────────────────────────────────────────────────────┐"
+    echo -e "┌──────────────────────────────────────────────────┐"
+
+    # Helper for printing aligned lines
+    print_entry() {
+        local index="$1"
+        local label="$2"
+        local value="$3"
+        local formatted_index
+        formatted_index=$(printf "%2s" "$index")
+        echo -e " \033[1;97m${formatted_index})\033[0m ${label} \033[1;38;5;81m${value}\033[0m"
+    }
 
     # System-critical choices
-    echo -e "│ \033[1;97m1)\033[0m Boot Type:              \033[1;38;5;81m${BOOT_TYPE}\033[0m"
-    echo -e "│ \033[1;97m2)\033[0m Target Device:          \033[1;38;5;81m$DEVICE\033[0m"
-    
+    print_entry 1 "Boot Type:              " "$BOOT_TYPE"
+    print_entry 2 "Target Device:          " "$DEVICE"
+
     # Advanced partition settings
     if [ "$INSTALL_MODE" = "advanced" ]; then
-        echo -e "│ \033[1;97m3)\033[0m EFI Partition Size:     \033[1;38;5;81m$EFI_PART_SIZE\033[0m"
-        echo -e "│ \033[1;97m4)\033[0m Root Partition Size:    \033[1;38;5;81m$ROOT_PART_SIZE\033[0m"
-        echo -e "│ \033[1;97m5)\033[0m Disk Encryption:        \033[1;38;5;81m${ENCRYPT_DISK^}\033[0m"
-        echo -e "│ \033[1;97m6)\033[0m ZFS Compression:        \033[1;38;5;81m$ZFS_COMPRESSION\033[0m"
-        echo -e "│ \033[1;97m7)\033[0m Separate Datasets:      \033[1;38;5;81m${SEPARATE_DATASETS^}\033[0m"
-        echo -e "│ \033[1;97m8)\033[0m ZRAM Size:              \033[1;38;5;81m$ZRAM_SIZE\033[0m"
-        echo -e "│ \033[1;97m9)\033[0m ZRAM Compression:       \033[1;38;5;81m$ZRAM_COMPRESSION\033[0m"
+        print_entry 3 "EFI Partition Size:     " "$EFI_PART_SIZE"
+        print_entry 4 "Root Partition Size:    " "$ROOT_PART_SIZE"
+        print_entry 5 "Disk Encryption:        " "${ENCRYPT_DISK^}"
+        print_entry 6 "ZFS Compression:        " "$ZFS_COMPRESSION"
+        print_entry 7 "Separate Datasets:      " "${SEPARATE_DATASETS^}"
+        print_entry 8 "ZRAM Size:              " "$ZRAM_SIZE"
+        print_entry 9 "ZRAM Compression:       " "$ZRAM_COMPRESSION"
         ADV_OFFSET=9
     else
         ADV_OFFSET=2
     fi
-    
+
     # Hardware settings
-    echo -e "│ \033[1;97m$((ADV_OFFSET+1)))\033[0m CPU Type:               \033[1;38;5;81m$CPU_TYPE\033[0m"
-    echo -e "│ \033[1;97m$((ADV_OFFSET+2)))\033[0m GPU Type:               \033[1;38;5;81m$GPU_TYPE\033[0m"
+    print_entry $((ADV_OFFSET+1)) "CPU Type:               " "$CPU_TYPE"
+    print_entry $((ADV_OFFSET+2)) "GPU Type:               " "$GPU_TYPE"
+
     if [ "$GPU_TYPE" = "NVIDIA" ]; then
-        echo -e "│ \033[1;97m$((ADV_OFFSET+3)))\033[0m NVIDIA Driver:          \033[1;38;5;81m$NVIDIA_DRIVER_TYPE\033[0m"
+        print_entry $((ADV_OFFSET+3)) "NVIDIA Driver:          " "$NVIDIA_DRIVER_TYPE"
         NVIDIA_OFFSET=1
     else
         NVIDIA_OFFSET=0
     fi
-    
-    echo -e "│ \033[1;97m$((ADV_OFFSET+3+NVIDIA_OFFSET)))\033[0m Audio Server:           \033[1;38;5;81m$AUDIO_SERVER\033[0m"
-    echo -e "│ \033[1;97m$((ADV_OFFSET+4+NVIDIA_OFFSET)))\033[0m Desktop Environment:     \033[1;38;5;81m$DE_TYPE\033[0m"
-    
-    # User configuration
-    echo -e "│ \033[1;97m$((ADV_OFFSET+5+NVIDIA_OFFSET)))\033[0m Hostname:               \033[1;38;5;81m$HOSTNAME\033[0m"
-    echo -e "│ \033[1;97m$((ADV_OFFSET+6+NVIDIA_OFFSET)))\033[0m Username:               \033[1;38;5;81m$USER\033[0m"
-    echo -e "│ \033[1;97m$((ADV_OFFSET+7+NVIDIA_OFFSET)))\033[0m User & Root Passwords:  \033[1;38;5;81m[hidden]\033[0m"
-    
-    # System preferences
-    echo -e "│ \033[1;97m$((ADV_OFFSET+8+NVIDIA_OFFSET)))\033[0m Keyboard Layout:        \033[1;38;5;81m$KEYBOARD_LAYOUT\033[0m"
-    echo -e "│ \033[1;97m$((ADV_OFFSET+9+NVIDIA_OFFSET)))\033[0m System Locale:          \033[1;38;5;81m$SYSTEM_LOCALE\033[0m"
-    echo -e "│ \033[1;97m$((ADV_OFFSET+10+NVIDIA_OFFSET)))\033[0m Mirror Country:         \033[1;38;5;81m${MIRROR_COUNTRY:-Worldwide}\033[0m"
-    
-    echo -e "└───────────────────────────────────────────────────────────────┘"
 
-    # Calculate the total number of items for validation
-    TOTAL_ITEMS=$((ADV_OFFSET+10+NVIDIA_OFFSET))
+    print_entry $((ADV_OFFSET+3+NVIDIA_OFFSET)) "Audio Server:           " "$AUDIO_SERVER"
+    print_entry $((ADV_OFFSET+4+NVIDIA_OFFSET)) "Desktop Environment:    " "$DE_TYPE"
+
+    # User configuration
+    print_entry $((ADV_OFFSET+5+NVIDIA_OFFSET)) "Hostname:               " "$HOSTNAME"
+    print_entry $((ADV_OFFSET+6+NVIDIA_OFFSET)) "Username:               " "$USER"
+    print_entry $((ADV_OFFSET+7+NVIDIA_OFFSET)) "User & Root Passwords:  " "[hidden]"
+
+    # System preferences
+    print_entry $((ADV_OFFSET+8+NVIDIA_OFFSET)) "Keyboard Layout:        " "$KEYBOARD_LAYOUT"
+    print_entry $((ADV_OFFSET+9+NVIDIA_OFFSET)) "System Locale:          " "$SYSTEM_LOCALE"
+    print_entry $((ADV_OFFSET+10+NVIDIA_OFFSET)) "Mirror Country:         " "${MIRROR_COUNTRY:-Worldwide}"
+
+    echo -e "└──────────────────────────────────────────────────┘"
 }
 
 # Display initial summary
@@ -941,486 +949,20 @@ display_summary
 
 # Allow user to modify choices
 echo -e "\n\033[1;93mReview your configuration:\033[0m"
-echo -e " - Enter a number to modify that setting"
 echo -e " - Enter 'c' to confirm and proceed with installation"
 echo -e " - Enter 'a' to abort installation"
 
-while true; do
-    echo -en "\n\033[1;94mYour choice: \033[0m"
-    read choice
-    
-    if [[ "$choice" == "c" || "$choice" == "C" ]]; then
-        echo -e "\033[1;92m✅ Configuration confirmed! Proceeding with installation...\033[0m"
-        break
-    elif [[ "$choice" == "a" || "$choice" == "A" ]]; then
-        echo -e "\033[1;91m❌ Installation aborted by user.\033[0m"
-        exit 1
-    elif [[ "$choice" =~ ^[0-9]+$ && "$choice" -ge 1 && "$choice" -le "$TOTAL_ITEMS" ]]; then
-        # Simple mode options
-        if [ "$INSTALL_MODE" = "simple" ]; then
-            case $choice in
-                1) # Boot Type
-                    echo -e "\n\033[1;94m🔄 Boot Type Selection\033[0m"
-                    echo -e "  \033[1;97m1)\033[0m \033[1;38;5;220mEFI\033[0m (Modern systems, recommended)"
-                    echo -e "  \033[1;97m2)\033[0m \033[1;38;5;208mBIOS\033[0m (Legacy systems)"
-                    
-                    while true; do
-                        echo -en "\033[1;94mEnter your choice (1-2): \033[0m"
-                        read -r boot_choice
-                        
-                        case $boot_choice in
-                            1)
-                                BOOT_TYPE="efi"
-                                echo -e "\033[1;92m✅ Selected EFI boot\033[0m\n"
-                                break
-                                ;;
-                            2)
-                                BOOT_TYPE="bios"
-                                echo -e "\033[1;92m✅ Selected BIOS boot\033[0m\n"
-                                break
-                                ;;
-                            *)
-                                echo -e "\033[1;91m❌ Invalid choice. Please enter 1 or 2.\033[0m"
-                                ;;
-                        esac
-                    done
-                    ;;
-                2) # Target Device
-                    echo -e "\n\033[1;94m💾 Target Device Selection\033[0m"
-                    echo -e "\033[1;93m⚠️  WARNING: THE SELECTED DISK WILL BE COMPLETELY ERASED!\033[0m\n"
-                    
-                    # Display available disks
-                    available_disks=$(lsblk -dpno NAME,SIZE,MODEL | grep -E "/dev/(sd|nvme|vd)")
-                    echo -e "\033[1;38;5;195mAvailable disks for installation:\033[0m"
-                    echo -e "$available_disks\n"
-                    
-                    while true; do
-                        echo -en "\033[1;94mEnter the full path of the disk to install to (e.g., /dev/sda): \033[0m"
-                        read -r new_device
-                        
-                        # Verify disk exists
-                        if lsblk "$new_device" &> /dev/null; then
-                            DEVICE="$new_device"
-                            echo -e "\033[1;92m✅ Selected device: \033[1;97m$DEVICE\033[0m\n"
-                            break
-                        else
-                            echo -e "\033[1;91m❌ Invalid device. Please enter a valid device path.\033[0m"
-                        fi
-                    done
-                    ;;
-                3) # CPU Type
-                    echo -e "\n\033[1;94m🔄 CPU Selection\033[0m"
-                    echo -e "  \033[1;97m1)\033[0m \033[1;38;5;39mIntel\033[0m"
-                    echo -e "  \033[1;97m2)\033[0m \033[1;38;5;196mAMD\033[0m"
-                    
-                    while true; do
-                        echo -en "\033[1;94mEnter your choice (1-2): \033[0m"
-                        read -r cpu_choice
-                        
-                        case $cpu_choice in
-                            1)
-                                CPU_MICROCODE="intel-ucode"
-                                CPU_TYPE="Intel"
-                                echo -e "\033[1;92m✅ Selected Intel CPU. Will install intel-ucode.\033[0m\n"
-                                break
-                                ;;
-                            2)
-                                CPU_MICROCODE="amd-ucode"
-                                CPU_TYPE="AMD"
-                                echo -e "\033[1;92m✅ Selected AMD CPU. Will install amd-ucode.\033[0m\n"
-                                break
-                                ;;
-                            *)
-                                echo -e "\033[1;91m❌ Invalid choice. Please enter 1 or 2.\033[0m"
-                                ;;
-                        esac
-                    done
-                    ;;
-                4) # GPU Type
-                    echo -e "\n\033[1;94m🔄 GPU Selection\033[0m"
-                    echo -e "  \033[1;97m1)\033[0m \033[1;38;5;118mNVIDIA\033[0m"
-                    echo -e "  \033[1;97m2)\033[0m \033[1;38;5;75mAMD/Intel\033[0m (Open Source)"
-                    echo -e "  \033[1;97m3)\033[0m \033[1;38;5;250mNone/VM\033[0m"
-                    
-                    while true; do
-                        echo -en "\033[1;94mEnter your choice (1-3): \033[0m"
-                        read -r gpu_choice
-                        
-                        case $gpu_choice in
-                            1)
-                                GPU_TYPE="NVIDIA"
-                                echo -e "\033[1;92m✅ Selected NVIDIA GPU.\033[0m"
-                                
-                                echo -e "\n\033[1;33mNVIDIA Driver Selection:\033[0m"
-                                echo -e "  Do you want to use NVIDIA open drivers?"
-                                echo -e "  (No will install proprietary drivers)"
-                                
-                                while true; do
-                                    echo -en "\033[1;94mUse NVIDIA open drivers? [y/N]: \033[0m"
-                                    read -r nvidia_open_choice
-                                    
-                                    case $nvidia_open_choice in
-                                        [Yy]*)
-                                            NVIDIA_DRIVER_TYPE="Open"
-                                            echo -e "\033[1;92m✅ Selected NVIDIA open source drivers.\033[0m\n"
-                                            break
-                                            ;;
-                                        [Nn]*|"")
-                                            NVIDIA_DRIVER_TYPE="Proprietary"
-                                            echo -e "\033[1;92m✅ Selected NVIDIA proprietary drivers.\033[0m\n"
-                                            break
-                                            ;;
-                                        *)
-                                            echo -e "\033[1;91m❌ Invalid choice. Please enter Y or N.\033[0m"
-                                            ;;
-                                    esac
-                                done
-                                break
-                                ;;
-                            2)
-                                GPU_TYPE="AMD/Intel"
-                                NVIDIA_DRIVER_TYPE="none"
-                                echo -e "\033[1;92m✅ Selected AMD/Intel GPU. Will use open source drivers.\033[0m\n"
-                                break
-                                ;;
-                            3)
-                                GPU_TYPE="None/VM"
-                                NVIDIA_DRIVER_TYPE="none"
-                                echo -e "\033[1;92m✅ Selected None/VM. Will use basic drivers.\033[0m\n"
-                                break
-                                ;;
-                            *)
-                                echo -e "\033[1;91m❌ Invalid choice. Please enter a number between 1 and 3.\033[0m"
-                                ;;
-                        esac
-                    done
-                    ;;
-                # Handle all other menu items with appropriate offsets
-                *)
-                    # Calculate offsets to determine which setting to edit based on current state
-                    current=$choice
-                    
-                    # Check if we're dealing with NVIDIA Driver option
-                    if [ "$GPU_TYPE" = "NVIDIA" ] && [ "$current" -eq 5 ]; then
-                        echo -e "\n\033[1;94m🔄 NVIDIA Driver Selection\033[0m"
-                        echo -e "  \033[1;97m1)\033[0m \033[1;38;5;118mOpen\033[0m source drivers"
-                        echo -e "  \033[1;97m2)\033[0m \033[1;38;5;214mProprietary\033[0m drivers"
-                        
-                        while true; do
-                            echo -en "\033[1;94mEnter your choice (1-2): \033[0m"
-                            read -r nvidia_choice
-                            
-                            case $nvidia_choice in
-                                1)
-                                    NVIDIA_DRIVER_TYPE="Open"
-                                    echo -e "\033[1;92m✅ Selected NVIDIA open source drivers.\033[0m\n"
-                                    break
-                                    ;;
-                                2)
-                                    NVIDIA_DRIVER_TYPE="Proprietary"
-                                    echo -e "\033[1;92m✅ Selected NVIDIA proprietary drivers.\033[0m\n"
-                                    break
-                                    ;;
-                                *)
-                                    echo -e "\033[1;91m❌ Invalid choice. Please enter 1 or 2.\033[0m"
-                                    ;;
-                            esac
-                        done
-                    # Audio Server
-                    elif ([ "$GPU_TYPE" = "NVIDIA" ] && [ "$current" -eq 6 ]) || \
-                         ([ "$GPU_TYPE" != "NVIDIA" ] && [ "$current" -eq 5 ]); then
-                        echo -e "\n\033[1;94m🔄 Audio Server Selection\033[0m"
-                        echo -e "  \033[1;97m1)\033[0m \033[1;38;5;86mPipeWire\033[0m (Modern, low-latency, recommended)"
-                        echo -e "  \033[1;97m2)\033[0m \033[1;38;5;208mPulseAudio\033[0m (Traditional, widely compatible)"
-                        
-                        while true; do
-                            echo -en "\033[1;94mEnter your choice (1-2): \033[0m"
-                            read -r audio_choice
-                            
-                            case $audio_choice in
-                                1)
-                                    AUDIO_SERVER="pipewire"
-                                    echo -e "\033[1;92m✅ Selected PipeWire audio server\033[0m\n"
-                                    break
-                                    ;;
-                                2)
-                                    AUDIO_SERVER="pulseaudio"
-                                    echo -e "\033[1;92m✅ Selected PulseAudio audio server\033[0m\n"
-                                    break
-                                    ;;
-                                *)
-                                    echo -e "\033[1;91m❌ Invalid choice. Please enter 1 or 2.\033[0m"
-                                    ;;
-                            esac
-                        done
-                    # Desktop Environment
-                    elif ([ "$GPU_TYPE" = "NVIDIA" ] && [ "$current" -eq 7 ]) || \
-                         ([ "$GPU_TYPE" != "NVIDIA" ] && [ "$current" -eq 6 ]); then
-                        echo -e "\n\033[1;94m🔄 Desktop Environment Selection\033[0m"
-                        echo -e "  \033[1;97m1)\033[0m \033[1;38;5;51mHyprland\033[0m"
-                        echo -e "  \033[1;97m2)\033[0m \033[1;38;5;220mXFCE4\033[0m"
-                        echo -e "  \033[1;97m3)\033[0m \033[1;38;5;39mKDE Plasma\033[0m"
-                        echo -e "  \033[1;97m4)\033[0m \033[1;38;5;202mGNOME\033[0m"
-                        
-                        while true; do
-                            echo -en "\033[1;94mEnter your choice (1-4): \033[0m"
-                            read -r de_choice
-                            
-                            case $de_choice in
-                                1)
-                                    DE_TYPE="Hyprland"
-                                    DE_CHOICE=1
-                                    echo -e "\033[1;92m✅ Selected Hyprland for desktop environment.\033[0m\n"
-                                    break
-                                    ;;
-                                2)
-                                    DE_TYPE="XFCE4"
-                                    DE_CHOICE=2
-                                    echo -e "\033[1;92m✅ Selected XFCE4 for desktop environment.\033[0m\n"
-                                    break
-                                    ;;
-                                3)
-                                    DE_TYPE="KDE Plasma"
-                                    DE_CHOICE=3
-                                    echo -e "\033[1;92m✅ Selected KDE Plasma for desktop environment.\033[0m\n"
-                                    break
-                                    ;;
-                                4)
-                                    DE_TYPE="GNOME"
-                                    DE_CHOICE=4
-                                    echo -e "\033[1;92m✅ Selected GNOME for desktop environment.\033[0m\n"
-                                    break
-                                    ;;
-                                *)
-                                    echo -e "\033[1;91m❌ Invalid choice. Please enter a number between 1 and 4.\033[0m"
-                                    ;;
-                            esac
-                        done
-                    # Hostname
-                    elif ([ "$GPU_TYPE" = "NVIDIA" ] && [ "$current" -eq 8 ]) || \
-                         ([ "$GPU_TYPE" != "NVIDIA" ] && [ "$current" -eq 7 ]); then
-                        echo -e "\n\033[1;94m🔄 Hostname Configuration\033[0m"
-                        echo -en "Enter system hostname: "
-                        read -r HOSTNAME
-                        echo -e "\033[1;92m✅ Hostname set to: \033[1;97m$HOSTNAME\033[0m\n"
-                    # Username
-                    elif ([ "$GPU_TYPE" = "NVIDIA" ] && [ "$current" -eq 9 ]) || \
-                         ([ "$GPU_TYPE" != "NVIDIA" ] && [ "$current" -eq 8 ]); then
-                        echo -e "\n\033[1;94m🔄 Username Configuration\033[0m"
-                        echo -en "Enter username: "
-                        read -r USER
-                        echo -e "\033[1;92m✅ Username set to: \033[1;97m$USER\033[0m\n"
-                    # Passwords
-                    elif ([ "$GPU_TYPE" = "NVIDIA" ] && [ "$current" -eq 10 ]) || \
-                         ([ "$GPU_TYPE" != "NVIDIA" ] && [ "$current" -eq 9 ]); then
-                        echo -e "\n\033[1;94m🔄 Password Configuration\033[0m"
-                        get_password "Enter the password for user $USER" USERPASS
-                        echo -e "\033[1;92m✅ User password set\033[0m"
-                        get_password "Enter the password for user root" ROOTPASS
-                        echo -e "\033[1;92m✅ Root password set\033[0m\n"
-                    # Keyboard Layout
-                    elif ([ "$GPU_TYPE" = "NVIDIA" ] && [ "$current" -eq 11 ]) || \
-                         ([ "$GPU_TYPE" != "NVIDIA" ] && [ "$current" -eq 10 ]); then
-                        # Start keyboard layout selection interface here
-                        echo -e "\n\033[1;94m🔄 Keyboard Layout Selection\033[0m"
-                        
-                        # Get available keyboard layouts
-                        mapfile -t ALL_KEYBOARD_LAYOUTS < <(localectl list-keymaps | sort)
-                        
-                        # Create a filtered array with only one variant per base language
-                        declare -a KEYBOARD_LAYOUTS
-                        declare -A seen_layouts
-                        
-                        for layout in "${ALL_KEYBOARD_LAYOUTS[@]}"; do
-                            # Extract the base language code (e.g., "us" from "us-euro")
-                            base_lang=$(echo "$layout" | cut -d'-' -f1)
-                            
-                            # If we haven't seen this base language yet, add it to our filtered list
-                            if [[ -z "${seen_layouts[$base_lang]}" ]]; then
-                                seen_layouts[$base_lang]=1
-                                KEYBOARD_LAYOUTS+=("$layout")
-                            fi
-                        done
-                        
-                        # Display available layouts (top 20 common ones)
-                        echo -e "Common keyboard layouts:"
-                        common_layouts=("us" "uk" "de" "fr" "it" "es" "ru" "br" "pt" "jp" "cn")
-                        
-                        for ((i=0; i<${#common_layouts[@]} && i<20; i++)); do
-                            layout=${common_layouts[$i]}
-                            echo -e "  \033[1;97m$((i+1)))\033[0m $layout"
-                        done
-                        
-                        echo -e "  \033[1;97m99)\033[0m Show all keyboards"
-                        
-                        # Let user select a layout
-                        while true; do
-                            echo -en "\033[1;94mSelect keyboard layout (1-${#common_layouts[@]} or 99): \033[0m"
-                            read -r kb_choice
-                            
-                            if [[ "$kb_choice" = "99" ]]; then
-                                # Show all keyboard layouts
-                                echo -e "\nAll available keyboard layouts:"
-                                
-                                for ((i=0; i<${#KEYBOARD_LAYOUTS[@]}; i++)); do
-                                    echo -e "  \033[1;97m$((i+1)))\033[0m ${KEYBOARD_LAYOUTS[$i]}"
-                                done
-                                
-                                while true; do
-                                    echo -en "\033[1;94mSelect keyboard layout (1-${#KEYBOARD_LAYOUTS[@]}): \033[0m"
-                                    read -r kb_full_choice
-                                    
-                                    if [[ "$kb_full_choice" =~ ^[0-9]+$ && "$kb_full_choice" -ge 1 && "$kb_full_choice" -le "${#KEYBOARD_LAYOUTS[@]}" ]]; then
-                                        KEYBOARD_LAYOUT="${KEYBOARD_LAYOUTS[$((kb_full_choice-1))]}"
-                                        echo -e "\033[1;92m✅ Keyboard layout set to: \033[1;97m$KEYBOARD_LAYOUT\033[0m\n"
-                                        break 2
-                                    else
-                                        echo -e "\033[1;91m❌ Invalid choice\033[0m"
-                                    fi
-                                done
-                            elif [[ "$kb_choice" =~ ^[0-9]+$ && "$kb_choice" -ge 1 && "$kb_choice" -le "${#common_layouts[@]}" ]]; then
-                                KEYBOARD_LAYOUT="${common_layouts[$((kb_choice-1))]}"
-                                echo -e "\033[1;92m✅ Keyboard layout set to: \033[1;97m$KEYBOARD_LAYOUT\033[0m\n"
-                                break
-                            else
-                                echo -e "\033[1;91m❌ Invalid choice\033[0m"
-                            fi
-                        done
-                    # System Locale 
-                    elif ([ "$GPU_TYPE" = "NVIDIA" ] && [ "$current" -eq 12 ]) || \
-                         ([ "$GPU_TYPE" != "NVIDIA" ] && [ "$current" -eq 11 ]); then
-                        echo -e "\n\033[1;94m🔄 System Locale Selection\033[0m"
-                        
-                        # Define an array of common locales
-                        declare -a COMMON_LOCALES=(
-                            "en_US.UTF-8" "English (US)"
-                            "en_GB.UTF-8" "English (UK)"
-                            "de_DE.UTF-8" "German"
-                            "fr_FR.UTF-8" "French"
-                            "it_IT.UTF-8" "Italian"
-                            "es_ES.UTF-8" "Spanish"
-                            "pt_BR.UTF-8" "Portuguese (Brazil)"
-                            "ru_RU.UTF-8" "Russian"
-                            "zh_CN.UTF-8" "Chinese (Simplified)"
-                            "ja_JP.UTF-8" "Japanese"
-                        )
-                        
-                        # Display common locales
-                        echo -e "Common locales:"
-                        for ((i=0; i<${#COMMON_LOCALES[@]}; i+=2)); do
-                            printf "  \033[1;97m%2d)\033[0m %-15s - %s\n" "$((i/2+1))" "${COMMON_LOCALES[$i]}" "${COMMON_LOCALES[$i+1]}"
-                        done
-                        
-                        echo -e "  \033[1;97m99)\033[0m Show all locales"
-                        
-                        # Let user select a locale
-                        while true; do
-                            echo -en "\033[1;94mSelect locale (1-$((${#COMMON_LOCALES[@]}/2)) or 99): \033[0m"
-                            read -r locale_choice
-                            
-                            if [[ "$locale_choice" = "99" ]]; then
-                                # Show all locales - would need to implement this section for completeness
-                                echo -e "\033[1;93m⚠️ Showing all locales not implemented, using en_US.UTF-8\033[0m"
-                                SYSTEM_LOCALE="en_US.UTF-8"
-                                echo -e "\033[1;92m✅ System locale set to: \033[1;97m$SYSTEM_LOCALE\033[0m\n"
-                                break
-                            elif [[ "$locale_choice" =~ ^[0-9]+$ && "$locale_choice" -ge 1 && "$locale_choice" -le "$((${#COMMON_LOCALES[@]}/2))" ]]; then
-                                SYSTEM_LOCALE="${COMMON_LOCALES[$((locale_choice-1)*2)]}"
-                                echo -e "\033[1;92m✅ System locale set to: \033[1;97m$SYSTEM_LOCALE\033[0m\n"
-                                break
-                            else
-                                echo -e "\033[1;91m❌ Invalid choice\033[0m"
-                            fi
-                        done
-                    # Mirror Country
-                    elif ([ "$GPU_TYPE" = "NVIDIA" ] && [ "$current" -eq 13 ]) || \
-                         ([ "$GPU_TYPE" != "NVIDIA" ] && [ "$current" -eq 12 ]); then
-                        echo -e "\n\033[1;94m🔄 Mirror Country Selection\033[0m"
-                        echo -e "  \033[1;97m1)\033[0m Italy"
-                        echo -e "  \033[1;97m2)\033[0m Germany"
-                        echo -e "  \033[1;97m3)\033[0m United States"
-                        echo -e "  \033[1;97m4)\033[0m United Kingdom"
-                        echo -e "  \033[1;97m5)\033[0m France"
-                        echo -e "  \033[1;97m6)\033[0m Spain"
-                        echo -e "  \033[1;97m7)\033[0m Netherlands"
-                        echo -e "  \033[1;97m8)\033[0m Other (specify)"
-                        echo -e "  \033[1;97m9)\033[0m Worldwide (no specific country)"
-                        
-                        while true; do
-                            echo -en "\033[1;94mEnter your choice (1-9): \033[0m"
-                            read -r mirror_choice
-                            
-                            case $mirror_choice in
-                                1)
-                                    MIRROR_COUNTRY="Italy"
-                                    echo -e "\033[1;92m✅ Selected mirrors from: \033[1;97mItaly\033[0m\n"
-                                    break
-                                    ;;
-                                2)
-                                    MIRROR_COUNTRY="Germany"
-                                    echo -e "\033[1;92m✅ Selected mirrors from: \033[1;97mGermany\033[0m\n"
-                                    break
-                                    ;;
-                                3)
-                                    MIRROR_COUNTRY="United States"
-                                    echo -e "\033[1;92m✅ Selected mirrors from: \033[1;97mUnited States\033[0m\n"
-                                    break
-                                    ;;
-                                4)
-                                    MIRROR_COUNTRY="United Kingdom"
-                                    echo -e "\033[1;92m✅ Selected mirrors from: \033[1;97mUnited Kingdom\033[0m\n"
-                                    break
-                                    ;;
-                                5)
-                                    MIRROR_COUNTRY="France"
-                                    echo -e "\033[1;92m✅ Selected mirrors from: \033[1;97mFrance\033[0m\n"
-                                    break
-                                    ;;
-                                6)
-                                    MIRROR_COUNTRY="Spain"
-                                    echo -e "\033[1;92m✅ Selected mirrors from: \033[1;97mSpain\033[0m\n"
-                                    break
-                                    ;;
-                                7)
-                                    MIRROR_COUNTRY="Netherlands"
-                                    echo -e "\033[1;92m✅ Selected mirrors from: \033[1;97mNetherlands\033[0m\n"
-                                    break
-                                    ;;
-                                8)
-                                    echo -e "\033[1;33mPlease specify your country name (in English):\033[0m"
-                                    echo -en "Country: "
-                                    read -r MIRROR_COUNTRY
-                                    echo -e "\033[1;92m✅ Selected mirrors from: \033[1;97m$MIRROR_COUNTRY\033[0m\n"
-                                    break
-                                    ;;
-                                9)
-                                    MIRROR_COUNTRY=""
-                                    echo -e "\033[1;92m✅ Using worldwide mirrors\033[0m\n"
-                                    break
-                                    ;;
-                                *)
-                                    echo -e "\033[1;91m❌ Invalid choice. Please enter a number between 1 and 9.\033[0m"
-                                    ;;
-                            esac
-                        done
-                    fi
-                    ;;
-            esac
-        # Advanced mode options handling would go here
-        # This part is omitted for brevity and to keep the edit size manageable
-        # The structure would be similar to the simple mode options above
-        else
-            # Advanced mode options
-            echo -e "\033[1;93mAdvanced mode settings editing is not fully implemented yet\033[0m"
-            sleep 1
-        fi
-    else
-        echo -e "\033[1;91m❌ Invalid choice. Please enter a number between 1 and $TOTAL_ITEMS, or 'c' to confirm, or 'a' to abort.\033[0m"
-    fi
-    
-    # Update the summary after each change
-    display_summary
-done
+echo -en "\n\033[1;94mYour choice: \033[0m"
+read choice
+
+if [[ "$choice" == "c" || "$choice" == "C" ]]; then
+    echo -e "\033[1;92m✅ Configuration confirmed! Proceeding with installation...\033[0m"
+    break
+else [[ "$choice" == "a" || "$choice" == "A" ]];
+    echo -e "\033[1;91m❌ Installation aborted by user.\033[0m"
+    exit 1
+fi
+
 
 # ----------------------------------------
 # CLEAN SYSTEM DISK
@@ -1542,7 +1084,7 @@ mkdir -p /mnt/efi && mount ${DISK}${PARTITION_1} /mnt/efi
 # ----------------------------------------
 print_section_header "INSTALL BASE"
 
-run_command "pacstrap /mnt linux-lts linux-lts-headers mkinitcpio base base-devel linux-firmware zram-generator reflector sudo networkmanager efibootmgr $CPU_MICROCODE wget" "install base packages" 
+run_command "pacstrap /mnt linux-lts linux-lts-headers mkinitcpio base git base-devel linux-firmware zram-generator reflector sudo networkmanager efibootmgr $CPU_MICROCODE wget" "install base packages" 
 
 cp /etc/zfs/zroot.key /mnt/etc/zfs
 
