@@ -2104,20 +2104,12 @@ DE_CHOICE=$(echo "$DE_CHOICE" | tr -d '"') # Remove any quotes that might be pre
 case "$DE_CHOICE" in
         "1")
                 echo -e "\033[1;92m✨ Installing Hyprland...\033[0m"
-                run_command "pacman -S --noconfirm hyprland egl-wayland" "install Hyprland"
+                run_command "pacman -S --noconfirm hyprland egl-wayland sddm qt6-svg qt6-declarative qt5-quickcontrols2" "install Hyprland, SDDM and dependencies"
+
                 run_command "find /usr/share/wayland-sessions -type f -not -name \"hyprland.desktop\" -delete" "clean up wayland sessions"
-                mkdir -p /etc/systemd/system/getty@tty1.service.d 
 
-                echo -e "\033[1;94m🔧 Setting up autologin for Hyprland...\033[0m"
-                echo -e "
-                [Service]
-                ExecStart=
-                ExecStart=-/sbin/agetty -o '-p -f -- \\u' --noclear --autologin $USER %I $TERM" >> /etc/systemd/system/getty@tty1.service.d/autologin.conf
-
-                echo -e "Hyprland > /dev/null" >> /home/$USER/.bash_profile
-
-                run_command "groupadd -r autologin" "create autologin group"
-                run_command "gpasswd -a $USER autologin" "add user to autologin group"
+                run_command "wget https://github.com/catppuccin/sddm/releases/download/v1.0.0/catppuccin-frappe.zip && unzip catppuccin-frappe.zip -d /usr/share/sddm/themes/ && rm -f catppuccin-frappe.zip" "download SDDM theme"
+                run_command "mkdir -p /etc/sddm.conf.d/ && echo -e '[Theme]\nCurrent=catppuccin-frappe' > /etc/sddm.conf.d/theme.conf" "configure SDDM theme"
 
                 run_command "su -c \"cd && wget https://raw.githubusercontent.com/mylinuxforwork/dotfiles/main/setup-arch.sh && chmod +x setup-arch.sh\" $USER" "download setup script for user"
                 ;;
