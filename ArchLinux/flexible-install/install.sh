@@ -2105,7 +2105,8 @@ case "$DE_CHOICE" in
         "1")
                 echo -e "\033[1;92m✨ Installing Hyprland...\033[0m"
                 run_command "pacman -S --noconfirm hyprland egl-wayland sddm qt6-svg qt6-declarative qt5-quickcontrols2" "install Hyprland, SDDM and dependencies"
-
+                run_command "systemctl enable sddm" "enable SDDM"
+                
                 run_command "find /usr/share/wayland-sessions -type f -not -name \"hyprland.desktop\" -delete" "clean up wayland sessions"
 
                 run_command "wget https://github.com/catppuccin/sddm/releases/download/v1.0.0/catppuccin-frappe.zip && unzip catppuccin-frappe.zip -d /usr/share/sddm/themes/ && rm -f catppuccin-frappe.zip" "download SDDM theme"
@@ -2248,7 +2249,7 @@ echo
 
 # System Information
 echo -e "\033[1;38;5;219m📌 System Information:\033[0m"
-echo -e "  \033[1;97m🖥️\033[0m Hostname: \033[1;97m$HOSTNAME\033[0m"
+echo -e "  \033[1;97m💻\033[0m Hostname: \033[1;97m$HOSTNAME\033[0m"
 echo -e "  \033[1;97m👤\033[0m Username: \033[1;97m$USER\033[0m"
 echo -e "  \033[1;97m🔣\033[0m Keyboard: \033[1;97m$KEYBOARD_LAYOUT\033[0m"
 echo -e "  \033[1;97m🌐\033[0m Locale: \033[1;97m$SYSTEM_LOCALE\033[0m"
@@ -2280,14 +2281,14 @@ echo
 
 # Software Configuration
 echo -e "\033[1;38;5;114m🖱️ Software Configuration:\033[0m"
-echo -e "  \033[1;97m🖥️\033[0m Desktop Environment: \033[1;97m$DE_TYPE\033[0m"
+echo -e "  \033[1;97m💻\033[0m Desktop Environment: \033[1;97m$DE_TYPE\033[0m"
 echo -e "  \033[1;97m📇\033[0m Install Mode: \033[1;97m${INSTALL_MODE^}\033[0m"
 echo
 
 # Performance Configuration
 echo -e "\033[1;38;5;208m⚡ Performance Configuration:\033[0m"
-echo -e "  \033[1;97m💭\033[0m ZRAM Size: \033[1;97m$ZRAM_SIZE\033[0m"
-echo -e "  \033[1;97m🗜️\033[0m ZRAM Compression: \033[1;97m$ZRAM_COMPRESSION\033[0m"
+echo -e "  \033[1;97m🧠\033[0m ZRAM Size: \033[1;97m$ZRAM_SIZE\033[0m"
+echo -e "  \033[1;97m📁\033[0m ZRAM Compression: \033[1;97m$ZRAM_COMPRESSION\033[0m"
 echo
 
 echo -e "\033[1;38;5;87m🚀 Your new Arch Linux system is ready!\033[0m"
@@ -2295,10 +2296,12 @@ echo -e "\033[1;38;5;87m🚀 Your new Arch Linux system is ready!\033[0m"
 # Ask user if they want to reboot now
 while true; do
     echo -en "\033[1;93mDo you want to reboot now? [Y/n]: \033[0m"
+    # Clear input buffer before reading
+    while read -r -t 0; do read -r; done
     read -r reboot_choice
     
     case $reboot_choice in
-        [Yy]*|"")
+        [Yy])
             echo -e "\n\033[1;94m🔄 Unmounting filesystems and rebooting system...\033[0m"
             
             # Unmount all filesystems and export pools
@@ -2310,8 +2313,9 @@ while true; do
             echo -e "\033[1;92m👋 Rebooting now. See you on the other side!\033[0m"
             sleep 2
             reboot
+            exit 0  # Ensure the script exits immediately
             ;;
-        [Nn]*)
+        [Nn])
             echo -e "\n\033[1;94mSystem is ready. You can reboot manually when ready with 'reboot' command.\033[0m"
             echo -e "\033[1;93m⚠️  Remember to properly unmount filesystems before rebooting:\033[0m"
             echo -e "  \033[1;37m•\033[0m umount -R /mnt"
