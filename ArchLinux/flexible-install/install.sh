@@ -1914,7 +1914,7 @@ mkdir -p /mnt/efi && mount ${DISK}${PARTITION_1} /mnt/efi
 # ----------------------------------------
 print_section_header "INSTALL BASE"
 
-run_command "pacstrap /mnt linux-lts linux-lts-headers mkinitcpio base git base-devel linux-firmware zram-generator reflector sudo networkmanager efibootmgr $CPU_MICROCODE wget" "install base packages" 
+run_command "pacstrap /mnt linux-lts linux-lts-headers mkinitcpio base git base-devel linux-firmware zram-generator reflector sudo networkmanager efibootmgr $CPU_MICROCODE wget unzip" "install base packages" 
 
 
 # ----------------------------------------
