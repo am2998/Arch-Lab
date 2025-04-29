@@ -11,9 +11,9 @@ handle_error() {
     
     if [ "$retry_prompt" = "true" ]; then
         while true; do
-            read -p $'\n\033[1;33mRetry? (y), Skip (s), or Abort (a): \033[0m' choice
+            read -p $'\n\033[1;33mRetry? (r), Skip (s), or Abort (a): \033[0m' choice
             case "$choice" in
-                [Yy]*)
+                [Rr]*)
                     echo -e "\n\033[1;34m🔄 Retrying\033[0m"
                     return 0  # Return code to indicate retry
                     ;;
@@ -26,7 +26,7 @@ handle_error() {
                     exit 1
                     ;;
                 *)
-                    echo -e "\n\033[1;35m❓ Invalid choice. Please enter 'y', 's', or 'a'\033[0m"
+                    echo -e "\n\033[1;35m❓ Invalid choice. Please enter 'r', 's', or 'a'\033[0m"
                     ;;
             esac
         done
@@ -105,9 +105,9 @@ run_command() {
                 echo -e "\033[1;31m❌ Error: Failed to $desc\033[0m" >&2
                 echo -e "\033[1;31m⚠️  This is a critical operation and cannot be skipped.\033[0m" >&2
                 while true; do
-                    read -p $'\n\033[1;33mRetry? (y) or Abort installation (a): \033[0m' choice
+                    read -p $'\n\033[1;33mRetry? (r) or Abort installation (a): \033[0m' choice
                     case "$choice" in
-                        [Yy]*)
+                        [Rr]*)
                             echo -e "\n\033[1;34m🔄 Retrying\033[0m"
                             break
                             ;;
@@ -116,7 +116,7 @@ run_command() {
                             exit 1
                             ;;
                         *)
-                            echo -e "\n\033[1;35m❓ Invalid choice. Please enter 'y' or 'a'\033[0m"
+                            echo -e "\n\033[1;35m❓ Invalid choice. Please enter 'r' or 'a'\033[0m"
                             ;;
                     esac
                 done
@@ -264,7 +264,7 @@ while true; do
                 # Loop continues to prompt again
             fi
         fi
-        
+        break  
     else
         echo -e "\033[1;91m❌ Invalid selection. Please enter a number between 1 and ${#DISK_PATHS[@]}.\033[0m"
     fi
@@ -1051,43 +1051,41 @@ display_summary() {
     print_entry 1 "Boot Type:              " "$BOOT_TYPE"
     print_entry 2 "Target Device:          " "$DEVICE"
 
-    # Advanced partition settings
-    if [ "$INSTALL_MODE" = "advanced" ]; then
-        print_entry 3 "EFI Partition Size:     " "$EFI_PART_SIZE"
-        print_entry 4 "Root Partition Size:    " "$ROOT_PART_SIZE"
-        print_entry 5 "Disk Encryption:        " "${ENCRYPT_DISK^}"
-        print_entry 6 "ZFS Compression:        " "$ZFS_COMPRESSION"
-        print_entry 7 "Separate Datasets:      " "${SEPARATE_DATASETS^}"
-        print_entry 8 "ZRAM Size:              " "$ZRAM_SIZE"
-        print_entry 9 "ZRAM Compression:       " "$ZRAM_COMPRESSION"
-        ADV_OFFSET=9
-    else
-        ADV_OFFSET=2
-    fi
-
     # Hardware settings
-    print_entry $((ADV_OFFSET+1)) "CPU Type:               " "$CPU_TYPE"
-    print_entry $((ADV_OFFSET+2)) "GPU Type:               " "$GPU_TYPE"
+    print_entry 3 "CPU Type:               " "$CPU_TYPE"
+    print_entry 4 "GPU Type:               " "$GPU_TYPE"
 
     if [ "$GPU_TYPE" = "NVIDIA" ]; then
-        print_entry $((ADV_OFFSET+3)) "NVIDIA Driver:          " "$NVIDIA_DRIVER_TYPE"
+        print_entry 5 "NVIDIA Driver:          " "$NVIDIA_DRIVER_TYPE"
         NVIDIA_OFFSET=1
+
     else
         NVIDIA_OFFSET=0
     fi
 
-    print_entry $((ADV_OFFSET+3+NVIDIA_OFFSET)) "Audio Server:           " "$AUDIO_SERVER"
-    print_entry $((ADV_OFFSET+4+NVIDIA_OFFSET)) "Desktop Environment:    " "$DE_TYPE"
+    print_entry $((5+NVIDIA_OFFSET)) "Audio Server:           " "$AUDIO_SERVER"
+    print_entry $((6+NVIDIA_OFFSET)) "Desktop Environment:    " "$DE_TYPE"
 
     # User configuration
-    print_entry $((ADV_OFFSET+5+NVIDIA_OFFSET)) "Hostname:               " "$HOSTNAME"
-    print_entry $((ADV_OFFSET+6+NVIDIA_OFFSET)) "Username:               " "$USER"
-    print_entry $((ADV_OFFSET+7+NVIDIA_OFFSET)) "User & Root Passwords:  " "[hidden]"
+    print_entry $((7+NVIDIA_OFFSET)) "Hostname:               " "$HOSTNAME"
+    print_entry $((8+NVIDIA_OFFSET)) "Username:               " "$USER"
+    print_entry $((9+NVIDIA_OFFSET)) "User & Root Passwords:  " "[hidden]"
 
     # System preferences
-    print_entry $((ADV_OFFSET+8+NVIDIA_OFFSET)) "Keyboard Layout:        " "$KEYBOARD_LAYOUT"
-    print_entry $((ADV_OFFSET+9+NVIDIA_OFFSET)) "System Locale:          " "$SYSTEM_LOCALE"
-    print_entry $((ADV_OFFSET+10+NVIDIA_OFFSET)) "Mirror Country:         " "${MIRROR_COUNTRY:-Worldwide}"
+    print_entry $((10+NVIDIA_OFFSET)) "Keyboard Layout:        " "$KEYBOARD_LAYOUT"
+    print_entry $((11+NVIDIA_OFFSET)) "System Locale:          " "$SYSTEM_LOCALE"
+    print_entry $((12+NVIDIA_OFFSET)) "Mirror Country:         " "${MIRROR_COUNTRY:-Worldwide}"
+
+    # Advanced partition settings
+    if [ "$INSTALL_MODE" = "advanced" ]; then
+        print_entry $((13+NVIDIA_OFFSET)) "EFI Partition Size:     " "$EFI_PART_SIZE"
+        print_entry $((14+NVIDIA_OFFSET)) "Root Partition Size:    " "$ROOT_PART_SIZE"
+        print_entry $((15+NVIDIA_OFFSET)) "Disk Encryption:        " "${ENCRYPT_DISK^}"
+        print_entry $((16+NVIDIA_OFFSET)) "ZFS Compression:        " "$ZFS_COMPRESSION"
+        print_entry $((17+NVIDIA_OFFSET)) "Separate Datasets:      " "${SEPARATE_DATASETS^}"
+        print_entry $((18+NVIDIA_OFFSET)) "ZRAM Size:              " "$ZRAM_SIZE"
+        print_entry $((19+NVIDIA_OFFSET)) "ZRAM Compression:       " "$ZRAM_COMPRESSION"
+    fi
 
     echo -e "└──────────────────────────────────────────────────┘"
 }
@@ -1111,7 +1109,7 @@ while true; do
           echo -e "\033[1;92m✅ Configuration confirmed! Proceeding with installation...\033[0m"
           break
      elif [[ "$choice" == "a" || "$choice" == "A" ]]; then
-          echo -e "\033[1;91m❌ Installation aborted by user.\033[0m"
+          echo -e "\033[1;91m❌ Installation aborted by user.\n\033[0m"
           exit 1
      elif [[ "$choice" == "m" || "$choice" == "M" ]]; then
           # Start modification loop
@@ -1181,6 +1179,7 @@ while true; do
                                   if [[ "$disk_choice" =~ ^[0-9]+$ && "$disk_choice" -ge 1 && "$disk_choice" -le "${#DISK_PATHS[@]}" ]]; then
                                       DEVICE="${DISK_PATHS[$((disk_choice-1))]}"
                                       echo -e "\033[1;92m✅ Target device successfully changed to $DEVICE\033[0m"
+                                      break
                                   else
                                       echo -e "\033[1;91m❌ Invalid device. Value not changed.\033[0m"
                                   fi
@@ -1188,174 +1187,7 @@ while true; do
                               sleep 2
                               ;;
                          
-                         # Advanced partition settings (only in advanced mode)
-                         3)
-                              if [ "$INSTALL_MODE" = "advanced" ]; then
-                                    echo -e "\n\033[1;94mEnter new EFI partition size (e.g. 512M, 1G):\033[0m"
-                                    read -p "New size: " new_efi_size
-                                    if [[ "$new_efi_size" =~ ^[0-9]+[MG]$ ]]; then
-                                         EFI_PART_SIZE="$new_efi_size"
-                                         echo -e "\033[1;92m✅ EFI partition size successfully updated to $EFI_PART_SIZE\033[0m"
-                                    else
-                                         echo -e "\033[1;91m❌ Invalid size format. Use format like 512M or 1G.\033[0m"
-                                    fi
-                                    sleep 2
-                              fi
-                              ;;
-                         
-                         4)
-                              if [ "$INSTALL_MODE" = "advanced" ]; then
-                                    echo -e "\n\033[1;94mEnter new Root partition size (MAX for all available space, or e.g. 50G):\033[0m"
-                                    read -p "New size: " new_root_size
-                                    if [[ "$new_root_size" = "MAX" || "$new_root_size" =~ ^[0-9]+G$ ]]; then
-                                         ROOT_PART_SIZE="$new_root_size"
-                                         echo -e "\033[1;92m✅ Root partition size successfully updated to $ROOT_PART_SIZE\033[0m"
-                                    else
-                                         echo -e "\033[1;91m❌ Invalid size format. Use 'MAX' or format like '50G'.\033[0m"
-                                    fi
-                                    sleep 2
-                              fi
-                              ;;
-                         
-                         5) 
-                              if [ "$INSTALL_MODE" = "advanced" ]; then
-                                    echo -e "\n\033[1;94mDisk encryption:\033[0m"
-                                    echo -e "  \033[1;97m1)\033[0m Yes (More secure, requires passphrase)"
-                                    echo -e "  \033[1;97m2)\033[0m No (More convenient, less secure)"
-                                    read -p "Enter choice (1-2): " encrypt_choice
-                                    case $encrypt_choice in
-                                         1) 
-                                              ENCRYPT_DISK="yes"
-                                              get_password "Enter disk encryption passphrase" DISK_PASSWORD
-                                              echo -e "\033[1;92m✅ Disk encryption successfully enabled and passphrase set\033[0m"
-                                              ;;
-                                         2) 
-                                              ENCRYPT_DISK="no"
-                                              DISK_PASSWORD=""
-                                              echo -e "\033[1;92m✅ Disk encryption successfully disabled\033[0m"
-                                              ;;
-                                         *) echo -e "\033[1;91m❌ Invalid choice. Value not changed.\033[0m" ;;
-                                    esac
-                                    sleep 2
-                              fi
-                              ;;
-                         
-                         6)
-                              if [ "$INSTALL_MODE" = "advanced" ]; then
-                                    echo -e "\n\033[1;94mSelect ZFS compression algorithm:\033[0m"
-                                    echo -e "  \033[1;37m1)\033[0m \033[1;38;5;39mlz4\033[0m (Fast, good ratio)"
-                                    echo -e "  \033[1;37m2)\033[0m \033[1;38;5;202mzstd\033[0m (Better compression, slightly slower)"
-                                    echo -e "  \033[1;37m3)\033[0m \033[1;38;5;118mgzip\033[0m (Best compression, slowest)"
-                                    echo -e "  \033[1;37m4)\033[0m \033[1;38;5;196mNone\033[0m (No compression)"
-                                    read -p "Enter choice (1-4): " compression_choice
-                                    case $compression_choice in
-                                         1) 
-                                              ZFS_COMPRESSION="lz4"
-                                              echo -e "\033[1;92m✅ ZFS compression successfully set to lz4\033[0m"
-                                              ;;
-                                         2) 
-                                              ZFS_COMPRESSION="zstd"
-                                              echo -e "\033[1;92m✅ ZFS compression successfully set to zstd\033[0m"
-                                              ;;
-                                         3) 
-                                              ZFS_COMPRESSION="gzip"
-                                              echo -e "\033[1;92m✅ ZFS compression successfully set to gzip\033[0m"
-                                              ;;
-                                         4) 
-                                              ZFS_COMPRESSION="off"
-                                              echo -e "\033[1;92m✅ ZFS compression successfully disabled\033[0m"
-                                              ;;
-                                         *) echo -e "\033[1;91m❌ Invalid choice. Value not changed.\033[0m" ;;
-                                    esac
-                                    sleep 2
-                              fi
-                              ;;
-                         
-                         7)
-                              if [ "$INSTALL_MODE" = "advanced" ]; then
-                                    echo -e "\n\033[1;94mConfigure ZFS datasets structure:\033[0m"
-                                    echo -e "  \033[1;37m1)\033[0m Simple (Single root dataset only)"
-                                    echo -e "  \033[1;37m2)\033[0m Advanced (Separate datasets for system directories)"
-                                    read -p "Enter choice (1-2): " datasets_choice
-                                    case $datasets_choice in
-                                         1) 
-                                              SEPARATE_DATASETS="no" 
-                                              echo -e "\033[1;92m✅ ZFS dataset structure successfully set to simple\033[0m"
-                                              ;;
-                                         2) 
-                                              SEPARATE_DATASETS="yes" 
-                                              echo -e "\033[1;92m✅ ZFS dataset structure successfully set to advanced\033[0m"
-                                              ;;
-                                         *) echo -e "\033[1;91m❌ Invalid choice. Value not changed.\033[0m" ;;
-                                    esac
-                                    sleep 2
-                              fi
-                              ;;
-                         
-                         8)
-                              if [ "$INSTALL_MODE" = "advanced" ]; then
-                                    echo -e "\n\033[1;94mSelect ZRAM size:\033[0m"
-                                    echo -e "  \033[1;37m1)\033[0m Auto (min(RAM, 32GB))"
-                                    echo -e "  \033[1;37m2)\033[0m Half of RAM"
-                                    echo -e "  \033[1;37m3)\033[0m Custom value (specify in MB)"
-                                    read -p "Enter choice (1-3): " zram_size_choice
-                                    case $zram_size_choice in
-                                         1) 
-                                              ZRAM_SIZE="min(ram, 32768)"
-                                              echo -e "\033[1;92m✅ ZRAM size successfully set to automatic sizing\033[0m"
-                                              ;;
-                                         2) 
-                                              ZRAM_SIZE="ram / 2"
-                                              echo -e "\033[1;92m✅ ZRAM size successfully set to half of RAM\033[0m"
-                                              ;;
-                                         3) 
-                                              read -p "Enter ZRAM size in MB (e.g., 8192 for 8GB): " custom_zram_size
-                                              if [[ "$custom_zram_size" =~ ^[0-9]+$ ]]; then
-                                                    ZRAM_SIZE="$custom_zram_size"
-                                                    echo -e "\033[1;92m✅ ZRAM size successfully set to ${custom_zram_size}MB\033[0m"
-                                              else
-                                                    echo -e "\033[1;91m❌ Invalid size. Value not changed.\033[0m"
-                                              fi
-                                              ;;
-                                         *) echo -e "\033[1;91m❌ Invalid choice. Value not changed.\033[0m" ;;
-                                    esac
-                                    sleep 2
-                              fi
-                              ;;
-                         
-                         9)
-                              if [ "$INSTALL_MODE" = "advanced" ]; then
-                                    echo -e "\n\033[1;94mSelect ZRAM compression algorithm:\033[0m"
-                                    echo -e "  \033[1;37m1)\033[0m zstd (Best balance of speed/compression)"
-                                    echo -e "  \033[1;37m2)\033[0m lz4 (Faster, lower compression ratio)"
-                                    echo -e "  \033[1;37m3)\033[0m lzo-rle"
-                                    echo -e "  \033[1;37m4)\033[0m lzo"
-                                    read -p "Enter choice (1-4): " zram_compression_choice
-                                    case $zram_compression_choice in
-                                         1) 
-                                              ZRAM_COMPRESSION="zstd"
-                                              echo -e "\033[1;92m✅ ZRAM compression successfully set to zstd\033[0m"
-                                              ;;
-                                         2) 
-                                              ZRAM_COMPRESSION="lz4"
-                                              echo -e "\033[1;92m✅ ZRAM compression successfully set to lz4\033[0m"
-                                              ;;
-                                         3) 
-                                              ZRAM_COMPRESSION="lzo-rle"
-                                              echo -e "\033[1;92m✅ ZRAM compression successfully set to lzo-rle\033[0m"
-                                              ;;
-                                         4) 
-                                              ZRAM_COMPRESSION="lzo"
-                                              echo -e "\033[1;92m✅ ZRAM compression successfully set to lzo\033[0m"
-                                              ;;
-                                         *) echo -e "\033[1;91m❌ Invalid choice. Value not changed.\033[0m" ;;
-                                    esac
-                                    sleep 2
-                              fi
-                              ;;
-                         
-                         # CPU Type
-                         $((ADV_OFFSET+1)))
+                         3) # CPU Type
                               echo -e "\n\033[1;94mChoose your CPU type:\033[0m"
                               echo -e "  \033[1;37m1)\033[0m \033[1;38;5;39mIntel\033[0m"
                               echo -e "  \033[1;37m2)\033[0m \033[1;38;5;196mAMD\033[0m"
@@ -1376,8 +1208,7 @@ while true; do
                               sleep 2
                               ;;
                          
-                         # GPU Type
-                         $((ADV_OFFSET+2)))
+                         4) # GPU Type
                               echo -e "\n\033[1;94mChoose your GPU type:\033[0m"
                               echo -e "  \033[1;37m1)\033[0m \033[1;38;5;118mNVIDIA\033[0m"
                               echo -e "  \033[1;37m2)\033[0m \033[1;38;5;75mAMD/Intel\033[0m (Open Source)"
@@ -1422,8 +1253,7 @@ while true; do
                               sleep 2
                               ;;
                          
-                         # NVIDIA Driver (only if NVIDIA GPU)
-                         $((ADV_OFFSET+3)))
+                         5) # NVIDIA Driver (only if NVIDIA GPU)
                               if [ "$GPU_TYPE" = "NVIDIA" ]; then
                                     echo -e "\n\033[1;94mNVIDIA Driver Type:\033[0m"
                                     echo -e "  \033[1;37m1)\033[0m Open source drivers"
@@ -1441,11 +1271,15 @@ while true; do
                                          *) echo -e "\033[1;91m❌ Invalid choice. Value not changed.\033[0m" ;;
                                     esac
                                     sleep 2
+                              else
+                                   echo -e "\033[1;93m⚠️ This setting is only available for NVIDIA GPUs. Please select a NVIDIA GPU first.\033[0m"
+                                   sleep 2
                               fi
                               ;;
 
-                         # Audio Server
-                         $((ADV_OFFSET+3+NVIDIA_OFFSET)))
+                         # After this point, count NVIDIA_OFFSET to the case numbers
+                         # First determine if we have an NVIDIA GPU (offset = 1) or not (offset = 0)
+                         $((5+NVIDIA_OFFSET))) # Audio Server
                               echo -e "\n\033[1;94mChoose your audio server:\033[0m"
                               echo -e "  \033[1;37m1)\033[0m \033[1;38;5;86mPipeWire\033[0m (Modern, low-latency)"
                               echo -e "  \033[1;37m2)\033[0m \033[1;38;5;208mPulseAudio\033[0m (Traditional)"
@@ -1464,8 +1298,7 @@ while true; do
                               sleep 2
                               ;;
                          
-                         # Desktop Environment
-                         $((ADV_OFFSET+4+NVIDIA_OFFSET)))
+                         $((6+NVIDIA_OFFSET))) # Desktop Environment
                               echo -e "\n\033[1;94mChoose your desktop environment:\033[0m"
                               echo -e "  \033[1;37m1)\033[0m \033[1;38;5;51mHyprland\033[0m"
                               echo -e "  \033[1;37m2)\033[0m \033[1;38;5;220mXFCE4\033[0m"
@@ -1494,274 +1327,447 @@ while true; do
                           sleep 2
                           ;;
                      
-                     # Hostname
-                     $((ADV_OFFSET+5+NVIDIA_OFFSET)))
-                          echo -e "\n\033[1;94mEnter system hostname:\033[0m"
-                          read -p "Hostname: " new_hostname
-                          if [[ -n "$new_hostname" ]]; then
-                                HOSTNAME="$new_hostname"
-                                echo -e "\033[1;92m✅ Hostname successfully updated to $HOSTNAME\033[0m"
-                          else
-                                echo -e "\033[1;91m❌ Invalid hostname. Value not changed.\033[0m"
-                          fi
-                          sleep 1
-                          ;;
+                         $((7+NVIDIA_OFFSET))) # Hostname
+                              echo -e "\n\033[1;94mEnter system hostname:\033[0m"
+                              read -p "Hostname: " new_hostname
+                              if [[ -n "$new_hostname" ]]; then
+                                    HOSTNAME="$new_hostname"
+                                    echo -e "\033[1;92m✅ Hostname successfully updated to $HOSTNAME\033[0m"
+                              else
+                                    echo -e "\033[1;91m❌ Invalid hostname. Value not changed.\033[0m"
+                              fi
+                              sleep 1
+                              ;;
                      
-                     # Username
-                     $((ADV_OFFSET+6+NVIDIA_OFFSET)))
-                          echo -e "\n\033[1;94mEnter username:\033[0m"
-                          read -p "Username: " new_user
-                          if [[ -n "$new_user" && "$new_user" =~ ^[a-z_][a-z0-9_-]*$ ]]; then
-                                USER="$new_user"
-                                echo -e "\033[1;92m✅ Username successfully updated to $USER\033[0m"
-                          else
-                                echo -e "\033[1;91m❌ Invalid username format. Value not changed.\033[0m"
-                          fi
-                          sleep 1
-                          ;;
+                         $((8+NVIDIA_OFFSET))) # Username
+                              echo -e "\n\033[1;94mEnter username:\033[0m"
+                              read -p "Username: " new_user
+                              if [[ -n "$new_user" && "$new_user" =~ ^[a-z_][a-z0-9_-]*$ ]]; then
+                                    USER="$new_user"
+                                    echo -e "\033[1;92m✅ Username successfully updated to $USER\033[0m"
+                              else
+                                    echo -e "\033[1;91m❌ Invalid username format. Value not changed.\033[0m"
+                              fi
+                              sleep 1
+                              ;;
                      
-                     # Passwords
-                     $((ADV_OFFSET+7+NVIDIA_OFFSET)))
-                          echo -e "\n\033[1;94mUpdate passwords:\033[0m"
-                          get_password "Enter the password for user $USER" USERPASS
-                          echo -e "\033[1;92m✅ User password successfully updated\033[0m"
-                          get_password "Enter the password for root" ROOTPASS
-                          echo -e "\033[1;92m✅ Root password successfully updated\033[0m"
-                          sleep 1
-                          ;;
+                         $((9+NVIDIA_OFFSET))) # Passwords
+                              echo -e "\n\033[1;94mUpdate passwords:\033[0m"
+                              get_password "Enter the password for user $USER" USERPASS
+                              echo -e "\033[1;92m✅ User password successfully updated\033[0m"
+                              get_password "Enter the password for root" ROOTPASS
+                              echo -e "\033[1;92m✅ Root password successfully updated\033[0m"
+                              sleep 1
+                              ;;
                      
-                     # Keyboard layout
-                     $((ADV_OFFSET+8+NVIDIA_OFFSET)))
-                          echo -e "\n\033[1;94mSelect keyboard layout:\033[0m"
-                          # Display some common layouts
-                          echo -e "  \033[1;37m1)\033[0m us (US English)"
-                          echo -e "  \033[1;37m2)\033[0m uk (UK English)"
-                          echo -e "  \033[1;37m3)\033[0m de (German)"
-                          echo -e "  \033[1;37m4)\033[0m fr (French)"
-                          echo -e "  \033[1;37m5)\033[0m it (Italian)"
-                          echo -e "  \033[1;37m6)\033[0m es (Spanish)"
-                          echo -e "  \033[1;37m7)\033[0m Show all layouts"
-                          echo -e "  \033[1;37m8)\033[0m Enter custom layout"
-                          
-                          read -p "Enter choice: " keyboard_choice
-                          
-                          case $keyboard_choice in
-                                1) 
-                                     KEYBOARD_LAYOUT="us"
-                                     echo -e "\033[1;92m✅ Keyboard layout successfully set to US English\033[0m"
-                                     ;;
-                                2) 
-                                     KEYBOARD_LAYOUT="uk"
-                                     echo -e "\033[1;92m✅ Keyboard layout successfully set to UK English\033[0m"
-                                     ;;
-                                3) 
-                                     KEYBOARD_LAYOUT="de"
-                                     echo -e "\033[1;92m✅ Keyboard layout successfully set to German\033[0m"
-                                     ;;
-                                4) 
-                                     KEYBOARD_LAYOUT="fr"
-                                     echo -e "\033[1;92m✅ Keyboard layout successfully set to French\033[0m"
-                                     ;;
-                                5) 
-                                     KEYBOARD_LAYOUT="it"
-                                     echo -e "\033[1;92m✅ Keyboard layout successfully set to Italian\033[0m"
-                                     ;;
-                                6) 
-                                     KEYBOARD_LAYOUT="es"
-                                     echo -e "\033[1;92m✅ Keyboard layout successfully set to Spanish\033[0m"
-                                     ;;
-                                7)
-                                     # Show all layouts as before
-                                     mapfile -t ALL_KEYBOARD_LAYOUTS < <(localectl list-keymaps | sort)
-                                     # Create filtered array
-                                     declare -a KEYBOARD_LAYOUTS
-                                     declare -A seen_layouts
-                                     for layout in "${ALL_KEYBOARD_LAYOUTS[@]}"; do
-                                          base_lang=$(echo "$layout" | cut -d'-' -f1)
-                                          if [[ -z "${seen_layouts[$base_lang]}" ]]; then
-                                                seen_layouts[$base_lang]=1
-                                                KEYBOARD_LAYOUTS+=("$layout")
-                                          fi
-                                     done
-                                     
-                                     COLUMNS=4
-                                     TOTAL_LAYOUTS=${#KEYBOARD_LAYOUTS[@]}
-                                     
-                                     echo -e "\nAvailable keyboard layouts:"
-                                     for ((i=0; i<TOTAL_LAYOUTS; i++)); do
-                                          printf "  \033[1;37m%3d)\033[0m %-20s" "$((i+1))" "${KEYBOARD_LAYOUTS[$i]}"
-                                          if (( (i+1) % COLUMNS == 0 )); then
-                                                echo ""
-                                          fi
-                                     done
-                                     if (( TOTAL_LAYOUTS % COLUMNS != 0 )); then
-                                          echo ""
-                                     fi
-                                     
-                                     read -p "Enter layout number: " layout_num
-                                     if [[ "$layout_num" =~ ^[0-9]+$ && "$layout_num" -ge 1 && "$layout_num" -le "$TOTAL_LAYOUTS" ]]; then
-                                          KEYBOARD_LAYOUT="${KEYBOARD_LAYOUTS[$((layout_num-1))]}"
-                                          echo -e "\033[1;92m✅ Keyboard layout successfully set to $KEYBOARD_LAYOUT\033[0m"
-                                     else
-                                          echo -e "\033[1;91m❌ Invalid choice. Value not changed.\033[0m"
-                                     fi
-                                     ;;
-                                8)
-                                     read -p "Enter custom keyboard layout: " custom_layout
-                                     if [[ -n "$custom_layout" ]]; then
-                                          KEYBOARD_LAYOUT="$custom_layout"
-                                          echo -e "\033[1;92m✅ Keyboard layout successfully set to $KEYBOARD_LAYOUT\033[0m"
-                                     else
-                                          echo -e "\033[1;91m❌ Invalid input. Value not changed.\033[0m"
-                                     fi
-                                     ;;
-                                *) echo -e "\033[1;91m❌ Invalid choice. Value not changed.\033[0m" ;;
-                          esac
-                          sleep 2
-                          ;;
+                         $((10+NVIDIA_OFFSET))) # Keyboard layout
+                              echo -e "\n\033[1;94mSelect keyboard layout:\033[0m"
+                              # Display some common layouts
+                              echo -e "  \033[1;37m1)\033[0m us (US English)"
+                              echo -e "  \033[1;37m2)\033[0m uk (UK English)"
+                              echo -e "  \033[1;37m3)\033[0m de (German)"
+                              echo -e "  \033[1;37m4)\033[0m fr (French)"
+                              echo -e "  \033[1;37m5)\033[0m it (Italian)"
+                              echo -e "  \033[1;37m6)\033[0m es (Spanish)"
+                              echo -e "  \033[1;37m7)\033[0m Show all layouts"
+                              echo -e "  \033[1;37m8)\033[0m Enter custom layout"
+                              
+                              read -p "Enter choice: " keyboard_choice
+                              
+                              case $keyboard_choice in
+                                    1) 
+                                         KEYBOARD_LAYOUT="us"
+                                         echo -e "\033[1;92m✅ Keyboard layout successfully set to US English\033[0m"
+                                         ;;
+                                    2) 
+                                         KEYBOARD_LAYOUT="uk"
+                                         echo -e "\033[1;92m✅ Keyboard layout successfully set to UK English\033[0m"
+                                         ;;
+                                    3) 
+                                         KEYBOARD_LAYOUT="de"
+                                         echo -e "\033[1;92m✅ Keyboard layout successfully set to German\033[0m"
+                                         ;;
+                                    4) 
+                                         KEYBOARD_LAYOUT="fr"
+                                         echo -e "\033[1;92m✅ Keyboard layout successfully set to French\033[0m"
+                                         ;;
+                                    5) 
+                                         KEYBOARD_LAYOUT="it"
+                                         echo -e "\033[1;92m✅ Keyboard layout successfully set to Italian\033[0m"
+                                         ;;
+                                    6) 
+                                         KEYBOARD_LAYOUT="es"
+                                         echo -e "\033[1;92m✅ Keyboard layout successfully set to Spanish\033[0m"
+                                         ;;
+                                    7)
+                                         # Show all layouts as before
+                                         mapfile -t ALL_KEYBOARD_LAYOUTS < <(localectl list-keymaps | sort)
+                                         # Create filtered array
+                                         declare -a KEYBOARD_LAYOUTS
+                                         declare -A seen_layouts
+                                         for layout in "${ALL_KEYBOARD_LAYOUTS[@]}"; do
+                                              base_lang=$(echo "$layout" | cut -d'-' -f1)
+                                              if [[ -z "${seen_layouts[$base_lang]}" ]]; then
+                                                    seen_layouts[$base_lang]=1
+                                                    KEYBOARD_LAYOUTS+=("$layout")
+                                              fi
+                                         done
+                                         
+                                         COLUMNS=4
+                                         TOTAL_LAYOUTS=${#KEYBOARD_LAYOUTS[@]}
+                                         
+                                         echo -e "\nAvailable keyboard layouts:"
+                                         for ((i=0; i<TOTAL_LAYOUTS; i++)); do
+                                              printf "  \033[1;37m%3d)\033[0m %-20s" "$((i+1))" "${KEYBOARD_LAYOUTS[$i]}"
+                                              if (( (i+1) % COLUMNS == 0 )); then
+                                                    echo ""
+                                              fi
+                                         done
+                                         if (( TOTAL_LAYOUTS % COLUMNS != 0 )); then
+                                              echo ""
+                                         fi
+                                         
+                                         read -p "Enter layout number: " layout_num
+                                         if [[ "$layout_num" =~ ^[0-9]+$ && "$layout_num" -ge 1 && "$layout_num" -le "$TOTAL_LAYOUTS" ]]; then
+                                              KEYBOARD_LAYOUT="${KEYBOARD_LAYOUTS[$((layout_num-1))]}"
+                                              echo -e "\033[1;92m✅ Keyboard layout successfully set to $KEYBOARD_LAYOUT\033[0m"
+                                         else
+                                              echo -e "\033[1;91m❌ Invalid choice. Value not changed.\033[0m"
+                                         fi
+                                         ;;
+                                    8)
+                                         read -p "Enter custom keyboard layout: " custom_layout
+                                         if [[ -n "$custom_layout" ]]; then
+                                              KEYBOARD_LAYOUT="$custom_layout"
+                                              echo -e "\033[1;92m✅ Keyboard layout successfully set to $KEYBOARD_LAYOUT\033[0m"
+                                         else
+                                              echo -e "\033[1;91m❌ Invalid input. Value not changed.\033[0m"
+                                         fi
+                                         ;;
+                                    *) echo -e "\033[1;91m❌ Invalid choice. Value not changed.\033[0m" ;;
+                              esac
+                              sleep 2
+                              ;;
                      
-                     # System locale
-                     $((ADV_OFFSET+9+NVIDIA_OFFSET)))
-                          echo -e "\n\033[1;94mSelect system locale:\033[0m"
-                          # Display some common locales
-                          echo -e "  \033[1;37m1)\033[0m en_US.UTF-8"
-                          echo -e "  \033[1;37m2)\033[0m en_GB.UTF-8"
-                          echo -e "  \033[1;37m3)\033[0m de_DE.UTF-8"
-                          echo -e "  \033[1;37m4)\033[0m fr_FR.UTF-8"
-                          echo -e "  \033[1;37m5)\033[0m it_IT.UTF-8"
-                          echo -e "  \033[1;37m6)\033[0m es_ES.UTF-8"
-                          echo -e "  \033[1;37m7)\033[0m Show all locales"
-                          echo -e "  \033[1;37m8)\033[0m Enter custom locale"
-                          
-                          read -p "Enter choice: " locale_choice
-                          
-                          case $locale_choice in
-                                1) 
-                                     SYSTEM_LOCALE="en_US.UTF-8"
-                                     echo -e "\033[1;92m✅ System locale successfully set to en_US.UTF-8\033[0m"
-                                     ;;
-                                2) 
-                                     SYSTEM_LOCALE="en_GB.UTF-8"
-                                     echo -e "\033[1;92m✅ System locale successfully set to en_GB.UTF-8\033[0m"
-                                     ;;
-                                3) 
-                                     SYSTEM_LOCALE="de_DE.UTF-8"
-                                     echo -e "\033[1;92m✅ System locale successfully set to de_DE.UTF-8\033[0m"
-                                     ;;
-                                4) 
-                                     SYSTEM_LOCALE="fr_FR.UTF-8"
-                                     echo -e "\033[1;92m✅ System locale successfully set to fr_FR.UTF-8\033[0m"
-                                     ;;
-                                5) 
-                                     SYSTEM_LOCALE="it_IT.UTF-8"
-                                     echo -e "\033[1;92m✅ System locale successfully set to it_IT.UTF-8\033[0m"
-                                     ;;
-                                6) 
-                                     SYSTEM_LOCALE="es_ES.UTF-8"
-                                     echo -e "\033[1;92m✅ System locale successfully set to es_ES.UTF-8\033[0m"
-                                     ;;
-                                7)
-                                     # Show all locales (simplified from original code)
-                                     mapfile -t AVAILABLE_LOCALES < <(grep -E "^#[a-zA-Z]" /etc/locale.gen | sed 's/^#//' | sort)
-                                     
-                                     LOCALE_COLUMNS=3
-                                     TOTAL_LOCALES=${#AVAILABLE_LOCALES[@]}
-                                     
-                                     echo -e "\nAvailable locales:"
-                                     for ((i=0; i<TOTAL_LOCALES && i<30; i++)); do
-                                          printf "  \033[1;37m%3d)\033[0m %-20s" "$((i+1))" "${AVAILABLE_LOCALES[$i]}"
-                                          if (( (i+1) % LOCALE_COLUMNS == 0 )); then
-                                                echo ""
-                                          fi
-                                     done
-                                     echo -e "\n... (showing first 30 only)"
-                                     
-                                     read -p "Enter locale number or name: " locale_input
-                                     if [[ "$locale_input" =~ ^[0-9]+$ && "$locale_input" -ge 1 && "$locale_input" -le 30 ]]; then
-                                          SYSTEM_LOCALE="${AVAILABLE_LOCALES[$((locale_input-1))]}"
-                                          echo -e "\033[1;92m✅ System locale successfully set to $SYSTEM_LOCALE\033[0m"
-                                     elif [[ "$locale_input" =~ ^[a-zA-Z_]+\.UTF-8$ ]]; then
-                                          SYSTEM_LOCALE="$locale_input"
-                                          echo -e "\033[1;92m✅ System locale successfully set to $SYSTEM_LOCALE\033[0m"
-                                     else
-                                          echo -e "\033[1;91m❌ Invalid choice. Value not changed.\033[0m"
-                                     fi
-                                     ;;
-                                8)
-                                     read -p "Enter custom locale: " custom_locale
-                                     if [[ -n "$custom_locale" && "$custom_locale" =~ ^[a-zA-Z_]+\.UTF-8$ ]]; then
-                                          SYSTEM_LOCALE="$custom_locale"
-                                          echo -e "\033[1;92m✅ System locale successfully set to $SYSTEM_LOCALE\033[0m"
-                                     else
-                                          echo -e "\033[1;91m❌ Invalid locale format. Value not changed.\033[0m"
-                                     fi
-                                     ;;
-                                *) echo -e "\033[1;91m❌ Invalid choice. Value not changed.\033[0m" ;;
-                          esac
-                          sleep 2
-                          ;;
+                         $((11+NVIDIA_OFFSET))) # System locale
+                              echo -e "\n\033[1;94mSelect system locale:\033[0m"
+                              # Display some common locales
+                              echo -e "  \033[1;37m1)\033[0m en_US.UTF-8"
+                              echo -e "  \033[1;37m2)\033[0m en_GB.UTF-8"
+                              echo -e "  \033[1;37m3)\033[0m de_DE.UTF-8"
+                              echo -e "  \033[1;37m4)\033[0m fr_FR.UTF-8"
+                              echo -e "  \033[1;37m5)\033[0m it_IT.UTF-8"
+                              echo -e "  \033[1;37m6)\033[0m es_ES.UTF-8"
+                              echo -e "  \033[1;37m7)\033[0m Show all locales"
+                              echo -e "  \033[1;37m8)\033[0m Enter custom locale"
+                              
+                              read -p "Enter choice: " locale_choice
+                              
+                              case $locale_choice in
+                                    1) 
+                                         SYSTEM_LOCALE="en_US.UTF-8"
+                                         echo -e "\033[1;92m✅ System locale successfully set to en_US.UTF-8\033[0m"
+                                         ;;
+                                    2) 
+                                         SYSTEM_LOCALE="en_GB.UTF-8"
+                                         echo -e "\033[1;92m✅ System locale successfully set to en_GB.UTF-8\033[0m"
+                                         ;;
+                                    3) 
+                                         SYSTEM_LOCALE="de_DE.UTF-8"
+                                         echo -e "\033[1;92m✅ System locale successfully set to de_DE.UTF-8\033[0m"
+                                         ;;
+                                    4) 
+                                         SYSTEM_LOCALE="fr_FR.UTF-8"
+                                         echo -e "\033[1;92m✅ System locale successfully set to fr_FR.UTF-8\033[0m"
+                                         ;;
+                                    5) 
+                                         SYSTEM_LOCALE="it_IT.UTF-8"
+                                         echo -e "\033[1;92m✅ System locale successfully set to it_IT.UTF-8\033[0m"
+                                         ;;
+                                    6) 
+                                         SYSTEM_LOCALE="es_ES.UTF-8"
+                                         echo -e "\033[1;92m✅ System locale successfully set to es_ES.UTF-8\033[0m"
+                                         ;;
+                                    7)
+                                         # Show all locales (simplified from original code)
+                                         mapfile -t AVAILABLE_LOCALES < <(grep -E "^#[a-zA-Z]" /etc/locale.gen | sed 's/^#//' | sort)
+                                         
+                                         LOCALE_COLUMNS=3
+                                         TOTAL_LOCALES=${#AVAILABLE_LOCALES[@]}
+                                         
+                                         echo -e "\nAvailable locales:"
+                                         for ((i=0; i<TOTAL_LOCALES && i<30; i++)); do
+                                              printf "  \033[1;37m%3d)\033[0m %-20s" "$((i+1))" "${AVAILABLE_LOCALES[$i]}"
+                                              if (( (i+1) % LOCALE_COLUMNS == 0 )); then
+                                                    echo ""
+                                              fi
+                                         done
+                                         echo -e "\n... (showing first 30 only)"
+                                         
+                                         read -p "Enter locale number or name: " locale_input
+                                         if [[ "$locale_input" =~ ^[0-9]+$ && "$locale_input" -ge 1 && "$locale_input" -le 30 ]]; then
+                                              SYSTEM_LOCALE="${AVAILABLE_LOCALES[$((locale_input-1))]}"
+                                              echo -e "\033[1;92m✅ System locale successfully set to $SYSTEM_LOCALE\033[0m"
+                                         elif [[ "$locale_input" =~ ^[a-zA-Z_]+\.UTF-8$ ]]; then
+                                              SYSTEM_LOCALE="$locale_input"
+                                              echo -e "\033[1;92m✅ System locale successfully set to $SYSTEM_LOCALE\033[0m"
+                                         else
+                                              echo -e "\033[1;91m❌ Invalid choice. Value not changed.\033[0m"
+                                         fi
+                                         ;;
+                                    8)
+                                         read -p "Enter custom locale: " custom_locale
+                                         if [[ -n "$custom_locale" && "$custom_locale" =~ ^[a-zA-Z_]+\.UTF-8$ ]]; then
+                                              SYSTEM_LOCALE="$custom_locale"
+                                              echo -e "\033[1;92m✅ System locale successfully set to $SYSTEM_LOCALE\033[0m"
+                                         else
+                                              echo -e "\033[1;91m❌ Invalid locale format. Value not changed.\033[0m"
+                                         fi
+                                         ;;
+                                    *) echo -e "\033[1;91m❌ Invalid choice. Value not changed.\033[0m" ;;
+                              esac
+                              sleep 2
+                              ;;
                      
-                     # Mirror country
-                     $((ADV_OFFSET+10+NVIDIA_OFFSET)))
-                          echo -e "\n\033[1;94mSelect mirror country:\033[0m"
-                          echo -e "  \033[1;37m1)\033[0m Italy"
-                          echo -e "  \033[1;37m2)\033[0m Germany"
-                          echo -e "  \033[1;37m3)\033[0m United States"
-                          echo -e "  \033[1;37m4)\033[0m United Kingdom"
-                          echo -e "  \033[1;37m5)\033[0m France"
-                          echo -e "  \033[1;37m6)\033[0m Spain"
-                          echo -e "  \033[1;37m7)\033[0m Netherlands"
-                          echo -e "  \033[1;37m8)\033[0m Other (specify)"
-                          echo -e "  \033[1;37m9)\033[0m Worldwide (no specific country)"
-                          
-                          read -p "Enter choice: " mirror_choice
-                          
-                          case $mirror_choice in
-                                1) 
-                                     MIRROR_COUNTRY="Italy"
-                                     echo -e "\033[1;92m✅ Mirror country successfully set to Italy\033[0m"
-                                     ;;
-                                2) 
-                                     MIRROR_COUNTRY="Germany"
-                                     echo -e "\033[1;92m✅ Mirror country successfully set to Germany\033[0m"
-                                     ;;
-                                3) 
-                                     MIRROR_COUNTRY="United States"
-                                     echo -e "\033[1;92m✅ Mirror country successfully set to United States\033[0m"
-                                     ;;
-                                4) 
-                                     MIRROR_COUNTRY="United Kingdom"
-                                     echo -e "\033[1;92m✅ Mirror country successfully set to United Kingdom\033[0m"
-                                     ;;
-                                5) 
-                                     MIRROR_COUNTRY="France"
-                                     echo -e "\033[1;92m✅ Mirror country successfully set to France\033[0m"
-                                     ;;
-                                6) 
-                                     MIRROR_COUNTRY="Spain"
-                                     echo -e "\033[1;92m✅ Mirror country successfully set to Spain\033[0m"
-                                     ;;
-                                7) 
-                                     MIRROR_COUNTRY="Netherlands"
-                                     echo -e "\033[1;92m✅ Mirror country successfully set to Netherlands\033[0m"
-                                     ;;
-                                8) 
-                                     read -p "Enter country name: " custom_country
-                                     if [[ -n "$custom_country" ]]; then
-                                          MIRROR_COUNTRY="$custom_country"
-                                          echo -e "\033[1;92m✅ Mirror country successfully set to $MIRROR_COUNTRY\033[0m"
-                                     else
-                                          echo -e "\033[1;91m❌ Invalid country name. Value not changed.\033[0m"
-                                     fi
-                                     ;;
-                                9) 
-                                     MIRROR_COUNTRY="" 
-                                     echo -e "\033[1;92m✅ Mirror selection successfully set to Worldwide\033[0m"
-                                     ;;
-                                *) echo -e "\033[1;91m❌ Invalid choice. Value not changed.\033[0m" ;;
-                          esac
-                          sleep 2
-                          ;;
+                         $((12+NVIDIA_OFFSET))) # Mirror country
+                              echo -e "\n\033[1;94mSelect mirror country:\033[0m"
+                              echo -e "  \033[1;37m1)\033[0m Italy"
+                              echo -e "  \033[1;37m2)\033[0m Germany"
+                              echo -e "  \033[1;37m3)\033[0m United States"
+                              echo -e "  \033[1;37m4)\033[0m United Kingdom"
+                              echo -e "  \033[1;37m5)\033[0m France"
+                              echo -e "  \033[1;37m6)\033[0m Spain"
+                              echo -e "  \033[1;37m7)\033[0m Netherlands"
+                              echo -e "  \033[1;37m8)\033[0m Other (specify)"
+                              echo -e "  \033[1;37m9)\033[0m Worldwide (no specific country)"
+                              
+                              read -p "Enter choice: " mirror_choice
+                              
+                              case $mirror_choice in
+                                    1) 
+                                         MIRROR_COUNTRY="Italy"
+                                         echo -e "\033[1;92m✅ Mirror country successfully set to Italy\033[0m"
+                                         ;;
+                                    2) 
+                                         MIRROR_COUNTRY="Germany"
+                                         echo -e "\033[1;92m✅ Mirror country successfully set to Germany\033[0m"
+                                         ;;
+                                    3) 
+                                         MIRROR_COUNTRY="United States"
+                                         echo -e "\033[1;92m✅ Mirror country successfully set to United States\033[0m"
+                                         ;;
+                                    4) 
+                                         MIRROR_COUNTRY="United Kingdom"
+                                         echo -e "\033[1;92m✅ Mirror country successfully set to United Kingdom\033[0m"
+                                         ;;
+                                    5) 
+                                         MIRROR_COUNTRY="France"
+                                         echo -e "\033[1;92m✅ Mirror country successfully set to France\033[0m"
+                                         ;;
+                                    6) 
+                                         MIRROR_COUNTRY="Spain"
+                                         echo -e "\033[1;92m✅ Mirror country successfully set to Spain\033[0m"
+                                         ;;
+                                    7) 
+                                         MIRROR_COUNTRY="Netherlands"
+                                         echo -e "\033[1;92m✅ Mirror country successfully set to Netherlands\033[0m"
+                                         ;;
+                                    8) 
+                                         read -p "Enter country name: " custom_country
+                                         if [[ -n "$custom_country" ]]; then
+                                              MIRROR_COUNTRY="$custom_country"
+                                              echo -e "\033[1;92m✅ Mirror country successfully set to $MIRROR_COUNTRY\033[0m"
+                                         else
+                                              echo -e "\033[1;91m❌ Invalid country name. Value not changed.\033[0m"
+                                         fi
+                                         ;;
+                                    9) 
+                                         MIRROR_COUNTRY="" 
+                                         echo -e "\033[1;92m✅ Mirror selection successfully set to Worldwide\033[0m"
+                                         ;;
+                                    *) echo -e "\033[1;91m❌ Invalid choice. Value not changed.\033[0m" ;;
+                              esac
+                              sleep 2
+                              ;;
+                         
+                         $((13+NVIDIA_OFFSET))) # EFI Partition Size (Advanced mode)
+                              if [ "$INSTALL_MODE" = "advanced" ]; then
+                                    echo -e "\n\033[1;94mEnter new EFI partition size (e.g. 512M, 1G):\033[0m"
+                                    read -p "New size: " new_efi_size
+                                    if [[ "$new_efi_size" =~ ^[0-9]+[MG]$ ]]; then
+                                         EFI_PART_SIZE="$new_efi_size"
+                                         echo -e "\033[1;92m✅ EFI partition size successfully updated to $EFI_PART_SIZE\033[0m"
+                                    else
+                                         echo -e "\033[1;91m❌ Invalid size format. Use format like 512M or 1G.\033[0m"
+                                    fi
+                                    sleep 2
+                              else
+                                    echo -e "\033[1;91m❌ Invalid setting number.\033[0m"; sleep 2
+                              fi
+                              ;;
+                         
+                         $((14+NVIDIA_OFFSET))) # Root Partition Size (Advanced mode)
+                              if [ "$INSTALL_MODE" = "advanced" ]; then
+                                    echo -e "\n\033[1;94mEnter new Root partition size (MAX for all available space, or e.g. 50G):\033[0m"
+                                    read -p "New size: " new_root_size
+                                    if [[ "$new_root_size" = "MAX" || "$new_root_size" =~ ^[0-9]+G$ ]]; then
+                                         ROOT_PART_SIZE="$new_root_size"
+                                         echo -e "\033[1;92m✅ Root partition size successfully updated to $ROOT_PART_SIZE\033[0m"
+                                    else
+                                         echo -e "\033[1;91m❌ Invalid size format. Use 'MAX' or format like '50G'.\033[0m"
+                                    fi
+                                    sleep 2
+                              else
+                                    echo -e "\033[1;91m❌ Invalid setting number.\033[0m"; sleep 2
+                              fi
+                              ;;
+                         
+                         $((15+NVIDIA_OFFSET))) # Disk Encryption (Advanced mode) 
+                              if [ "$INSTALL_MODE" = "advanced" ]; then
+                                    echo -e "\n\033[1;94mDisk encryption:\033[0m"
+                                    echo -e "  \033[1;97m1)\033[0m Yes (More secure, requires passphrase)"
+                                    echo -e "  \033[1;97m2)\033[0m No (More convenient, less secure)"
+                                    read -p "Enter choice (1-2): " encrypt_choice
+                                    case $encrypt_choice in
+                                         1) 
+                                              ENCRYPT_DISK="yes"
+                                              get_password "Enter disk encryption passphrase" DISK_PASSWORD
+                                              echo -e "\033[1;92m✅ Disk encryption successfully enabled and passphrase set\033[0m"
+                                              ;;
+                                         2) 
+                                              ENCRYPT_DISK="no"
+                                              DISK_PASSWORD=""
+                                              echo -e "\033[1;92m✅ Disk encryption successfully disabled\033[0m"
+                                              ;;
+                                         *) echo -e "\033[1;91m❌ Invalid choice. Value not changed.\033[0m" ;;
+                                    esac
+                                    sleep 2
+                              else
+                                    echo -e "\033[1;91m❌ Invalid setting number.\033[0m"; sleep 2
+                              fi
+                              ;;
+                         
+                         $((16+NVIDIA_OFFSET))) # ZFS Compression (Advanced mode)
+                              if [ "$INSTALL_MODE" = "advanced" ]; then
+                                    echo -e "\n\033[1;94mSelect ZFS compression algorithm:\033[0m"
+                                    echo -e "  \033[1;37m1)\033[0m \033[1;38;5;39mlz4\033[0m (Fast, good ratio)"
+                                    echo -e "  \033[1;37m2)\033[0m \033[1;38;5;202mzstd\033[0m (Better compression, slightly slower)"
+                                    echo -e "  \033[1;37m3)\033[0m \033[1;38;5;118mgzip\033[0m (Best compression, slowest)"
+                                    echo -e "  \033[1;37m4)\033[0m \033[1;38;5;196mNone\033[0m (No compression)"
+                                    read -p "Enter choice (1-4): " compression_choice
+                                    case $compression_choice in
+                                         1) 
+                                              ZFS_COMPRESSION="lz4"
+                                              echo -e "\033[1;92m✅ ZFS compression successfully set to lz4\033[0m"
+                                              ;;
+                                         2) 
+                                              ZFS_COMPRESSION="zstd"
+                                              echo -e "\033[1;92m✅ ZFS compression successfully set to zstd\033[0m"
+                                              ;;
+                                         3) 
+                                              ZFS_COMPRESSION="gzip"
+                                              echo -e "\033[1;92m✅ ZFS compression successfully set to gzip\033[0m"
+                                              ;;
+                                         4) 
+                                              ZFS_COMPRESSION="off"
+                                              echo -e "\033[1;92m✅ ZFS compression successfully disabled\033[0m"
+                                              ;;
+                                         *) echo -e "\033[1;91m❌ Invalid choice. Value not changed.\033[0m" ;;
+                                    esac
+                                    sleep 2
+                              else
+                                    echo -e "\033[1;91m❌ Invalid setting number.\033[0m"; sleep 2
+                              fi
+                              ;;
+                         
+                         $((17+NVIDIA_OFFSET))) # Separate Datasets (Advanced mode)
+                              if [ "$INSTALL_MODE" = "advanced" ]; then
+                                    echo -e "\n\033[1;94mConfigure ZFS datasets structure:\033[0m"
+                                    echo -e "  \033[1;37m1)\033[0m Simple (Single root dataset only)"
+                                    echo -e "  \033[1;37m2)\033[0m Advanced (Separate datasets for system directories)"
+                                    read -p "Enter choice (1-2): " datasets_choice
+                                    case $datasets_choice in
+                                         1) 
+                                              SEPARATE_DATASETS="no" 
+                                              echo -e "\033[1;92m✅ ZFS dataset structure successfully set to simple\033[0m"
+                                              ;;
+                                         2) 
+                                              SEPARATE_DATASETS="yes" 
+                                              echo -e "\033[1;92m✅ ZFS dataset structure successfully set to advanced\033[0m"
+                                              ;;
+                                         *) echo -e "\033[1;91m❌ Invalid choice. Value not changed.\033[0m" ;;
+                                    esac
+                                    sleep 2
+                              else
+                                    echo -e "\033[1;91m❌ Invalid setting number.\033[0m"; sleep 2
+                              fi
+                              ;;
+                         
+                         $((18+NVIDIA_OFFSET))) # ZRAM Size (Advanced mode)
+                              if [ "$INSTALL_MODE" = "advanced" ]; then
+                                    echo -e "\n\033[1;94mSelect ZRAM size:\033[0m"
+                                    echo -e "  \033[1;37m1)\033[0m Auto (min(RAM, 32GB))"
+                                    echo -e "  \033[1;37m2)\033[0m Half of RAM"
+                                    echo -e "  \033[1;37m3)\033[0m Custom value (specify in MB)"
+                                    read -p "Enter choice (1-3): " zram_size_choice
+                                    case $zram_size_choice in
+                                         1) 
+                                              ZRAM_SIZE="min(ram, 32768)"
+                                              echo -e "\033[1;92m✅ ZRAM size successfully set to automatic sizing\033[0m"
+                                              ;;
+                                         2) 
+                                              ZRAM_SIZE="ram / 2"
+                                              echo -e "\033[1;92m✅ ZRAM size successfully set to half of RAM\033[0m"
+                                              ;;
+                                         3) 
+                                              read -p "Enter ZRAM size in MB (e.g., 8192 for 8GB): " custom_zram_size
+                                              if [[ "$custom_zram_size" =~ ^[0-9]+$ ]]; then
+                                                    ZRAM_SIZE="$custom_zram_size"
+                                                    echo -e "\033[1;92m✅ ZRAM size successfully set to ${custom_zram_size}MB\033[0m"
+                                              else
+                                                    echo -e "\033[1;91m❌ Invalid size. Value not changed.\033[0m"
+                                              fi
+                                              ;;
+                                         *) echo -e "\033[1;91m❌ Invalid choice. Value not changed.\033[0m" ;;
+                                    esac
+                                    sleep 2
+                              else
+                                    echo -e "\033[1;91m❌ Invalid setting number.\033[0m"; sleep 2
+                              fi
+                              ;;
+                         
+                         $((19+NVIDIA_OFFSET))) # ZRAM Compression (Advanced mode)
+                              if [ "$INSTALL_MODE" = "advanced" ]; then
+                                    echo -e "\n\033[1;94mSelect ZRAM compression algorithm:\033[0m"
+                                    echo -e "  \033[1;37m1)\033[0m zstd (Best balance of speed/compression)"
+                                    echo -e "  \033[1;37m2)\033[0m lz4 (Faster, lower compression ratio)"
+                                    echo -e "  \033[1;37m3)\033[0m lzo-rle"
+                                    echo -e "  \033[1;37m4)\033[0m lzo"
+                                    read -p "Enter choice (1-4): " zram_compression_choice
+                                    case $zram_compression_choice in
+                                         1) 
+                                              ZRAM_COMPRESSION="zstd"
+                                              echo -e "\033[1;92m✅ ZRAM compression successfully set to zstd\033[0m"
+                                              ;;
+                                         2) 
+                                              ZRAM_COMPRESSION="lz4"
+                                              echo -e "\033[1;92m✅ ZRAM compression successfully set to lz4\033[0m"
+                                              ;;
+                                         3) 
+                                              ZRAM_COMPRESSION="lzo-rle"
+                                              echo -e "\033[1;92m✅ ZRAM compression successfully set to lzo-rle\033[0m"
+                                              ;;
+                                         4) 
+                                              ZRAM_COMPRESSION="lzo"
+                                              echo -e "\033[1;92m✅ ZRAM compression successfully set to lzo\033[0m"
+                                              ;;
+                                         *) echo -e "\033[1;91m❌ Invalid choice. Value not changed.\033[0m" ;;
+                                    esac
+                                    sleep 2
+                              else
+                                    echo -e "\033[1;91m❌ Invalid setting number.\033[0m"; sleep 2
+                              fi
+                              ;;
 
                      *) echo -e "\033[1;91m❌ Invalid setting number.\033[0m"; sleep 2 ;;
                 esac
@@ -1855,7 +1861,6 @@ if [ "$ENCRYPT_DISK" = "yes" ]; then
     echo "$DISK_PASSWORD" > /etc/zfs/zroot.key
     chmod 000 /etc/zfs/zroot.key
     chown root:root /etc/zfs/zroot.key
-    cp /etc/zfs/zroot.key /mnt/etc/zfs
 
     
     # Create ZFS pool with encryption and user-defined compression if in advanced mode
@@ -1889,15 +1894,17 @@ run_command "zfs mount zroot/root" "mount the root dataset"
 if [ "$SEPARATE_DATASETS" = "yes" ]; then
     
     # Create datasets for various system directories
-    run_command "zfs create -o canmount=on -o mountpoint=/home zroot/home" "create home dataset"
+    run_command "zfs create -o mountpoint=/home zroot/home" "create home dataset"
     zfs mount zroot/home
-    run_command "zfs create -o canmount=on -o mountpoint=/var zroot/var" "create var dataset"
+    run_command "zfs create -o mountpoint=/var zroot/var" "create var dataset"
     zfs mount zroot/var
 fi
 
 mkdir -p /mnt/etc/zfs
 run_command "zpool set cachefile=/etc/zfs/zpool.cache zroot" "set ZFS pool cache file"
 cp /etc/zfs/zpool.cache /mnt/etc/zfs/zpool.cache
+cp /etc/zfs/zroot.key /mnt/etc/zfs/zroot.key
+
 
 run_command "mkfs.fat -F32 ${DISK}${PARTITION_1}" "format EFI partition with FAT32"
 mkdir -p /mnt/efi && mount ${DISK}${PARTITION_1} /mnt/efi
@@ -2162,7 +2169,6 @@ print_section_header "INSTALLING UTILITIES"
 
 run_command "pacman -S --noconfirm flatpak firefox man nano git" "install base utilities"
 
-
 # ----------------------------------------
 # AUDIO CONFIGURATION
 # ----------------------------------------
@@ -2172,22 +2178,20 @@ echo -e "\033[1;94m🔊 Setting up audio server: \033[1;97m$AUDIO_SERVER\033[0m"
 
 if [ "$AUDIO_SERVER" = "pipewire" ]; then
     echo -e "\033[1;92m✨ Installing PipeWire audio system...\033[0m"
-    run_command "pacman -S --noconfirm pipewire wireplumber pipewire-pulse pipewire-alsa alsa-plugins alsa-firmware sof-firmware alsa-card-profiles pavucontrol" "install PipeWire and related packages"
-    systemctl enable pipewire pipewire-pulse wireplumber 
-
+    run_command "pacman -S --noconfirm wireplumber pipewire-pulse pipewire-alsa pavucontrol-qt" "install PipeWire and related packages"
 else
     echo -e "\033[1;92m✨ Installing PulseAudio audio system...\033[0m"
-    run_command "pacman -S --noconfirm pulseaudio pulseaudio-alsa pulseaudio-bluetooth alsa-utils alsa-plugins alsa-firmware sof-firmware alsa-card-profiles pavucontrol" "install PulseAudio and related packages"
+    run_command "pacman -S --noconfirm pulseaudio pulseaudio-alsa pulseaudio-bluetooth pavucontrol-qt" "install PulseAudio and related packages" 
+fi
 
-# Set user permissions
-chown -R $USER:$USER /home/$USER/.config
+chown -R $USER:$USER /home/$USER/.config 2>/dev/null
 
 # ----------------------------------------
 # GPU DRIVERS CONFIGURATION
 # ----------------------------------------
 print_section_header "CONFIGURING GPU DRIVERS"
 
-Install appropriate GPU drivers based on earlier selection
+# Install appropriate GPU drivers based on earlier selection
 if [ "$GPU_TYPE" = "NVIDIA" ]; then
     if [ "$NVIDIA_DRIVER_TYPE" = "open" ]; then
         echo -e "\033[1;94m🎮 Installing NVIDIA open drivers...\033[0m"
