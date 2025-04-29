@@ -26,7 +26,7 @@ handle_error() {
                     exit 1
                     ;;
                 *)
-                    echo -e "\n\033[1;35m❓ Invalid choice. Please enter 'r', 's', or 'a'\033[0m"
+                    echo -e "\n\033[1;35m⚠️ Invalid choice. Please enter 'r', 's', or 'a'\033[0m"
                     ;;
             esac
         done
@@ -116,7 +116,7 @@ run_command() {
                             exit 1
                             ;;
                         *)
-                            echo -e "\n\033[1;35m❓ Invalid choice. Please enter 'r' or 'a'\033[0m"
+                            echo -e "\n\033[1;35m⚠️ Invalid choice. Please enter 'r' or 'a'\033[0m"
                             ;;
                     esac
                 done
@@ -204,7 +204,7 @@ while true; do
             break
             ;;
         *)
-            echo -e "\033[1;91m❌ Invalid choice. Please enter 1 or 2.\033[0m"
+            echo -e "\033[1;91m⚠️ Invalid choice. Please enter 1 or 2.\033[0m"
             ;;
     esac
 done
@@ -296,7 +296,7 @@ while true; do
             break
             ;;
         *)
-            echo -e "\033[1;91m❌ Invalid choice. Please enter 1 or 2.\033[0m"
+            echo -e "\033[1;91m⚠️ Invalid choice. Please enter 1 or 2.\033[0m"
             ;;
     esac
 done
@@ -349,7 +349,7 @@ if [ "$INSTALL_MODE" = "advanced" ]; then
                 break
                 ;;
             *)
-                echo -e "\033[1;91m❌ Invalid choice. Please enter 1 or 2.\033[0m"
+                echo -e "\033[1;91m⚠️ Invalid choice. Please enter 1 or 2.\033[0m"
                 ;;
         esac
     done
@@ -404,7 +404,7 @@ if [ "$INSTALL_MODE" = "advanced" ]; then
                 break
                 ;;
             *)
-                echo -e "\033[1;91m❌ Invalid choice. Please enter 1 or 2.\033[0m"
+                echo -e "\033[1;91m⚠️ Invalid choice. Please enter 1 or 2.\033[0m"
                 ;;
         esac
     done
@@ -438,7 +438,7 @@ if [ "$INSTALL_MODE" = "advanced" ]; then
                 break
                 ;;
             *)
-                echo -e "\033[1;91m❌ Invalid choice. Please enter 1 or 2.\033[0m"
+                echo -e "\033[1;91m⚠️ Invalid choice. Please enter 1 or 2.\033[0m"
                 ;;
         esac
     done
@@ -460,17 +460,17 @@ if [ "$INSTALL_MODE" = "advanced" ]; then
         case $compression_choice in
             1|"")
                 ZFS_COMPRESSION="lz4"
-                echo -e "\033[1;32m✓ Selected lz4 compression\033[0m"
+                echo -e "\033[1;32m✅ Selected lz4 compression\033[0m"
                 break
                 ;;
             2)
                 ZFS_COMPRESSION="zstd"
-                echo -e "\033[1;32m✓ Selected zstd compression\033[0m"
+                echo -e "\033[1;32m✅ Selected zstd compression\033[0m"
                 break
                 ;;
             3)
                 ZFS_COMPRESSION="gzip"
-                echo -e "\033[1;32m✓ Selected gzip compression\033[0m"
+                echo -e "\033[1;32m✅ Selected gzip compression\033[0m"
                 break
                 ;;
             4)
@@ -479,7 +479,7 @@ if [ "$INSTALL_MODE" = "advanced" ]; then
                 break
                 ;;
             *)
-                echo -e "\033[1;91m❌ Invalid choice. Please enter a number between 1 and 4.\033[0m"
+                echo -e "\033[1;91m⚠️ Invalid choice. Please enter a number between 1 and 4.\033[0m"
                 ;;
         esac
     done
@@ -497,16 +497,16 @@ if [ "$INSTALL_MODE" = "advanced" ]; then
         case $datasets_choice in
             1)
                 SEPARATE_DATASETS="no"
-                echo -e "\033[1;32m✓ Selected simple dataset structure\033[0m"
+                echo -e "\033[1;32m✅ Selected simple dataset structure\033[0m"
                 break
                 ;;
             2|"")
                 SEPARATE_DATASETS="yes"
-                echo -e "\033[1;32m✓ Selected advanced dataset structure\033[0m"
+                echo -e "\033[1;32m✅ Selected advanced dataset structure\033[0m"
                 break
                 ;;
             *)
-                echo -e "\033[1;91m❌ Invalid choice. Please enter 1 or 2.\033[0m"
+                echo -e "\033[1;91m⚠️ Invalid choice. Please enter 1 or 2.\033[0m"
                 ;;
         esac
     done
@@ -529,12 +529,12 @@ if [ "$INSTALL_MODE" = "advanced" ]; then
         case $zram_size_choice in
             1|"")
                 ZRAM_SIZE="min(ram, 32768)"
-                echo -e "\033[1;32m✓ Selected automatic ZRAM sizing\033[0m"
+                echo -e "\033[1;32m✅ Selected automatic ZRAM sizing\033[0m"
                 break
                 ;;
             2)
                 ZRAM_SIZE="ram / 2"
-                echo -e "\033[1;32m✓ Selected half of RAM for ZRAM\033[0m"
+                echo -e "\033[1;32m✅ Selected half of RAM for ZRAM\033[0m"
                 break
                 ;;
             3)
@@ -554,7 +554,7 @@ if [ "$INSTALL_MODE" = "advanced" ]; then
                 break
                 ;;
             *)
-                echo -e "\033[1;91m❌ Invalid choice. Please enter a number between 1 and 3.\033[0m"
+                echo -e "\033[1;91m⚠️ Invalid choice. Please enter a number between 1 and 3.\033[0m"
                 ;;
         esac
     done
@@ -574,26 +574,26 @@ if [ "$INSTALL_MODE" = "advanced" ]; then
         case $zram_compression_choice in
             1|"")
                 ZRAM_COMPRESSION="zstd"
-                echo -e "\033[1;32m✓ Selected zstd compression algorithm\033[0m\n"
+                echo -e "\033[1;32m✅ Selected zstd compression algorithm\033[0m\n"
                 break
                 ;;
             2)
                 ZRAM_COMPRESSION="lz4"
-                echo -e "\033[1;32m✓ Selected lz4 compression algorithm\033[0m\n"
+                echo -e "\033[1;32m✅ Selected lz4 compression algorithm\033[0m\n"
                 break
                 ;;
             3)
                 ZRAM_COMPRESSION="lzo-rle"
-                echo -e "\033[1;32m✓ Selected lzo-rle compression algorithm\033[0m\n"
+                echo -e "\033[1;32m✅ Selected lzo-rle compression algorithm\033[0m\n"
                 break
                 ;;
             4)
                 ZRAM_COMPRESSION="lzo"
-                echo -e "\033[1;32m✓ Selected lzo compression algorithm\033[0m\n"
+                echo -e "\033[1;32m✅ Selected lzo compression algorithm\033[0m\n"
                 break
                 ;;
             *)
-                echo -e "\033[1;91m❌ Invalid choice. Please enter a number between 1 and 4.\033[0m"
+                echo -e "\033[1;91m⚠️ Invalid choice. Please enter a number between 1 and 4.\033[0m"
                 ;;
         esac
     done
@@ -624,22 +624,22 @@ read -p "Enter your choice (1-4): " DE_CHOICE
 case $DE_CHOICE in
     1)
         DE_TYPE="Hyprland"
-        echo -e "\033[1;32m✓ Selected Hyprland for desktop environment.\033[0m\n"
+        echo -e "\033[1;32m✅ Selected Hyprland for desktop environment.\033[0m\n"
         ;;
     2)
         DE_TYPE="XFCE4"
-        echo -e "\033[1;32m✓ Selected XFCE4 for desktop environment.\033[0m\n"
+        echo -e "\033[1;32m✅ Selected XFCE4 for desktop environment.\033[0m\n"
         ;;
     3)
         DE_TYPE="KDE Plasma"
-        echo -e "\033[1;32m✓ Selected KDE Plasma for desktop environment.\033[0m\n"
+        echo -e "\033[1;32m✅ Selected KDE Plasma for desktop environment.\033[0m\n"
         ;;
     4)
         DE_TYPE="GNOME"
-        echo -e "\033[1;32m✓ Selected GNOME for desktop environment.\033[0m\n"
+        echo -e "\033[1;32m✅ Selected GNOME for desktop environment.\033[0m\n"
         ;;
     *)
-        echo -e "\033[1;33m⚠ Invalid choice. Defaulting to Hyprland.\033[0m\n"
+        echo -e "\033[1;33m⚠️ Invalid choice. Defaulting to Hyprland.\033[0m\n"
         DE_CHOICE=1
         DE_TYPE="Hyprland"
         ;;
@@ -675,43 +675,43 @@ read -p "Enter your choice (1-9): " mirror_choice
 case $mirror_choice in
     1)
         MIRROR_COUNTRY="Italy"
-        echo -e "\033[1;32m✓ Selected mirrors from: \033[1;37mItaly\033[0m"
+        echo -e "\033[1;32m✅ Selected mirrors from: \033[1;37mItaly\033[0m"
         ;;
     2)
         MIRROR_COUNTRY="Germany"
-        echo -e "\033[1;32m✓ Selected mirrors from: \033[1;37mGermany\033[0m"
+        echo -e "\033[1;32m✅ Selected mirrors from: \033[1;37mGermany\033[0m"
         ;;
     3)
         MIRROR_COUNTRY="United States"
-        echo -e "\033[1;32m✓ Selected mirrors from: \033[1;37mUnited States\033[0m"
+        echo -e "\033[1;32m✅ Selected mirrors from: \033[1;37mUnited States\033[0m"
         ;;
     4)
         MIRROR_COUNTRY="United Kingdom"
-        echo -e "\033[1;32m✓ Selected mirrors from: \033[1;37mUnited Kingdom\033[0m"
+        echo -e "\033[1;32m✅ Selected mirrors from: \033[1;37mUnited Kingdom\033[0m"
         ;;
     5)
         MIRROR_COUNTRY="France"
-        echo -e "\033[1;32m✓ Selected mirrors from: \033[1;37mFrance\033[0m"
+        echo -e "\033[1;32m✅ Selected mirrors from: \033[1;37mFrance\033[0m"
         ;;
     6)
         MIRROR_COUNTRY="Spain"
-        echo -e "\033[1;32m✓ Selected mirrors from: \033[1;37mSpain\033[0m"
+        echo -e "\033[1;32m✅ Selected mirrors from: \033[1;37mSpain\033[0m"
         ;;
     7)
         MIRROR_COUNTRY="Netherlands"
-        echo -e "\033[1;32m✓ Selected mirrors from: \033[1;37mNetherlands\033[0m"
+        echo -e "\033[1;32m✅ Selected mirrors from: \033[1;37mNetherlands\033[0m"
         ;;
     8)
         echo -e "\033[1;33mPlease specify your country name (in English):\033[0m"
         echo -n "Country: "; read -r MIRROR_COUNTRY
-        echo -e "\033[1;32m✓ Selected mirrors from: \033[1;37m$MIRROR_COUNTRY\033[0m"
+        echo -e "\033[1;32m✅ Selected mirrors from: \033[1;37m$MIRROR_COUNTRY\033[0m"
         ;;
     9)
         MIRROR_COUNTRY=""
         echo -e "\033[1;32m✓ Using worldwide mirrors\033[0m"
         ;;
     *)
-        echo -e "\033[1;33m⚠ Invalid choice. Defaulting to worldwide mirrors.\033[0m"
+        echo -e "\033[1;33m⚠️ Invalid choice. Defaulting to worldwide mirrors.\033[0m"
         MIRROR_COUNTRY=""
         ;;
 esac
@@ -768,10 +768,10 @@ while true; do
     # Validate input
     if [[ "$layout_choice" =~ ^[0-9]+$ && "$layout_choice" -ge 1 && "$layout_choice" -le "${#KEYBOARD_LAYOUTS[@]}" ]]; then
         KEYBOARD_LAYOUT="${KEYBOARD_LAYOUTS[$((layout_choice-1))]}"
-        echo -e "\033[1;32m✓ Selected keyboard layout: \033[1;37m$KEYBOARD_LAYOUT\033[0m\n"
+        echo -e "\033[1;32m✅ Selected keyboard layout: \033[1;37m$KEYBOARD_LAYOUT\033[0m\n"
         break
     else
-        echo -e "\033[1;33m⚠ Invalid choice. Please enter a number between 1 and ${#KEYBOARD_LAYOUTS[@]}.\033[0m"
+        echo -e "\033[1;33m⚠️ Invalid choice. Please enter a number between 1 and ${#KEYBOARD_LAYOUTS[@]}.\033[0m"
     fi
 done
 
@@ -879,19 +879,19 @@ while true; do
             # Validate input
             if [[ "$all_locale_choice" =~ ^[0-9]+$ && "$all_locale_choice" -ge 1 && "$all_locale_choice" -le "${#AVAILABLE_LOCALES[@]}" ]]; then
                 SYSTEM_LOCALE="${AVAILABLE_LOCALES[$((all_locale_choice-1))]}"
-                echo -e "\033[1;32m✓ Selected locale: \033[1;37m$SYSTEM_LOCALE\033[0m\n"
+                echo -e "\033[1;32m✅ Selected locale: \033[1;37m$SYSTEM_LOCALE\033[0m\n"
                 break 2  # Break out of both loops
             else
-                echo -e "\033[1;33m⚠ Invalid choice. Please enter a number between 1 and ${#AVAILABLE_LOCALES[@]}.\033[0m"
+                echo -e "\033[1;33m⚠️ Invalid choice. Please enter a number between 1 and ${#AVAILABLE_LOCALES[@]}.\033[0m"
             fi
         done
     elif [[ "$locale_choice" =~ ^[0-9]+$ && "$locale_choice" -ge 1 && "$locale_choice" -le "${#ESSENTIAL_LOCALES[@]}" ]]; then
         # User selected from the essential locales list
         SYSTEM_LOCALE="${ESSENTIAL_LOCALES[$((locale_choice-1))]}"
-        echo -e "\033[1;32m✓ Selected locale: \033[1;37m$SYSTEM_LOCALE\033[0m\n"
+        echo -e "\033[1;32m✅ Selected locale: \033[1;37m$SYSTEM_LOCALE\033[0m\n"
         break
     else
-        echo -e "\033[1;33m⚠ Invalid choice. Please enter a valid number.\033[0m"
+        echo -e "\033[1;33m⚠️ Invalid choice. Please enter a valid number.\033[0m"
     fi
 done
 
@@ -930,15 +930,15 @@ case $cpu_choice in
     1)
         CPU_MICROCODE="intel-ucode"
         CPU_TYPE="Intel"
-        echo -e "\033[1;32m✓ Selected Intel CPU. Will install intel-ucode.\033[0m\n"
+        echo -e "\033[1;32m✅ Selected Intel CPU. Will install intel-ucode.\033[0m\n"
         ;;
     2)
         CPU_MICROCODE="amd-ucode"
         CPU_TYPE="AMD"
-        echo -e "\033[1;32m✓ Selected AMD CPU. Will install amd-ucode.\033[0m\n"
+        echo -e "\033[1;32m✅ Selected AMD CPU. Will install amd-ucode.\033[0m\n"
         ;;
     *)
-        echo -e "\033[1;33m⚠ Invalid choice. Defaulting to AMD.\033[0m\n"
+        echo -e "\033[1;33m⚠️ Invalid choice. Defaulting to AMD.\033[0m\n"
         CPU_MICROCODE="amd-ucode"
         CPU_TYPE="AMD"
         ;;
@@ -959,7 +959,7 @@ read -p "Enter your choice (1-3): " gpu_choice
 case $gpu_choice in
     1)
         GPU_TYPE="NVIDIA"
-        echo -e "\033[1;32m✓ Selected NVIDIA GPU.\033[0m"
+        echo -e "\033[1;32m✅ Selected NVIDIA GPU.\033[0m"
         
         echo -e "\n\033[1;33mNVIDIA Driver Selection:\033[0m"
         echo -e "  Do you want to use NVIDIA open drivers?"
@@ -970,26 +970,26 @@ case $gpu_choice in
         case $nvidia_open_choice in
             [Yy]*)
                 NVIDIA_DRIVER_TYPE="open"
-                echo -e "\033[1;32m✓ Selected NVIDIA open source drivers.\033[0m\n"
+                echo -e "\033[1;32m✅ Selected NVIDIA open source drivers.\033[0m\n"
                 ;;
             *)
                 NVIDIA_DRIVER_TYPE="proprietary"
-                echo -e "\033[1;32m✓ Selected NVIDIA proprietary drivers.\033[0m\n"
+                echo -e "\033[1;32m✅ Selected NVIDIA proprietary drivers.\033[0m\n"
                 ;;
         esac
         ;;
     2)
         GPU_TYPE="AMD/Intel"
         NVIDIA_DRIVER_TYPE="none"
-        echo -e "\033[1;32m✓ Selected AMD/Intel GPU. Will use open source drivers.\033[0m\n"
+        echo -e "\033[1;32m✅ Selected AMD/Intel GPU. Will use open source drivers.\033[0m\n"
         ;;
     3)
         GPU_TYPE="None/VM"
         NVIDIA_DRIVER_TYPE="none"
-        echo -e "\033[1;32m✓ Selected None/VM. Will use basic drivers.\033[0m\n"
+        echo -e "\033[1;32m✅ Selected None/VM. Will use basic drivers.\033[0m\n"
         ;;
     *)
-        echo -e "\033[1;33m⚠ Invalid choice. Defaulting to AMD/Intel.\033[0m\n"
+        echo -e "\033[1;33m⚠️ Invalid choice. Defaulting to AMD/Intel.\033[0m\n"
         gpu_choice=2
         GPU_TYPE="AMD/Intel"
         NVIDIA_DRIVER_TYPE="none"
@@ -1022,7 +1022,7 @@ while true; do
             break
             ;;
         *)
-            echo -e "\033[1;91m❌ Invalid choice. Please enter 1 or 2.\033[0m"
+            echo -e "\033[1;91m⚠️ Invalid choice. Please enter 1 or 2.\033[0m"
             ;;
     esac
 done
@@ -1145,7 +1145,7 @@ while true; do
                                          BOOT_TYPE="bios" 
                                          echo -e "\033[1;92m✅ Boot type successfully changed to BIOS\033[0m"
                                          ;;
-                                    *) echo -e "\033[1;91m❌ Invalid choice. Value not changed.\033[0m" ;;
+                                    *) echo -e "\033[1;91m⚠️ Invalid choice. Value not changed.\033[0m" ;;
                               esac
                               sleep 2
                               ;;
@@ -1203,7 +1203,7 @@ while true; do
                                          CPU_TYPE="AMD"
                                          echo -e "\033[1;92m✅ CPU type successfully set to AMD\033[0m"
                                          ;;
-                                    *) echo -e "\033[1;91m❌ Invalid choice. Value not changed.\033[0m" ;;
+                                    *) echo -e "\033[1;91m⚠️ Invalid choice. Value not changed.\033[0m" ;;
                               esac
                               sleep 2
                               ;;
@@ -1233,7 +1233,7 @@ while true; do
                                                     echo -e "\033[1;92m✅ NVIDIA driver successfully set to proprietary\033[0m"
                                                     ;;
                                               *) 
-                                                    echo -e "\033[1;91m❌ Invalid choice. Defaulting to proprietary.\033[0m"
+                                                    echo -e "\033[1;91m⚠️ Invalid choice. Defaulting to proprietary.\033[0m"
                                                     NVIDIA_DRIVER_TYPE="proprietary"
                                                     ;;
                                          esac
@@ -1248,7 +1248,7 @@ while true; do
                                          NVIDIA_DRIVER_TYPE="none"
                                          echo -e "\033[1;92m✅ GPU type successfully set to None/VM\033[0m"
                                          ;;
-                                    *) echo -e "\033[1;91m❌ Invalid choice. Value not changed.\033[0m" ;;
+                                    *) echo -e "\033[1;91m⚠️ Invalid choice. Value not changed.\033[0m" ;;
                               esac
                               sleep 2
                               ;;
@@ -1268,7 +1268,7 @@ while true; do
                                               NVIDIA_DRIVER_TYPE="proprietary"
                                               echo -e "\033[1;92m✅ NVIDIA driver successfully set to proprietary\033[0m"
                                               ;;
-                                         *) echo -e "\033[1;91m❌ Invalid choice. Value not changed.\033[0m" ;;
+                                         *) echo -e "\033[1;91m⚠️ Invalid choice. Value not changed.\033[0m" ;;
                                     esac
                                     sleep 2
                               else
@@ -1293,7 +1293,7 @@ while true; do
                                          AUDIO_SERVER="pulseaudio"
                                          echo -e "\033[1;92m✅ Audio server successfully set to PulseAudio\033[0m"
                                          ;;
-                                    *) echo -e "\033[1;91m❌ Invalid choice. Value not changed.\033[0m" ;;
+                                    *) echo -e "\033[1;91m⚠️ Invalid choice. Value not changed.\033[0m" ;;
                               esac
                               sleep 2
                               ;;
@@ -1322,7 +1322,7 @@ while true; do
                                         DE_TYPE="GNOME"; DE_CHOICE=4 
                                         echo -e "\033[1;92m✅ Desktop environment successfully set to GNOME\033[0m"
                                         ;;
-                                   *) echo -e "\033[1;91m❌ Invalid choice. Value not changed.\033[0m" ;;
+                                   *) echo -e "\033[1;91m⚠️ Invalid choice. Value not changed.\033[0m" ;;
                               esac
                           sleep 2
                           ;;
@@ -1432,7 +1432,7 @@ while true; do
                                               KEYBOARD_LAYOUT="${KEYBOARD_LAYOUTS[$((layout_num-1))]}"
                                               echo -e "\033[1;92m✅ Keyboard layout successfully set to $KEYBOARD_LAYOUT\033[0m"
                                          else
-                                              echo -e "\033[1;91m❌ Invalid choice. Value not changed.\033[0m"
+                                              echo -e "\033[1;91m⚠️ Invalid choice. Value not changed.\033[0m"
                                          fi
                                          ;;
                                     8)
@@ -1444,7 +1444,7 @@ while true; do
                                               echo -e "\033[1;91m❌ Invalid input. Value not changed.\033[0m"
                                          fi
                                          ;;
-                                    *) echo -e "\033[1;91m❌ Invalid choice. Value not changed.\033[0m" ;;
+                                    *) echo -e "\033[1;91m⚠️ Invalid choice. Value not changed.\033[0m" ;;
                               esac
                               sleep 2
                               ;;
@@ -1512,7 +1512,7 @@ while true; do
                                               SYSTEM_LOCALE="$locale_input"
                                               echo -e "\033[1;92m✅ System locale successfully set to $SYSTEM_LOCALE\033[0m"
                                          else
-                                              echo -e "\033[1;91m❌ Invalid choice. Value not changed.\033[0m"
+                                              echo -e "\033[1;91m⚠️ Invalid choice. Value not changed.\033[0m"
                                          fi
                                          ;;
                                     8)
@@ -1524,7 +1524,7 @@ while true; do
                                               echo -e "\033[1;91m❌ Invalid locale format. Value not changed.\033[0m"
                                          fi
                                          ;;
-                                    *) echo -e "\033[1;91m❌ Invalid choice. Value not changed.\033[0m" ;;
+                                    *) echo -e "\033[1;91m⚠️ Invalid choice. Value not changed.\033[0m" ;;
                               esac
                               sleep 2
                               ;;
@@ -1585,7 +1585,7 @@ while true; do
                                          MIRROR_COUNTRY="" 
                                          echo -e "\033[1;92m✅ Mirror selection successfully set to Worldwide\033[0m"
                                          ;;
-                                    *) echo -e "\033[1;91m❌ Invalid choice. Value not changed.\033[0m" ;;
+                                    *) echo -e "\033[1;91m⚠️ Invalid choice. Value not changed.\033[0m" ;;
                               esac
                               sleep 2
                               ;;
@@ -1639,7 +1639,7 @@ while true; do
                                               DISK_PASSWORD=""
                                               echo -e "\033[1;92m✅ Disk encryption successfully disabled\033[0m"
                                               ;;
-                                         *) echo -e "\033[1;91m❌ Invalid choice. Value not changed.\033[0m" ;;
+                                         *) echo -e "\033[1;91m⚠️ Invalid choice. Value not changed.\033[0m" ;;
                                     esac
                                     sleep 2
                               else
@@ -1672,7 +1672,7 @@ while true; do
                                               ZFS_COMPRESSION="off"
                                               echo -e "\033[1;92m✅ ZFS compression successfully disabled\033[0m"
                                               ;;
-                                         *) echo -e "\033[1;91m❌ Invalid choice. Value not changed.\033[0m" ;;
+                                         *) echo -e "\033[1;91m⚠️ Invalid choice. Value not changed.\033[0m" ;;
                                     esac
                                     sleep 2
                               else
@@ -1695,7 +1695,7 @@ while true; do
                                               SEPARATE_DATASETS="yes" 
                                               echo -e "\033[1;92m✅ ZFS dataset structure successfully set to advanced\033[0m"
                                               ;;
-                                         *) echo -e "\033[1;91m❌ Invalid choice. Value not changed.\033[0m" ;;
+                                         *) echo -e "\033[1;91m⚠️ Invalid choice. Value not changed.\033[0m" ;;
                                     esac
                                     sleep 2
                               else
@@ -1728,7 +1728,7 @@ while true; do
                                                     echo -e "\033[1;91m❌ Invalid size. Value not changed.\033[0m"
                                               fi
                                               ;;
-                                         *) echo -e "\033[1;91m❌ Invalid choice. Value not changed.\033[0m" ;;
+                                         *) echo -e "\033[1;91m⚠️ Invalid choice. Value not changed.\033[0m" ;;
                                     esac
                                     sleep 2
                               else
@@ -1761,7 +1761,7 @@ while true; do
                                               ZRAM_COMPRESSION="lzo"
                                               echo -e "\033[1;92m✅ ZRAM compression successfully set to lzo\033[0m"
                                               ;;
-                                         *) echo -e "\033[1;91m❌ Invalid choice. Value not changed.\033[0m" ;;
+                                         *) echo -e "\033[1;91m⚠️ Invalid choice. Value not changed.\033[0m" ;;
                                     esac
                                     sleep 2
                               else
@@ -1894,9 +1894,9 @@ run_command "zfs mount zroot/root" "mount the root dataset"
 if [ "$SEPARATE_DATASETS" = "yes" ]; then
     
     # Create datasets for various system directories
-    run_command "zfs create -o mountpoint=/home zroot/home" "create home dataset"
+    run_command "zfs create -o mountpoint=/home zroot/home" "create ZFS home dataset"
     zfs mount zroot/home
-    run_command "zfs create -o mountpoint=/var zroot/var" "create var dataset"
+    run_command "zfs create -o mountpoint=/var zroot/var" "create ZFS var dataset"
     zfs mount zroot/var
 fi
 
@@ -2057,11 +2057,11 @@ run_command "sysctl --system" "apply sysctl settings"
 # ----------------------------------------
 print_section_header "CONFIGURING SYSTEM SETTINGS"
 
-echo -e "\033[1;94m🖥️ Setting hostname to: \033[1;97m$HOSTNAME\033[0m"
+echo -e "\033[1;94m💻 Setting hostname to: \033[1;97m$HOSTNAME\033[0m"
 echo "$HOSTNAME" > /etc/hostname
 echo -e "127.0.0.1   localhost\n::1         localhost\n127.0.1.1   $HOSTNAME.localdomain   $HOSTNAME" > /etc/hosts
 
-echo -e "\033[1;94m⌨️ Configuring keyboard layout: \033[1;97m$KEYBOARD_LAYOUT\033[0m"
+echo -e "\033[1;94m🔣 Configuring keyboard layout: \033[1;97m$KEYBOARD_LAYOUT\033[0m"
 run_command "localectl set-keymap --no-convert \"$KEYBOARD_LAYOUT\"" "set keyboard layout"
 
 echo -e "\033[1;94m🕒 Setting up timezone and clock...\033[0m"
@@ -2106,7 +2106,7 @@ case "$DE_CHOICE" in
                 echo -e "\033[1;92m✨ Installing Hyprland...\033[0m"
                 run_command "pacman -S --noconfirm hyprland egl-wayland sddm qt6-svg qt6-declarative qt5-quickcontrols2" "install Hyprland, SDDM and dependencies"
                 run_command "systemctl enable sddm" "enable SDDM"
-                
+
                 run_command "find /usr/share/wayland-sessions -type f -not -name \"hyprland.desktop\" -delete" "clean up wayland sessions"
 
                 run_command "wget https://github.com/catppuccin/sddm/releases/download/v1.0.0/catppuccin-frappe.zip && unzip catppuccin-frappe.zip -d /usr/share/sddm/themes/ && rm -f catppuccin-frappe.zip" "download SDDM theme"
@@ -2132,7 +2132,7 @@ case "$DE_CHOICE" in
                 run_command "systemctl enable gdm" "enable GDM"
                 ;;
         *)
-                echo -e "\033[1;91m❌ Invalid choice '$DE_CHOICE'. Installing Hyprland as default...\033[0m"
+                echo -e "\033[1;91m⚠️ Invalid choice '$DE_CHOICE'. Installing Hyprland as default...\033[0m"
                 run_command "pacman -S --noconfirm hyprland egl-wayland" "install Hyprland"
                 run_command "find /usr/share/wayland-sessions -type f -not -name \"hyprland.desktop\" -delete" "clean up wayland sessions"
                 ;;
@@ -2287,7 +2287,7 @@ echo
 
 # Performance Configuration
 echo -e "\033[1;38;5;208m⚡ Performance Configuration:\033[0m"
-echo -e "  \033[1;97m🧠\033[0m ZRAM Size: \033[1;97m$ZRAM_SIZE\033[0m"
+echo -e "  \033[1;97m💿\033[0m ZRAM Size: \033[1;97m$ZRAM_SIZE\033[0m"
 echo -e "  \033[1;97m📁\033[0m ZRAM Compression: \033[1;97m$ZRAM_COMPRESSION\033[0m"
 echo
 
@@ -2324,7 +2324,7 @@ while true; do
             exit 0
             ;;
         *)
-            echo -e "\033[1;91m❌ Invalid choice. Please answer Y or N.\033[0m"
+            echo -e "\033[1;91m⚠️ Invalid choice. Please answer Y or N.\033[0m"
             # The loop will continue and repeat the question
             ;;
     esac
