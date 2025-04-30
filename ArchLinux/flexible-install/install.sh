@@ -1,6 +1,36 @@
 #!/bin/bash
 
+# ----------------------------------------
+# LOGGING SETUP
+# ----------------------------------------
+# Create log directory and file
+LOG_DIR="/var/log/arch-install"
+LOG_FILE="${LOG_DIR}/install-$(date +%Y%m%d-%H%M%S).log"
 
+# Create log directory if it doesn't exist
+mkdir -p "$LOG_DIR"
+touch "$LOG_FILE"
+
+# Function to log messages
+log_message() {
+    local message="$1"
+    local timestamp=$(date '+%Y-%m-%d %H:%M:%S')
+    echo "[$timestamp] $message" | tee -a "$LOG_FILE"
+}
+
+# Redirect stdout and stderr to both console and log file, but strip ANSI escape sequences for log file
+exec > >(tee >(sed -E "s/\x1B\[[0-9;]*[a-zA-Z]|\x1B\[[0-9;]*[mK]//g" > "$LOG_FILE")) 2>&1
+
+# Log start of installation
+log_message "Installation script started"
+log_message "Log file created at: $LOG_FILE"
+
+# Print info about logging
+echo -e "\033[1;94m📝 \033[1;38;5;87mLogging:\033[0m \033[1;38;5;195mAll output is being saved to $LOG_FILE\033[0m"
+
+# ----------------------------------------
+# DEFINE FUNCTIONS
+# ----------------------------------------
 
 # Function to handle command failures
 handle_error() {
@@ -1859,7 +1889,7 @@ if [ "$ENCRYPT_DISK" = "yes" ]; then
     # Create key file directory in the installed system
     mkdir -p /etc/zfs
     echo "$DISK_PASSWORD" > /etc/zfs/zroot.key
-    chmod 000 /etc/zfs/zroot.key
+    chmod 600 /etc/zfs/zroot.key
     chown root:root /etc/zfs/zroot.key
 
     
@@ -2101,7 +2131,7 @@ print_section_header "INSTALLING DESKTOP ENVIRONMENT"
 # Ensure the variable is a number for proper comparison
 DE_CHOICE=$(echo "$DE_CHOICE" | tr -d '"') # Remove any quotes that might be present
 
-case "$DE_CHOICE" in
+case \$DE_CHOICE in
         "1")
                 echo -e "\033[1;92m✨ Installing Hyprland...\033[0m"
                 run_command "pacman -S --noconfirm hyprland egl-wayland sddm qt6-svg qt6-declarative qt5-quickcontrols2" "install Hyprland, SDDM and dependencies"
@@ -2112,7 +2142,38 @@ case "$DE_CHOICE" in
                 run_command "wget https://github.com/catppuccin/sddm/releases/download/v1.0.0/catppuccin-frappe.zip && unzip catppuccin-frappe.zip -d /usr/share/sddm/themes/ && rm -f catppuccin-frappe.zip" "download SDDM theme"
                 run_command "mkdir -p /etc/sddm.conf.d/ && echo -e '[Theme]\nCurrent=catppuccin-frappe' > /etc/sddm.conf.d/theme.conf" "configure SDDM theme"
 
-                run_command "su -c \"cd && wget https://raw.githubusercontent.com/mylinuxforwork/dotfiles/main/setup-arch.sh && chmod +x setup-arch.sh\" $USER" "download setup script for user"
+                # Ask which dotfiles to install
+                echo -e "\033[1;94mSelect dotfiles to install:\033[0m"
+                echo -e "  \033[1;37m1)\033[0m \033[1;38;5;39mML4W dotfiles\033[0m (mylinuxforwork dotfiles)"
+                echo -e "  \033[1;37m2)\033[0m \033[1;38;5;208mEnd-4 dotfiles\033[0m (end-4's Hyprland dotfiles)"
+                echo -e "  \033[1;37m3)\033[0m \033[1;38;5;196mNone\033[0m (No dotfiles, vanilla installation)"
+                echo
+                
+                while true; do
+                    echo -en "\033[1;94mEnter your choice (1-3): \033[0m"
+                    while read -r -t 0; do read -r; done
+                    read -r dotfiles_choice
+                    
+                    case \$dotfiles_choice in
+                        1)
+                            echo -e "\033[1;92m✅ Selected ML4W dotfiles\033[0m"
+                            run_command "su -c \"cd && wget https://raw.githubusercontent.com/mylinuxforwork/dotfiles/main/setup-arch.sh && chmod +x setup-arch.sh\" $USER" "download ml4w dotfiles"
+                            break
+                            ;;
+                        2)
+                            echo -e "\033[1;92m✅ Selected End-4 dotfiles\033[0m"
+                            run_command "su -c \"cd && wget https://end-4.github.io/dots-hyprland-wiki/setup.sh && chmod +x setup.sh\" $USER" "download end-4 dotfiles"
+                            break
+                            ;;
+                        3)
+                            echo -e "\033[1;92m✅ No dotfiles will be installed\033[0m"
+                            break
+                            ;;
+                        *)
+                            echo -e "\033[1;91m⚠️ Invalid choice. Please enter 1, 2, or 3.\033[0m"
+                            ;;
+                    esac
+                done
                 ;;
         "2")
                 echo -e "\033[1;92m✨ Installing XFCE4...\033[0m"
@@ -2232,6 +2293,9 @@ arch-chroot /mnt /bin/bash -c "$chroot_script"
 # Remove installation files from the mounted system
 rm -rf /mnt/install
 
+# Stop redirecting to log file before the final steps
+exec > /dev/tty 2>&1
+
 # Print completion message
 clear
 echo -e "\033[1;38;5;40m"
@@ -2295,7 +2359,7 @@ echo -e "\033[1;38;5;87m🚀 Your new Arch Linux system is ready!\033[0m"
 
 # Ask user if they want to reboot now
 while true; do
-    echo -en "\033[1;93mDo you want to reboot now? [Y/n]: \033[0m"
+    echo -en "\033[1;93mDo you want to reboot now? [Y/n/s(show log)]: \033[0m"
     # Clear input buffer before reading
     while read -r -t 0; do read -r; done
     read -r reboot_choice
@@ -2314,6 +2378,14 @@ while true; do
             sleep 2
             reboot
             exit 0  # Ensure the script exits immediately
+            ;;
+        [Ss])
+            echo -e "\033[1;94mShowing installation log. Press q to return to reboot prompt.\033[0m"
+            less "$LOG_FILE"
+            echo -e "\033[1;93mReturning to reboot prompt...\033[0m"
+            sleep 1
+            # Continue with the reboot prompt after viewing log
+            continue
             ;;
         [Nn])
             echo -e "\n\033[1;94mSystem is ready. You can reboot manually when ready with 'reboot' command.\033[0m"
