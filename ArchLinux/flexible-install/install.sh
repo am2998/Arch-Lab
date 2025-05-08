@@ -301,37 +301,6 @@ while true; do
 done
 
 # ----------------------------------------
-# CHOOSE BOOT TYPE
-# ----------------------------------------
-print_section_header "BOOT TYPE SELECTION"
-
-echo -e "\033[1;94mSelect the boot type:\033[0m"
-echo -e "  \033[1;97m1)\033[0m \033[1;38;5;220mEFI\033[0m (Modern systems, recommended)"
-echo -e "  \033[1;97m2)\033[0m \033[1;38;5;208mBIOS\033[0m (Legacy systems)"
-echo
-
-while true; do
-    echo -en "\033[1;94mEnter your choice (1-2): \033[0m"
-    read -r boot_choice
-    
-    case $boot_choice in
-        1)
-            BOOT_TYPE="efi"
-            echo -e "\033[1;92m✅ Selected EFI boot\033[0m\n"
-            break
-            ;;
-        2)
-            BOOT_TYPE="bios"
-            echo -e "\033[1;92m✅ Selected BIOS boot\033[0m\n"
-            break
-            ;;
-        *)
-            echo -e "\033[1;91m⚠️ Invalid choice. Please enter 1 or 2.\033[0m"
-            ;;
-    esac
-done
-
-# ----------------------------------------
 # ADVANCED OPTIONS (only in advanced mode)
 # ----------------------------------------
 if [ "$INSTALL_MODE" = "advanced" ]; then
@@ -1078,43 +1047,42 @@ display_summary() {
     }
 
     # System-critical choices
-    print_entry 1 "Boot Type:              " "$BOOT_TYPE"
-    print_entry 2 "Target Device:          " "$DEVICE"
+    print_entry 1 "Target Device:          " "$DEVICE"
 
     # Hardware settings
-    print_entry 3 "CPU Type:               " "$CPU_TYPE"
-    print_entry 4 "GPU Type:               " "$GPU_TYPE"
+    print_entry 2 "CPU Type:               " "$CPU_TYPE"
+    print_entry 3 "GPU Type:               " "$GPU_TYPE"
 
     if [ "$GPU_TYPE" = "NVIDIA" ]; then
-        print_entry 5 "NVIDIA Driver:          " "$NVIDIA_DRIVER_TYPE"
+        print_entry 4 "NVIDIA Driver:          " "$NVIDIA_DRIVER_TYPE"
         NVIDIA_OFFSET=1
 
     else
         NVIDIA_OFFSET=0
     fi
 
-    print_entry $((5+NVIDIA_OFFSET)) "Audio Server:           " "$AUDIO_SERVER"
-    print_entry $((6+NVIDIA_OFFSET)) "Desktop Environment:    " "$DE_TYPE"
+    print_entry $((4+NVIDIA_OFFSET)) "Audio Server:           " "$AUDIO_SERVER"
+    print_entry $((5+NVIDIA_OFFSET)) "Desktop Environment:    " "$DE_TYPE"
 
     # User configuration
-    print_entry $((7+NVIDIA_OFFSET)) "Hostname:               " "$HOSTNAME"
-    print_entry $((8+NVIDIA_OFFSET)) "Username:               " "$USER"
-    print_entry $((9+NVIDIA_OFFSET)) "User & Root Passwords:  " "[hidden]"
+    print_entry $((6+NVIDIA_OFFSET)) "Hostname:               " "$HOSTNAME"
+    print_entry $((7+NVIDIA_OFFSET)) "Username:               " "$USER"
+    print_entry $((8+NVIDIA_OFFSET)) "User & Root Passwords:  " "[hidden]"
 
     # System preferences
-    print_entry $((10+NVIDIA_OFFSET)) "Keyboard Layout:        " "$KEYBOARD_LAYOUT"
-    print_entry $((11+NVIDIA_OFFSET)) "System Locale:          " "$SYSTEM_LOCALE"
-    print_entry $((12+NVIDIA_OFFSET)) "Mirror Country:         " "${MIRROR_COUNTRY:-Worldwide}"
+    print_entry $((9+NVIDIA_OFFSET)) "Keyboard Layout:        " "$KEYBOARD_LAYOUT"
+    print_entry $((10+NVIDIA_OFFSET)) "System Locale:          " "$SYSTEM_LOCALE"
+    print_entry $((11+NVIDIA_OFFSET)) "Mirror Country:         " "${MIRROR_COUNTRY:-Worldwide}"
 
     # Advanced partition settings
     if [ "$INSTALL_MODE" = "advanced" ]; then
-        print_entry $((13+NVIDIA_OFFSET)) "EFI Partition Size:     " "$EFI_PART_SIZE"
-        print_entry $((14+NVIDIA_OFFSET)) "Root Partition Size:    " "$ROOT_PART_SIZE"
-        print_entry $((15+NVIDIA_OFFSET)) "Disk Encryption:        " "${ENCRYPT_DISK^}"
-        print_entry $((16+NVIDIA_OFFSET)) "ZFS Compression:        " "$ZFS_COMPRESSION"
-        print_entry $((17+NVIDIA_OFFSET)) "Separate Datasets:      " "${SEPARATE_DATASETS^}"
-        print_entry $((18+NVIDIA_OFFSET)) "ZRAM Size:              " "$ZRAM_SIZE"
-        print_entry $((19+NVIDIA_OFFSET)) "ZRAM Compression:       " "$ZRAM_COMPRESSION"
+        print_entry $((12+NVIDIA_OFFSET)) "EFI Partition Size:     " "$EFI_PART_SIZE"
+        print_entry $((13+NVIDIA_OFFSET)) "Root Partition Size:    " "$ROOT_PART_SIZE"
+        print_entry $((14+NVIDIA_OFFSET)) "Disk Encryption:        " "${ENCRYPT_DISK^}"
+        print_entry $((15+NVIDIA_OFFSET)) "ZFS Compression:        " "$ZFS_COMPRESSION"
+        print_entry $((16+NVIDIA_OFFSET)) "Separate Datasets:      " "${SEPARATE_DATASETS^}"
+        print_entry $((17+NVIDIA_OFFSET)) "ZRAM Size:              " "$ZRAM_SIZE"
+        print_entry $((18+NVIDIA_OFFSET)) "ZRAM Compression:       " "$ZRAM_COMPRESSION"
     fi
 
     echo -e "└──────────────────────────────────────────────────┘"
@@ -1161,26 +1129,8 @@ while true; do
                if [[ "$setting_num" =~ ^[0-9]+$ ]]; then
                     # Handle setting modification based on the number
                     case $setting_num in
-                         1) # Boot Type
-                              echo -e "\n\033[1;94mSelect boot type:\033[0m"
-                              echo -e "  \033[1;97m1)\033[0m \033[1;38;5;220mEFI\033[0m (Modern systems, recommended)"
-                              echo -e "  \033[1;97m2)\033[0m \033[1;38;5;208mBIOS\033[0m (Legacy systems)"
-                              read -p "Enter choice (1-2): " boot_choice
-                              case $boot_choice in
-                                    1) 
-                                         BOOT_TYPE="efi" 
-                                         echo -e "\033[1;92m✅ Boot type successfully changed to EFI\033[0m"
-                                         ;;
-                                    2) 
-                                         BOOT_TYPE="bios" 
-                                         echo -e "\033[1;92m✅ Boot type successfully changed to BIOS\033[0m"
-                                         ;;
-                                    *) echo -e "\033[1;91m⚠️ Invalid choice. Value not changed.\033[0m" ;;
-                              esac
-                              sleep 2
-                              ;;
-                              
-                         2) # Target Device
+                            
+                         1) # Target Device
                               echo -e "\n\033[1;94m💾 Available disks for installation:\033[0m"
                               available_disks=$(lsblk -dpno NAME,SIZE,MODEL | grep -E "/dev/(sd|nvme|vd)")
                               echo -e "\033[1;38;5;195m$available_disks\033[0m\n"
@@ -1217,7 +1167,7 @@ while true; do
                               sleep 2
                               ;;
                          
-                         3) # CPU Type
+                         2) # CPU Type
                               echo -e "\n\033[1;94mChoose your CPU type:\033[0m"
                               echo -e "  \033[1;37m1)\033[0m \033[1;38;5;39mIntel\033[0m"
                               echo -e "  \033[1;37m2)\033[0m \033[1;38;5;196mAMD\033[0m"
@@ -1238,7 +1188,7 @@ while true; do
                               sleep 2
                               ;;
                          
-                         4) # GPU Type
+                         3) # GPU Type
                               echo -e "\n\033[1;94mChoose your GPU type:\033[0m"
                               echo -e "  \033[1;37m1)\033[0m \033[1;38;5;118mNVIDIA\033[0m"
                               echo -e "  \033[1;37m2)\033[0m \033[1;38;5;75mAMD/Intel\033[0m (Open Source)"
@@ -1283,7 +1233,7 @@ while true; do
                               sleep 2
                               ;;
                          
-                         5) # NVIDIA Driver (only if NVIDIA GPU)
+                         4) # NVIDIA Driver (only if NVIDIA GPU)
                               if [ "$GPU_TYPE" = "NVIDIA" ]; then
                                     echo -e "\n\033[1;94mNVIDIA Driver Type:\033[0m"
                                     echo -e "  \033[1;37m1)\033[0m Open source drivers"
@@ -1309,7 +1259,7 @@ while true; do
 
                          # After this point, count NVIDIA_OFFSET to the case numbers
                          # First determine if we have an NVIDIA GPU (offset = 1) or not (offset = 0)
-                         $((5+NVIDIA_OFFSET))) # Audio Server
+                         $((4+NVIDIA_OFFSET))) # Audio Server
                               echo -e "\n\033[1;94mChoose your audio server:\033[0m"
                               echo -e "  \033[1;37m1)\033[0m \033[1;38;5;86mPipeWire\033[0m (Modern, low-latency)"
                               echo -e "  \033[1;37m2)\033[0m \033[1;38;5;208mPulseAudio\033[0m (Traditional)"
@@ -1328,7 +1278,7 @@ while true; do
                               sleep 2
                               ;;
                          
-                         $((6+NVIDIA_OFFSET))) # Desktop Environment
+                         $((5+NVIDIA_OFFSET))) # Desktop Environment
                               echo -e "\n\033[1;94mChoose your desktop environment:\033[0m"
                               echo -e "  \033[1;37m1)\033[0m \033[1;38;5;51mHyprland\033[0m"
                               echo -e "  \033[1;37m2)\033[0m \033[1;38;5;220mXFCE4\033[0m"
@@ -1357,7 +1307,7 @@ while true; do
                           sleep 2
                           ;;
                      
-                         $((7+NVIDIA_OFFSET))) # Hostname
+                         $((6+NVIDIA_OFFSET))) # Hostname
                               echo -e "\n\033[1;94mEnter system hostname:\033[0m"
                               read -p "Hostname: " new_hostname
                               if [[ -n "$new_hostname" ]]; then
@@ -1369,7 +1319,7 @@ while true; do
                               sleep 1
                               ;;
                      
-                         $((8+NVIDIA_OFFSET))) # Username
+                         $((7+NVIDIA_OFFSET))) # Username
                               echo -e "\n\033[1;94mEnter username:\033[0m"
                               read -p "Username: " new_user
                               if [[ -n "$new_user" && "$new_user" =~ ^[a-z_][a-z0-9_-]*$ ]]; then
@@ -1381,7 +1331,7 @@ while true; do
                               sleep 1
                               ;;
                      
-                         $((9+NVIDIA_OFFSET))) # Passwords
+                         $((8+NVIDIA_OFFSET))) # Passwords
                               echo -e "\n\033[1;94mUpdate passwords:\033[0m"
                               get_password "Enter the password for user $USER" USERPASS
                               echo -e "\033[1;92m✅ User password successfully updated\033[0m"
@@ -1390,7 +1340,7 @@ while true; do
                               sleep 1
                               ;;
                      
-                         $((10+NVIDIA_OFFSET))) # Keyboard layout
+                         $((9+NVIDIA_OFFSET))) # Keyboard layout
                               echo -e "\n\033[1;94mSelect keyboard layout:\033[0m"
                               # Display some common layouts
                               echo -e "  \033[1;37m1)\033[0m us (US English)"
@@ -1479,7 +1429,7 @@ while true; do
                               sleep 2
                               ;;
                      
-                         $((11+NVIDIA_OFFSET))) # System locale
+                         $((10+NVIDIA_OFFSET))) # System locale
                               echo -e "\n\033[1;94mSelect system locale:\033[0m"
                               # Display some common locales
                               echo -e "  \033[1;37m1)\033[0m en_US.UTF-8"
@@ -1559,7 +1509,7 @@ while true; do
                               sleep 2
                               ;;
                      
-                         $((12+NVIDIA_OFFSET))) # Mirror country
+                         $((11+NVIDIA_OFFSET))) # Mirror country
                               echo -e "\n\033[1;94mSelect mirror country:\033[0m"
                               echo -e "  \033[1;37m1)\033[0m Italy"
                               echo -e "  \033[1;37m2)\033[0m Germany"
@@ -1620,7 +1570,7 @@ while true; do
                               sleep 2
                               ;;
                          
-                         $((13+NVIDIA_OFFSET))) # EFI Partition Size (Advanced mode)
+                         $((12+NVIDIA_OFFSET))) # EFI Partition Size (Advanced mode)
                               if [ "$INSTALL_MODE" = "advanced" ]; then
                                     echo -e "\n\033[1;94mEnter new EFI partition size (e.g. 512M, 1G):\033[0m"
                                     read -p "New size: " new_efi_size
@@ -1636,7 +1586,7 @@ while true; do
                               fi
                               ;;
                          
-                         $((14+NVIDIA_OFFSET))) # Root Partition Size (Advanced mode)
+                         $((13+NVIDIA_OFFSET))) # Root Partition Size (Advanced mode)
                               if [ "$INSTALL_MODE" = "advanced" ]; then
                                     echo -e "\n\033[1;94mEnter new Root partition size (MAX for all available space, or e.g. 50G):\033[0m"
                                     read -p "New size: " new_root_size
@@ -1652,7 +1602,7 @@ while true; do
                               fi
                               ;;
                          
-                         $((15+NVIDIA_OFFSET))) # Disk Encryption (Advanced mode) 
+                         $((14+NVIDIA_OFFSET))) # Disk Encryption (Advanced mode) 
                               if [ "$INSTALL_MODE" = "advanced" ]; then
                                     echo -e "\n\033[1;94mDisk encryption:\033[0m"
                                     echo -e "  \033[1;97m1)\033[0m Yes (More secure, requires passphrase)"
@@ -1677,7 +1627,7 @@ while true; do
                               fi
                               ;;
                          
-                         $((16+NVIDIA_OFFSET))) # ZFS Compression (Advanced mode)
+                         $((15+NVIDIA_OFFSET))) # ZFS Compression (Advanced mode)
                               if [ "$INSTALL_MODE" = "advanced" ]; then
                                     echo -e "\n\033[1;94mSelect ZFS compression algorithm:\033[0m"
                                     echo -e "  \033[1;37m1)\033[0m \033[1;38;5;39mlz4\033[0m (Fast, good ratio)"
@@ -1710,7 +1660,7 @@ while true; do
                               fi
                               ;;
                          
-                         $((17+NVIDIA_OFFSET))) # Separate Datasets (Advanced mode)
+                         $((16+NVIDIA_OFFSET))) # Separate Datasets (Advanced mode)
                               if [ "$INSTALL_MODE" = "advanced" ]; then
                                     echo -e "\n\033[1;94mConfigure ZFS datasets structure:\033[0m"
                                     echo -e "  \033[1;37m1)\033[0m Simple (Single root dataset only)"
@@ -1733,7 +1683,7 @@ while true; do
                               fi
                               ;;
                          
-                         $((18+NVIDIA_OFFSET))) # ZRAM Size (Advanced mode)
+                         $((17+NVIDIA_OFFSET))) # ZRAM Size (Advanced mode)
                               if [ "$INSTALL_MODE" = "advanced" ]; then
                                     echo -e "\n\033[1;94mSelect ZRAM size:\033[0m"
                                     echo -e "  \033[1;37m1)\033[0m Auto (min(RAM, 32GB))"
@@ -1766,7 +1716,7 @@ while true; do
                               fi
                               ;;
                          
-                         $((19+NVIDIA_OFFSET))) # ZRAM Compression (Advanced mode)
+                         $((18+NVIDIA_OFFSET))) # ZRAM Compression (Advanced mode)
                               if [ "$INSTALL_MODE" = "advanced" ]; then
                                     echo -e "\n\033[1;94mSelect ZRAM compression algorithm:\033[0m"
                                     echo -e "  \033[1;37m1)\033[0m zstd (Best balance of speed/compression)"
@@ -2323,7 +2273,6 @@ echo
 # Hardware Configuration
 echo -e "\033[1;38;5;117m⚙️ Hardware Configuration:\033[0m"
 echo -e "  \033[1;97m💽\033[0m Target Device: \033[1;97m$DEVICE\033[0m"
-echo -e "  \033[1;97m🔄\033[0m Boot Type: \033[1;97m${BOOT_TYPE^}\033[0m"
 echo -e "  \033[1;97m🧠\033[0m CPU: \033[1;97m$CPU_TYPE ($CPU_MICROCODE)\033[0m"
 echo -e "  \033[1;97m📺\033[0m GPU: \033[1;97m$GPU_TYPE\033[0m"
 if [ "$GPU_TYPE" = "NVIDIA" ]; then
