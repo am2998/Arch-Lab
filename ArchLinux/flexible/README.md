@@ -8,11 +8,11 @@ This script automates the Arch Linux installation process while allowing you to 
 - Internet connection
 - Basic knowledge of Linux commands
 
-## Setting Up Network Connection
+## 🌐 Setting Up Network Connection 
 
 Before running the installation script, you must set up your network connection using `iwctl` (iwd - iNet wireless daemon). This is required for downloading packages during installation.
 
-### Using iwctl to Connect to WiFi
+### Using iwctl to Connect to WiFi 📡
 
 1. Start the interactive prompt:
    ```bash
@@ -51,7 +51,7 @@ Before running the installation script, you must set up your network connection 
    ping -c 3 archlinux.org
    ```
 
-### Example for Connecting to Hidden Network
+### 🔐 Example for Connecting to Hidden Network 
 
 ```bash
 iwctl
@@ -61,7 +61,7 @@ iwctl
 [iwd]# exit
 ```
 
-## Running the Installation Script
+## 🚀 Running the Installation Script 
 
 Once you have confirmed your internet connection is working, you can run the installation script:
 
@@ -87,11 +87,11 @@ If you encounter network issues, try the following:
 - For wired connections, use: `dhcpcd`
 - For more complex network setups, refer to the [Arch Wiki Network Configuration](https://wiki.archlinux.org/title/Network_configuration)
 
-## ZFS Management Commands
+## ZFS Management Commands (Post Installation)
 
 Here are some useful ZFS commands for managing snapshots, rollbacks, and send/receive operations:
 
-### Snapshot Operations
+### 📸 Snapshot Operations
 ```bash
 # Create a snapshot of a ZFS dataset
 zfs snapshot pool/dataset@snapshotname
@@ -103,36 +103,36 @@ zfs list -t snapshot
 zfs list -t snapshot pool/dataset
 ```
 
-### Rollback Operations
+### 🔄 Rollback Operations
 ```bash
-# Rollback to a specific snapshot
+# Rollback to a specific snapshot 
 zfs rollback pool/dataset@snapshotname
 
-# Rollback and destroy more recent snapshots with -r
+# Rollback and destroy more recent snapshots with -r 
 zfs rollback -r pool/dataset@snapshotname
 ```
 
-### Send/Receive Operations
+### 📤 Send/Receive Operations
 ```bash
-# Send a snapshot to a file
+# Send a snapshot to a file 
 zfs send pool/dataset@snapshotname > /path/to/backup.zfs
 
 # Send a snapshot to another system
 zfs send pool/dataset@snapshotname | ssh user@remote "zfs receive tank/dataset"
 
-# Send an incremental snapshot
+# Send an incremental snapshot 
 zfs send -i pool/dataset@snap1 pool/dataset@snap2 | ssh user@remote "zfs receive tank/dataset"
 
-# Send a replication stream (all snapshots between two points)
+# Send a replication stream (all snapshots between two points) 
 zfs send -R pool/dataset@snapshotname | ssh user@remote "zfs receive -F tank/dataset"
 ```
 
-### Common ZFS Management
+### ⚙️ Common ZFS Management
 ```bash
-# Check ZFS pool status
+# Check ZFS pool status 🔍
 zpool status
 
-# Scrub a pool to check for data integrity
+# Scrub a pool to check for data integrity 🧹
 zpool scrub pool_name
 
 # List ZFS properties
