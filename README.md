@@ -30,10 +30,6 @@ Contains configuration files for various applications:
 - **Kitty/** - Terminal emulator configurations
   - `kitty.conf` - 🐱 Kitty terminal settings and customizations
 
-## 📜 License
-
-This repository is licensed under the terms provided in the LICENSE file.
-
 ---
 
 *Feel free to explore and use these configurations and scripts for your own Arch Linux installations.* 
