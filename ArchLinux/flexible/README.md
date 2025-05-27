@@ -8,9 +8,60 @@ This script automates the Arch Linux installation process while allowing you to 
 - Internet connection
 - Basic knowledge of Linux commands
 
-## 🌐 Setting Up Network Connection 
+## 🔌 Remote Installation via SSH
 
-Before running the installation script, you must set up your network connection using `iwctl` (iwd - iNet wireless daemon). This is required for downloading packages during installation.
+You can perform the installation remotely by connecting to the target machine via SSH. This approach is useful for headless setups or remote management.
+
+### 1. Enable SSH on the Target Machine
+
+Boot the target machine using the Arch Linux installation media and set a root password:
+
+```bash
+passwd
+```
+
+Start the SSH service:
+
+```bash
+systemctl start sshd
+```
+
+Find the IP address of the target machine:
+
+```bash
+ip addr show
+```
+
+### 2. Connect from Your Local Machine
+
+Connect to the target machine from your local computer:
+
+```bash
+ssh root@TARGET_IP_ADDRESS
+```
+
+### 3. Transfer the Installation Script
+
+There are several ways to transfer the script to the target machine:
+
+#### Using SCP (from your local machine):
+
+```bash
+scp /path/to/install-flexible.sh root@TARGET_IP_ADDRESS:/root/
+```
+
+### 4. Make the Script Executable and Run It 🚀
+
+On the target machine, make the script executable and run it:
+
+```bash
+chmod +x install-flexible.sh
+./install-flexible.sh
+```
+
+## 🌐 Setting Up Network Connection (Optional)
+Networking is configured automatically by the script. If any issues are detected during setup, the script will notify you.
+If you experience connection problems, you can manually set up the network using the methods described below.
 
 ### Using iwctl to Connect to WiFi 📡
 
@@ -51,6 +102,11 @@ Before running the installation script, you must set up your network connection 
    ping -c 3 archlinux.org
    ```
 
+8. Launch script again:
+   ```bash
+   ./install-flexible.sh
+   ```
+
 ### 🔐 Example for Connecting to Hidden Network 
 
 ```bash
@@ -61,31 +117,13 @@ iwctl
 [iwd]# exit
 ```
 
-## 🚀 Running the Installation Script 
+### Troubleshooting
 
-Once you have confirmed your internet connection is working, you can run the installation script:
-
-```bash
-./install-flexible.sh
-```
-
-The script will guide you through the installation process with various options for:
-- Disk partitioning
-- File system selection
-- Desktop environment options
-- Package selection
-- User creation
-
-## Customization Options
-
-The script provides several customization options which will be presented during execution. Follow the on-screen prompts to tailor your installation.
-
-## Troubleshooting
-
-If you encounter network issues, try the following:
+If you still encounter network issues, try the following:
 - Ensure your wireless device is not blocked: `rfkill unblock all`
 - For wired connections, use: `dhcpcd`
 - For more complex network setups, refer to the [Arch Wiki Network Configuration](https://wiki.archlinux.org/title/Network_configuration)
+
 
 ## ZFS Management Commands (Post Installation)
 
