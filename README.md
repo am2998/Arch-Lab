@@ -1,6 +1,6 @@
 # 🧪 Lab
 
-This is a personal repository for making code experiments.
+This is a personal repository created to make code experiments.
 
 ## 📂 Repository Structure
 
@@ -29,7 +29,7 @@ Contains configuration files for various applications:
 
 - **Kitty/** - Terminal emulator configurations
   - `kitty.conf` - 🐱 Kitty terminal settings and customizations
-  
+
 ---
 
 *Feel free to explore and use these configurations and scripts for your own Arch Linux installations.* 
