@@ -4,7 +4,7 @@ This is a personal repository created to make code experiments.
 
 ## 📂 Repository Structure
 
-### 🐧 Arch-Scripts
+### 🐧 arch-scripts
 
 Contains various Arch Linux installation scripts:
 
@@ -17,17 +17,17 @@ Contains various Arch Linux installation scripts:
   - `install-flexible.sh` - 🛠️ Adaptable installation script with more configuration options
   - `README.md` - 📝 Documentation for the flexible installation process
 
-### ⚙️ Configs
+### ⚙️ configs
 
 Contains configuration files for various applications:
 
-- **Arkenfox/** - Firefox privacy and security configurations
+- **arkenfox/** - Firefox privacy and security configurations
   - `user.js` - 🦊 Hardened Firefox settings
 
-- **Fastfetch/** - System information display tool configurations
+- **fastfetch/** - System information display tool configurations
   - `config.jsonc` - 📊 Custom Fastfetch appearance settings
 
-- **Kitty/** - Terminal emulator configurations
+- **kitty/** - Terminal emulator configurations
   - `kitty.conf` - 🐱 Kitty terminal settings and customizations
 
 ---
