@@ -185,7 +185,6 @@ echo " / ___ \| | | (__| | | | | |___| | | | | |_| |>  <  "
 echo "/_/   \_\_|  \___|_| |_| |_____|_|_| |_|\__,_/_/\_\ "
 echo -e "\033[0m"
 echo -e "\033[1;38;5;45m         Flexible Installation Script\033[0m"
-echo -e "\033[1;38;5;243m           (A script for Arch Linux installation)\033[0m\n"
 
 
 # ----------------------------------------
@@ -198,9 +197,80 @@ echo -e "\033[1;94m🌐 Checking network connection...\033[0m"
 if ping -c 1 archlinux.org &> /dev/null; then
     echo -e "\033[1;92m✅ Network is working properly\033[0m\n"
 else
-    echo -e "\033[1;91m❌ No network connection. Please verify your network and try again.\033[0m"
-    echo -e "\033[1;93m💡 Try: iwctl $0\033[0m"
-    exit 1
+    echo -e "\033[1;91m❌ No network connection detected.\033[0m"
+    
+    # Check if we're using a wireless interface
+    if [ -d "/sys/class/net/wlan0" ] || [ -d "/sys/class/net/wlp*" ]; then
+        echo -e "\033[1;94m🔄 Wireless interface detected. Scanning for WiFi networks...\033[0m"
+        
+        # Find the wireless interface name
+        WIRELESS_INTERFACE=$(ls /sys/class/net/ | grep -E '^wlan0|^wlp')
+        
+        if [ -z "$WIRELESS_INTERFACE" ]; then
+            echo -e "\033[1;91m❌ Could not determine wireless interface name.\033[0m"
+            exit 1
+        fi
+        
+        # Make sure iwd service is running
+        systemctl start iwd
+        
+        # Scan for networks using iwctl
+        echo -e "\033[1;94m📡 Scanning for networks...\033[0m"
+        iwctl station $WIRELESS_INTERFACE scan
+        sleep 3 # Give it some time to scan
+        
+        # Get available networks and store them in an array
+        mapfile -t WIFI_NETWORKS < <(iwctl station $WIRELESS_INTERFACE get-networks | grep -v -e "^    " -e "^$" -e "Available" -e "----" | awk '{print $1}' | sort -u)
+        
+        if [ ${#WIFI_NETWORKS[@]} -eq 0 ]; then
+            echo -e "\033[1;91m❌ No WiFi networks found. Please check your wireless adapter.\033[0m"
+            exit 1
+        fi
+        
+        # Display available networks
+        echo -e "\033[1;94m📶 Available WiFi networks:\033[0m"
+        for i in "${!WIFI_NETWORKS[@]}"; do
+            echo -e "  \033[1;37m$((i+1)))\033[0m ${WIFI_NETWORKS[$i]}"
+        done
+        echo
+        
+        # Let user select a network
+        while true; do
+            echo -en "\033[1;94mEnter the number of the network to connect to (1-${#WIFI_NETWORKS[@]}): \033[0m"
+            read -r wifi_choice
+            
+            if [[ "$wifi_choice" =~ ^[0-9]+$ && "$wifi_choice" -ge 1 && "$wifi_choice" -le "${#WIFI_NETWORKS[@]}" ]]; then
+                WIFI_SSID="${WIFI_NETWORKS[$((wifi_choice-1))]}"
+                echo -e "\033[1;92m✅ Selected WiFi network: \033[1;97m$WIFI_SSID\033[0m\n"
+                
+                # Get password
+                echo -en "\033[1;94mEnter password for $WIFI_SSID: \033[0m"
+                read -rs WIFI_PASSWORD
+                echo
+                
+                # Connect to the network
+                echo -e "\033[1;94m🔄 Connecting to $WIFI_SSID...\033[0m"
+                iwctl station $WIRELESS_INTERFACE connect "$WIFI_SSID" --passphrase "$WIFI_PASSWORD"
+                
+                # Wait for connection and verify
+                echo -e "\033[1;94m🔄 Waiting for connection to establish...\033[0m"
+                sleep 5
+                
+                if ping -c 1 archlinux.org &> /dev/null; then
+                    echo -e "\033[1;92m✅ Successfully connected to WiFi!\033[0m\n"
+                    break
+                else
+                    echo -e "\033[1;91m❌ Failed to connect. Check your password and try again.\033[0m"
+                fi
+            else
+                echo -e "\033[1;91m❌ Invalid selection. Please enter a number between 1 and ${#WIFI_NETWORKS[@]}.\033[0m"
+            fi
+        done
+    else
+        echo -e "\033[1;93m💡 Please check your network connection and try again.\033[0m"
+        echo -e "\033[1;93m💡 You may need to run 'iwctl' to configure your wireless connection.\033[0m"
+        exit 1
+    fi
 fi
 
 # ----------------------------------------
