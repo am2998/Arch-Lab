@@ -1,10 +1,10 @@
 # 🧪 Lab
 
-This is a personal repository for storing Arch Linux installation scripts and general configuration files.
+This is a personal repository for making code experiments.
 
 ## 📂 Repository Structure
 
-### 🐧 ArchLinux
+### 🐧 Arch-Scripts
 
 Contains various Arch Linux installation scripts:
 
@@ -29,11 +29,7 @@ Contains configuration files for various applications:
 
 - **Kitty/** - Terminal emulator configurations
   - `kitty.conf` - 🐱 Kitty terminal settings and customizations
-
-## 📜 License
-
-This repository is licensed under the terms provided in the LICENSE file.
-
+  
 ---
 
 *Feel free to explore and use these configurations and scripts for your own Arch Linux installations.* 
