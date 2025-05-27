@@ -184,7 +184,7 @@ echo "  / _ \ | '__/ __| '_ \  | |   | | '_ \| | | \ \/ / "
 echo " / ___ \| | | (__| | | | | |___| | | | | |_| |>  <  "
 echo "/_/   \_\_|  \___|_| |_| |_____|_|_| |_|\__,_/_/\_\ "
 echo -e "\033[0m"
-echo -e "\033[1;38;5;45m         Flexible Installation Script\033[0m"
+echo -e "\033[1;38;5;45m           Flexible Installation Script\033[0m"
 
 
 # ----------------------------------------
@@ -348,6 +348,13 @@ while true; do
     # Verify choice is valid
     if [[ "$disk_choice" =~ ^[0-9]+$ && "$disk_choice" -ge 1 && "$disk_choice" -le "${#DISK_PATHS[@]}" ]]; then
         DEVICE="${DISK_PATHS[$((disk_choice-1))]}"
+        if [[ "$DEVICE" == /dev/nvme* ]]; then
+            PARTITION_1="p1"
+            PARTITION_2="p2"
+        else
+            PARTITION_1="1"
+            PARTITION_2="2"
+        fi
         echo -e "\033[1;92m✅ Selected device: \033[1;97m$DEVICE\033[0m\n"
         
         if [ "$INSTALL_MODE" = "simple" ]; then
@@ -1838,22 +1845,7 @@ done
 # ----------------------------------------
 print_section_header "CLEAN SYSTEM DISK"
 
-if lsblk | grep nvme &>/dev/null; then
-        DISK="/dev/nvme0n1"
-        PARTITION_1="p1"
-        PARTITION_2="p2"
-        echo "NVMe disk detected: $DISK"
-elif lsblk | grep sda &>/dev/null; then
-        DISK="/dev/sda"
-        PARTITION_1="1"
-        PARTITION_2="2"
-        echo "SATA disk detected: $DISK"
-else 
-        echo "ERROR: No NVMe or SATA drive found. Exiting."
-        exit 1
-fi
-
-run_command "wipefs -a -f $DISK" "wipe disk signatures"
+run_command "wipefs -a -f $DEVICE" "wipe disk signatures"
 
 # Partition the disk based on installation mode
 if [ "$INSTALL_MODE" = "advanced" ]; then
@@ -1876,7 +1868,7 @@ if [ "$INSTALL_MODE" = "advanced" ]; then
         echo                             # Use remaining space
     fi
     echo w                                # Write the partition table
-    ) | run_command "fdisk $DISK" "create partitions"
+    ) | run_command "fdisk $DEVICE" "create partitions"
 
 else
     # Use default partition sizes
@@ -1893,7 +1885,7 @@ else
     echo             # Default
     echo             # Default, use the rest of the space
     echo w           # Write the partition table
-    ) | run_command "fdisk $DISK" "create partitions"
+    ) | run_command "fdisk $DEVICE" "create partitions"
 fi
 
 
@@ -1920,7 +1912,7 @@ if [ "$ENCRYPT_DISK" = "yes" ]; then
         -O dnodesize=auto -O normalization=formD -o autotrim=on \
         -O atime=off -O xattr=sa -O mountpoint=none \
         -O encryption=aes-256-gcm -O keylocation=file:///etc/zfs/zroot.key -O keyformat=passphrase \
-        -R /mnt zroot ${DISK}${PARTITION_2} -f" "create encrypted ZFS pool with $ZFS_COMPRESSION compression"
+        -R /mnt zroot ${DEVICE}${PARTITION_2} -f" "create encrypted ZFS pool with $ZFS_COMPRESSION compression"
 
 
 
@@ -1931,7 +1923,7 @@ else
         -O acltype=posixacl -O canmount=off -O compression=$ZFS_COMPRESSION \
         -O dnodesize=auto -O normalization=formD -o autotrim=on \
         -O atime=off -O xattr=sa -O mountpoint=none \
-        -R /mnt zroot ${DISK}${PARTITION_2} -f" "create ZFS pool with $ZFS_COMPRESSION compression"
+        -R /mnt zroot ${DEVICE}${PARTITION_2} -f" "create ZFS pool with $ZFS_COMPRESSION compression"
 fi
 
 run_command "zfs create -o canmount=noauto -o mountpoint=/ zroot/root" "create ZFS root dataset"
@@ -1956,8 +1948,8 @@ cp /etc/zfs/zpool.cache /mnt/etc/zfs/zpool.cache
 cp /etc/zfs/zroot.key /mnt/etc/zfs/zroot.key
 
 
-run_command "mkfs.fat -F32 ${DISK}${PARTITION_1}" "format EFI partition with FAT32"
-mkdir -p /mnt/efi && mount ${DISK}${PARTITION_1} /mnt/efi
+run_command "mkfs.fat -F32 ${DEVICE}${PARTITION_1}" "format EFI partition with FAT32"
+mkdir -p /mnt/efi && mount ${DEVICE}${PARTITION_1} /mnt/efi
 
 # ----------------------------------------
 # INSTALL BASE
@@ -2042,7 +2034,7 @@ mkdir -p /efi/EFI/zbm
 run_command "wget https://get.zfsbootmenu.org/latest.EFI -O /efi/EFI/zbm/zfsbootmenu.EFI" "download ZFSBootMenu EFI file"
 
 # Standard parameters
-run_command "efibootmgr --disk $DISK --part 1 --create \
+run_command "efibootmgr --disk $DEVICE --part 1 --create \
                  --label \"ZFSBootMenu\" \
                  --loader '\\EFI\\zbm\\zfsbootmenu.EFI' \
                  --unicode \"spl_hostid=$(hostid) zbm.timeout=3 zbm.prefer=zroot zbm.import_policy=hostid\" \
@@ -2236,6 +2228,11 @@ print_section_header "INSTALLING AUR HELPER"
 
 run_command "su -c \"cd /tmp && git clone https://aur.archlinux.org/yay.git && cd yay && echo $USERPASS | makepkg -si --noconfirm\" $USER" "install Yay AUR helper"
 
+# Remove the no more needed NOPASSWD entry and add a proper sudoers entry
+sed -i "/^$USER ALL=(ALL:ALL) NOPASSWD: ALL/d" /etc/sudoers
+echo -e "\n$USER ALL=(ALL:ALL) ALL" >> /etc/sudoers
+
+
 # ----------------------------------------
 # UTILITIES INSTALLATION
 # ----------------------------------------
@@ -2287,7 +2284,7 @@ EOF
 
 # Export values into chroot via env, delay expansion until inside chroot
 env \
-DISK="$DISK" \
+DISK="$DEVICE" \
 HOSTNAME="$HOSTNAME" \
 KEYBOARD_LAYOUT="$KEYBOARD_LAYOUT" \
 SYSTEM_LOCALE="$SYSTEM_LOCALE" \
