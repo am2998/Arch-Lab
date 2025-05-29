@@ -1,6 +1,6 @@
-# 🧪 Lab
+# 🧪 Arch-Lab
 
-This is a personal repository created to make code experiments.
+This is a personal repository created to make Arch Linux code experiments.
 
 ## 📂 Repository Structure
 
