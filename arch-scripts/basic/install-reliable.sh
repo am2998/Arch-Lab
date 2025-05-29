@@ -208,7 +208,7 @@ pacman -Syy
 
 echo "$HOSTNAME" > /etc/hostname
 
-localectl set-keymap --no-convert us
+localectl set-keymap us && echo "KEYMAP=us" > /etc/vconsole.conf
 
 ln -sf /usr/share/zoneinfo/Europe/Rome /etc/localtime
 
@@ -225,15 +225,14 @@ echo -e "127.0.0.1   localhost\n::1         localhost\n127.0.1.1   $HOSTNAME.loc
 # Install utilities and Enable services
 # --------------------------------------------------------------------------------------------------------------------------
 
-pacman -S --noconfirm net-tools flatpak git man vi nano lite-xl distrobox veracrypt rclone cronie podman
-systemctl enable cronie
+pacman -S --noconfirm net-tools flatpak git man vi nano lite-xl distrobox podman
 
 
 # --------------------------------------------------------------------------------------------------------------------------
 # Install audio components
 # --------------------------------------------------------------------------------------------------------------------------
 
-pacman -S --noconfirm pipewire wireplumber pipewire-pulse alsa-plugins alsa-firmware sof-firmware alsa-card-profiles pavucontrol-qt
+pacman -S --noconfirm wireplumber pipewire-pulse pipewire-alsa pavucontrol-qt
 
 
 # --------------------------------------------------------------------------------------------------------------------------
