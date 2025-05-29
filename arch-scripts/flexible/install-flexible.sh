@@ -53,8 +53,6 @@ handle_error() {
                     ;;
                 [Aa]*)
                     echo -e "\n\033[1;31m🛑 Aborting installation\033[0m"
-                    # Create a flag file to indicate installation was aborted
-                    touch "/tmp/install_aborted"
                     exit 1
                     ;;
                 *)
@@ -145,8 +143,6 @@ run_command() {
                             ;;
                         [Aa]*)
                             echo -e "\n\033[1;31m🛑 Aborting installation\033[0m"
-                            # Create a flag file to indicate installation was aborted
-                            touch "/tmp/install_aborted"
                             exit 1
                             ;;
                         *)
@@ -1842,46 +1838,31 @@ print_section_header "CLEAN SYSTEM DISK"
 
 run_command "wipefs -a -f $DEVICE" "wipe disk signatures"
 
-# Partition the disk based on installation mode
-if [ "$INSTALL_MODE" = "advanced" ]; then
-    # Run fdisk with custom settings
-    (
-    echo g                                # Create a GPT partition table
-    echo n                                # Create the EFI partition
-    echo                                  # Default, 1
-    echo                                  # Default
-    echo +$EFI_PART_SIZE                  # Use custom EFI partition size
-    echo t                                # Change partition type to EFI
-    echo 1                                # EFI type
-    echo n                                # Create the system partition
-    echo                                  # Default, 2
-    echo                                  # Default
-    # Use user-specified root partition size if not MAX
-    if [ "$ROOT_PART_SIZE" != "MAX" ]; then
-        echo +$ROOT_PART_SIZE            # Use custom root partition size
-    else
-        echo                             # Use remaining space
-    fi
-    echo w                                # Write the partition table
-    ) | run_command "fdisk $DEVICE" "create partitions"
+# Create partition commands for fdisk
+fdisk_commands="g\nn\n\n\n"
 
+# Add partition size based on mode
+if [ "$INSTALL_MODE" = "advanced" ]; then
+    fdisk_commands+="+$EFI_PART_SIZE"
 else
-    # Use default partition sizes
-    (
-    echo g           # Create a GPT partition table
-    echo n           # Create the EFI partition
-    echo             # Default, 1
-    echo             # Default
-    echo +1G         # 1GB for the EFI partition
-    echo t           # Change partition type to EFI
-    echo 1           # EFI type
-    echo n           # Create the system partition
-    echo             # Default, 2
-    echo             # Default
-    echo             # Default, use the rest of the space
-    echo w           # Write the partition table
-    ) | run_command "fdisk $DEVICE" "create partitions"
+    fdisk_commands+="+1G"
 fi
+
+# Add common commands for both modes
+fdisk_commands+="\nt\n1\nn\n\n\n"
+
+# Add root partition size if specified and not MAX
+if [ "$INSTALL_MODE" = "advanced" ] && [ "$ROOT_PART_SIZE" != "MAX" ]; then
+    fdisk_commands+="+$ROOT_PART_SIZE"
+else
+    fdisk_commands+=""  # Use remaining space
+fi
+
+# Finalize commands
+fdisk_commands+="\nw"
+
+# Execute fdisk with the generated commands
+echo -e "$fdisk_commands" | run_command "fdisk $DEVICE" "create partitions"
 
 
 # ----------------------------------------
@@ -1940,7 +1921,10 @@ fi
 mkdir -p /mnt/etc/zfs
 run_command "zpool set cachefile=/etc/zfs/zpool.cache zroot" "set ZFS pool cache file"
 cp /etc/zfs/zpool.cache /mnt/etc/zfs/zpool.cache
-cp /etc/zfs/zroot.key /mnt/etc/zfs/zroot.key
+
+if [ "$ENCRYPT_DISK" = "yes" ]; then
+   cp /etc/zfs/zroot.key /mnt/etc/zfs/zroot.key
+fi
 
 
 run_command "mkfs.fat -F32 ${DEVICE}${PARTITION_1}" "format EFI partition with FAT32"
@@ -1951,7 +1935,7 @@ mkdir -p /mnt/efi && mount ${DEVICE}${PARTITION_1} /mnt/efi
 # ----------------------------------------
 print_section_header "INSTALL BASE"
 
-run_command "pacstrap /mnt linux-lts linux-lts-headers mkinitcpio base git base-devel linux-firmware zram-generator reflector sudo networkmanager efibootmgr $CPU_MICROCODE wget unzip" "install base packages" 
+run_command "pacstrap /mnt linux-lts linux-lts-headers base git base-devel linux-firmware zram-generator reflector sudo networkmanager efibootmgr $CPU_MICROCODE wget unzip" "install base packages" 
 
 
 # ----------------------------------------
@@ -2286,27 +2270,26 @@ echo -e "  \033[1;37m2)\033[0m \033[1;38;5;203mNo\033[0m (Skip this step)"
 echo
 
 while true; do
-    echo -en "\033[1;94mEnter your choice (1-2): \033[0m"
     while read -r -t 0; do read -r; done
-    read -r custom_packages_choice
+    echo -en "\033[1;94mEnter your choice (1-2): \033[0m"
+    read -r CUSTOM_PACKAGES_CHOICE
     
-    case $custom_packages_choice in
-        1)
+    case \$CUSTOM_PACKAGES_CHOICE in
+        "1")
             echo -e "\n\033[1;94mEnter the package names separated by spaces:\033[0m"
             echo -e "\033[1;93mExample: neofetch htop vlc gimp\033[0m"
             echo -en "\033[1;94mPackages: \033[0m"
-            while read -r -t 0; do read -r; done
-            read -r custom_packages
+            read -r CUSTOM_PACKAGES
             
-            if [ -n "$custom_packages" ]; then
-                echo -e "\n\033[1;92m✨ Installing custom packages: \033[1;97m$custom_packages\033[0m"
-                run_command "pacman -S --noconfirm --needed $custom_packages" "install custom packages"
+            if [ -n "\$CUSTOM_PACKAGES" ]; then
+                echo -e "\n\033[1;92m✨ Installing custom packages: \033[1;97m\$CUSTOM_PACKAGES\033[0m"
+                run_command "pacman -S --noconfirm --needed \$CUSTOM_PACKAGES" "install custom packages"
             else
                 echo -e "\n\033[1;93m⚠️ No packages specified. Skipping custom package installation.\033[0m"
             fi
             break
             ;;
-        2|"")
+        "2")
             echo -e "\033[1;92m✅ Skipping custom package installation\033[0m"
             break
             ;;
@@ -2315,6 +2298,9 @@ while true; do
             ;;
     esac
 done
+
+# Signal success if we reach the end of the script without errors
+exit 0
 
 EOF
 
@@ -2346,20 +2332,16 @@ arch-chroot /mnt /bin/bash -c "$chroot_script"
 # Cleanup and Finalize Installation
 # --------------------------------------------------------------------------------------------------------------------------
 
-# Set a flag to indicate if installation completed successfully
-INSTALL_SUCCESS=true
-
-# Check if we had a critical error that caused installation to abort
-if [ -f "/tmp/install_aborted" ]; then
-    INSTALL_SUCCESS=false
-    rm -f "/tmp/install_aborted"
-fi
-
 # Remove installation files from the mounted system
 rm -rf /mnt/install
 
-# Stop redirecting to log file before the final steps
-exec > /dev/tty 2>&1
+CHROOT_EXIT_STATUS=$?
+
+if [ $CHROOT_EXIT_STATUS -eq 0 ]; then
+    INSTALL_SUCCESS=true
+else
+    INSTALL_SUCCESS=false
+fi
 
 # Only show completion message if installation was successful
 if [ "$INSTALL_SUCCESS" = true ]; then
@@ -2373,7 +2355,7 @@ if [ "$INSTALL_SUCCESS" = true ]; then
     echo " ██████╔╝╚██████╔╝██║ ╚████║███████╗██╗"
     echo " ╚═════╝  ╚═════╝ ╚═╝  ╚═══╝╚══════╝╚═╝"
     echo -e "\033[0m"
-                                      
+    
     echo -e "\n\033[1;38;5;82m✅ Installation completed successfully!\033[0m"
     echo -e "\033[1;38;5;75m📋 Installation Summary:\033[0m"
     echo
@@ -2433,8 +2415,8 @@ if [ "$INSTALL_SUCCESS" = true ]; then
         case $reboot_choice in
             [Yy])
                 echo -e "\n\033[1;94m🔄 Unmounting filesystems and rebooting system...\033[0m"
-                umount -R /mnt 2>/dev/null
                 zfs umount -a 2>/dev/null
+                umount -R /mnt 2>/dev/null
                 zpool export -a 2>/dev/null
                 
                 # Reboot the system
@@ -2453,8 +2435,8 @@ if [ "$INSTALL_SUCCESS" = true ]; then
             [Nn])
                 echo -e "\n\033[1;94mSystem is ready. You can reboot manually when ready with 'reboot' command.\033[0m"
                 echo -e "\033[1;93m⚠️  Remember to properly unmount filesystems before rebooting:\033[0m"
-                echo -e "  \033[1;37m•\033[0m umount -R /mnt"
                 echo -e "  \033[1;37m•\033[0m zfs umount -a"
+                echo -e "  \033[1;37m•\033[0m umount -R /mnt"
                 echo -e "  \033[1;37m•\033[0m zpool export -a\n\n"
                 exit 0
                 ;;
@@ -2466,8 +2448,17 @@ if [ "$INSTALL_SUCCESS" = true ]; then
     done
 else
     # Display message if installation was aborted
-    echo -e "\n\033[1;91m❌ Installation was aborted due to errors.\033[0m"
-    echo -e "\033[1;93mCheck the log file for details: $LOG_FILE\033[0m"
-    echo -e "\033[1;37mYou can view the log with: less $LOG_FILE\033[0m\n"
+    clear
+    echo -e "\033[1;31m"
+    echo " ███████╗██████╗ ██████╗  ██████╗ ██████╗ ██╗"
+    echo " ██╔════╝██╔══██╗██╔══██╗██╔═══██╗██╔══██╗██║"
+    echo " █████╗  ██████╔╝██████╔╝██║   ██║██████╔╝██║"
+    echo " ██╔══╝  ██╔══██╗██╔══██╗██║   ██║██╔══██╗╚═╝"
+    echo " ███████╗██║  ██║██║  ██║╚██████╔╝██║  ██║██╗"
+    echo " ╚══════╝╚═╝  ╚═╝╚═╝  ╚═╝ ╚═════╝ ╚═╝  ╚═╝╚═╝"
+    echo -e "\033[0m"
+    
+    echo -e "\n\033[1;91m❌ Installation was aborted or failed during the chroot process.\033[0m"
+    echo -e "\033[1;93mCheck the log file for details: $LOG_FILE\033[0m\n"
     exit 1
 fi
