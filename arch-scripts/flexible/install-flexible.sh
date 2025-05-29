@@ -168,13 +168,6 @@ run_command() {
     done
 }
 
-
-
-
-
-
-
-
 # Display welcome banner with enhanced colors
 clear
 echo -e "\033[1;38;5;75m"
@@ -2104,7 +2097,7 @@ echo "$HOSTNAME" > /etc/hostname
 echo -e "127.0.0.1   localhost\n::1         localhost\n127.0.1.1   $HOSTNAME.localdomain   $HOSTNAME" > /etc/hosts
 
 echo -e "\033[1;94m🔣 Configuring keyboard layout: \033[1;97m$KEYBOARD_LAYOUT\033[0m"
-run_command "localectl set-keymap --no-convert \"$KEYBOARD_LAYOUT\"" "set keyboard layout"
+run_command "localectl set-keymap "$KEYBOARD_LAYOUT" && echo "KEYMAP=$KEYBOARD_LAYOUT" > /etc/vconsole.conf" "set keyboard layout"
 
 echo -e "\033[1;94m🕒 Setting up timezone and clock...\033[0m"
 run_command "ln -sf /usr/share/zoneinfo/Europe/Rome /etc/localtime" "set timezone"
@@ -2279,7 +2272,51 @@ elif [ "$GPU_TYPE" = "None/VM" ]; then
     run_command "pacman -S --noconfirm mesa xf86-video-fbdev" "install basic video drivers"
 fi
 
+# ----------------------------------------
+# CUSTOM PACKAGES INSTALLATION
+# ----------------------------------------
+print_section_header "CUSTOM PACKAGES INSTALLATION"
+
+echo -e "\033[1;94mWould you like to install additional custom packages?\033[0m"
+echo -e "\033[1;93mThis is your chance to add any specific software before completing the installation.\033[0m\n"
+echo -e "  \033[1;37m1)\033[0m \033[1;38;5;82mYes\033[0m (Specify packages to install)"
+echo -e "  \033[1;37m2)\033[0m \033[1;38;5;203mNo\033[0m (Skip this step)"
+echo
+
+while true; do
+    echo -en "\033[1;94mEnter your choice (1-2): \033[0m"
+    while read -r -t 0; do read -r; done
+    read -r custom_packages_choice
+    
+    case $custom_packages_choice in
+        1)
+            echo -e "\n\033[1;94mEnter the package names separated by spaces:\033[0m"
+            echo -e "\033[1;93mExample: neofetch htop vlc gimp\033[0m"
+            echo -en "\033[1;94mPackages: \033[0m"
+            while read -r -t 0; do read -r; done
+            read -r custom_packages
+            
+            if [ -n "$custom_packages" ]; then
+                echo -e "\n\033[1;92m✨ Installing custom packages: \033[1;97m$custom_packages\033[0m"
+                run_command "pacman -S --noconfirm --needed $custom_packages" "install custom packages"
+            else
+                echo -e "\n\033[1;93m⚠️ No packages specified. Skipping custom package installation.\033[0m"
+            fi
+            break
+            ;;
+        2|"")
+            echo -e "\033[1;92m✅ Skipping custom package installation\033[0m"
+            break
+            ;;
+        *)
+            echo -e "\033[1;91m⚠️ Invalid choice. Please enter 1 or 2.\033[0m"
+            ;;
+    esac
+done
+
 EOF
+
+
 )
 
 # Export values into chroot via env, delay expansion until inside chroot
@@ -2383,15 +2420,13 @@ while true; do
     case $reboot_choice in
         [Yy])
             echo -e "\n\033[1;94m🔄 Unmounting filesystems and rebooting system...\033[0m"
-            
-            # Unmount all filesystems and export pools
-            umount -R /mnt
-            zfs umount -a
-            zpool export -a
+            umount -R /mnt 2>/dev/null
+            zfs umount -a 2>/dev/null
+            zpool export -a 2>/dev/null
             
             # Reboot the system
             echo -e "\033[1;92m👋 Rebooting now. See you on the other side!\033[0m"
-            sleep 2
+            sleep 1
             reboot
             exit 0  # Ensure the script exits immediately
             ;;
@@ -2399,7 +2434,6 @@ while true; do
             echo -e "\033[1;94mShowing installation log. Press q to return to reboot prompt.\033[0m"
             less "$LOG_FILE"
             echo -e "\033[1;93mReturning to reboot prompt...\033[0m"
-            sleep 1
             # Continue with the reboot prompt after viewing log
             continue
             ;;
@@ -2412,7 +2446,7 @@ while true; do
             exit 0
             ;;
         *)
-            echo -e "\033[1;91m⚠️ Invalid choice. Please answer Y or N.\033[0m"
+            echo -e "\033[1;91m⚠️ Invalid choice. Please answer Y, N, or S.\033[0m"
             # The loop will continue and repeat the question
             ;;
     esac
