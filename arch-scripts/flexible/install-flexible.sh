@@ -53,6 +53,8 @@ handle_error() {
                     ;;
                 [Aa]*)
                     echo -e "\n\033[1;31m🛑 Aborting installation\033[0m"
+                    # Create a flag file to indicate installation was aborted
+                    touch "/tmp/install_aborted"
                     exit 1
                     ;;
                 *)
@@ -143,6 +145,8 @@ run_command() {
                             ;;
                         [Aa]*)
                             echo -e "\n\033[1;31m🛑 Aborting installation\033[0m"
+                            # Create a flag file to indicate installation was aborted
+                            touch "/tmp/install_aborted"
                             exit 1
                             ;;
                         *)
@@ -1463,12 +1467,13 @@ while true; do
                                               fi
                                          done
                                          
-                                         COLUMNS=4
-                                         TOTAL_LAYOUTS=${#KEYBOARD_LAYOUTS[@]}
+                                         COLUMNS=4                                         TOTAL_LAYOUTS=${#KEYBOARD_LAYOUTS[@]}
                                          
                                          echo -e "\nAvailable keyboard layouts:"
                                          for ((i=0; i<TOTAL_LAYOUTS; i++)); do
+                                              # Format each entry with fixed width for alignment
                                               printf "  \033[1;37m%3d)\033[0m %-20s" "$((i+1))" "${KEYBOARD_LAYOUTS[$i]}"
+                                              # Add a newline after every COLUMNS items
                                               if (( (i+1) % COLUMNS == 0 )); then
                                                     echo ""
                                               fi
@@ -1554,12 +1559,9 @@ while true; do
                                          done
                                          echo -e "\n... (showing first 30 only)"
                                          
-                                         read -p "Enter locale number or name: " locale_input
+                                         read -p "Enter locale number: " locale_input
                                          if [[ "$locale_input" =~ ^[0-9]+$ && "$locale_input" -ge 1 && "$locale_input" -le 30 ]]; then
                                               SYSTEM_LOCALE="${AVAILABLE_LOCALES[$((locale_input-1))]}"
-                                              echo -e "\033[1;92m✅ System locale successfully set to $SYSTEM_LOCALE\033[0m"
-                                         elif [[ "$locale_input" =~ ^[a-zA-Z_]+\.UTF-8$ ]]; then
-                                              SYSTEM_LOCALE="$locale_input"
                                               echo -e "\033[1;92m✅ System locale successfully set to $SYSTEM_LOCALE\033[0m"
                                          else
                                               echo -e "\033[1;91m⚠️ Invalid choice. Value not changed.\033[0m"
@@ -2049,7 +2051,7 @@ if [ -f "/etc/zfs/zroot.key" ]; then
     echo -e "\033[1;94m🔐 Setting up ZFS encryption keys...\033[0m"
 
     # Add zroot.key to the FILES array in mkinitcpio.conf
-    run_command "sed -i 's|^FILES=.*|FILES=(/etc/zfs/zroot.key)|' /etc/mkinitcpio.conf" "add encryption key to mkinitcpio FILES array"
+    run_command "sed -i '/^FILES=.*|FILES=(/etc/zfs/zroot.key)/d' /etc/mkinitcpio.conf" "add encryption key to mkinitcpio FILES array"
     run_command "mkinitcpio -p linux-lts" "regenerate initial ramdisk with encryption support"
     FILES=(/etc/zfs/zroot.key)
     
@@ -2344,110 +2346,128 @@ arch-chroot /mnt /bin/bash -c "$chroot_script"
 # Cleanup and Finalize Installation
 # --------------------------------------------------------------------------------------------------------------------------
 
+# Set a flag to indicate if installation completed successfully
+INSTALL_SUCCESS=true
+
+# Check if we had a critical error that caused installation to abort
+if [ -f "/tmp/install_aborted" ]; then
+    INSTALL_SUCCESS=false
+    rm -f "/tmp/install_aborted"
+fi
+
 # Remove installation files from the mounted system
 rm -rf /mnt/install
 
 # Stop redirecting to log file before the final steps
 exec > /dev/tty 2>&1
 
-# Print completion message
-clear
-echo -e "\033[1;38;5;40m"
-echo " ██████╗  ██████╗ ███╗   ██╗███████╗██╗"
-echo " ██╔══██╗██╔═══██╗████╗  ██║██╔════╝██║"
-echo " ██║  ██║██║   ██║██╔██╗ ██║█████╗  ██║"
-echo " ██║  ██║██║   ██║██║╚██╗██║██╔══╝  ╚═╝"
-echo " ██████╔╝╚██████╔╝██║ ╚████║███████╗██╗"
-echo " ╚═════╝  ╚═════╝ ╚═╝  ╚═══╝╚══════╝╚═╝"
-echo -e "\033[0m"
-                                  
-echo -e "\n\033[1;38;5;82m✅ Installation completed successfully!\033[0m"
-echo -e "\033[1;38;5;75m📋 Installation Summary:\033[0m"
-echo
+# Only show completion message if installation was successful
+if [ "$INSTALL_SUCCESS" = true ]; then
+    # Print completion message
+    clear
+    echo -e "\033[1;38;5;40m"
+    echo " ██████╗  ██████╗ ███╗   ██╗███████╗██╗"
+    echo " ██╔══██╗██╔═══██╗████╗  ██║██╔════╝██║"
+    echo " ██║  ██║██║   ██║██╔██╗ ██║█████╗  ██║"
+    echo " ██║  ██║██║   ██║██║╚██╗██║██╔══╝  ╚═╝"
+    echo " ██████╔╝╚██████╔╝██║ ╚████║███████╗██╗"
+    echo " ╚═════╝  ╚═════╝ ╚═╝  ╚═══╝╚══════╝╚═╝"
+    echo -e "\033[0m"
+                                      
+    echo -e "\n\033[1;38;5;82m✅ Installation completed successfully!\033[0m"
+    echo -e "\033[1;38;5;75m📋 Installation Summary:\033[0m"
+    echo
 
-# System Information
-echo -e "\033[1;38;5;219m📌 System Information:\033[0m"
-echo -e "  \033[1;97m💻\033[0m Hostname: \033[1;97m$HOSTNAME\033[0m"
-echo -e "  \033[1;97m👤\033[0m Username: \033[1;97m$USER\033[0m"
-echo -e "  \033[1;97m🔣\033[0m Keyboard: \033[1;97m$KEYBOARD_LAYOUT\033[0m"
-echo -e "  \033[1;97m🌐\033[0m Locale: \033[1;97m$SYSTEM_LOCALE\033[0m"
-echo -e "  \033[1;97m🌍\033[0m Mirrors: \033[1;97m${MIRROR_COUNTRY:-Worldwide}\033[0m"
-echo
+    # System Information
+    echo -e "\033[1;38;5;219m📌 System Information:\033[0m"
+    echo -e "  \033[1;97m💻\033[0m Hostname: \033[1;97m$HOSTNAME\033[0m"
+    echo -e "  \033[1;97m👤\033[0m Username: \033[1;97m$USER\033[0m"
+    echo -e "  \033[1;97m🔣\033[0m Keyboard: \033[1;97m$KEYBOARD_LAYOUT\033[0m"
+    echo -e "  \033[1;97m🌐\033[0m Locale: \033[1;97m$SYSTEM_LOCALE\033[0m"
+    echo -e "  \033[1;97m🌍\033[0m Mirrors: \033[1;97m${MIRROR_COUNTRY:-Worldwide}\033[0m"
+    echo
 
-# Hardware Configuration
-echo -e "\033[1;38;5;117m⚙️ Hardware Configuration:\033[0m"
-echo -e "  \033[1;97m💽\033[0m Target Device: \033[1;97m$DEVICE\033[0m"
-echo -e "  \033[1;97m🧠\033[0m CPU: \033[1;97m$CPU_TYPE ($CPU_MICROCODE)\033[0m"
-echo -e "  \033[1;97m📺\033[0m GPU: \033[1;97m$GPU_TYPE\033[0m"
-if [ "$GPU_TYPE" = "NVIDIA" ]; then
-    echo -e "  \033[1;97m🎮\033[0m NVIDIA Drivers: \033[1;97m$NVIDIA_DRIVER_TYPE\033[0m"
+    # Hardware Configuration
+    echo -e "\033[1;38;5;117m⚙️ Hardware Configuration:\033[0m"
+    echo -e "  \033[1;97m💽\033[0m Target Device: \033[1;97m$DEVICE\033[0m"
+    echo -e "  \033[1;97m🧠\033[0m CPU: \033[1;97m$CPU_TYPE ($CPU_MICROCODE)\033[0m"
+    echo -e "  \033[1;97m📺\033[0m GPU: \033[1;97m$GPU_TYPE\033[0m"
+    if [ "$GPU_TYPE" = "NVIDIA" ]; then
+        echo -e "  \033[1;97m🎮\033[0m NVIDIA Drivers: \033[1;97m$NVIDIA_DRIVER_TYPE\033[0m"
+    fi
+    echo -e "  \033[1;97m🔊\033[0m Audio Server: \033[1;97m$AUDIO_SERVER\033[0m"
+    echo
+
+    # Storage Configuration
+    echo -e "\033[1;38;5;220m💾 Storage Configuration:\033[0m"
+    echo -e "  \033[1;97m🔐\033[0m Disk Encryption: \033[1;97m${ENCRYPT_DISK^}\033[0m"
+    echo -e "  \033[1;97m📁\033[0m ZFS Compression: \033[1;97m$ZFS_COMPRESSION\033[0m"
+    if [ "$INSTALL_MODE" = "advanced" ]; then
+        echo -e "  \033[1;97m📊\033[0m EFI Partition: \033[1;97m$EFI_PART_SIZE\033[0m"
+        echo -e "  \033[1;97m📊\033[0m Root Partition: \033[1;97m$ROOT_PART_SIZE\033[0m"
+        echo -e "  \033[1;97m📂\033[0m Separate Datasets: \033[1;97m${SEPARATE_DATASETS^}\033[0m"
+    fi
+    echo
+
+    # Software Configuration
+    echo -e "\033[1;38;5;114m🖱️ Software Configuration:\033[0m"
+    echo -e "  \033[1;97m💻\033[0m Desktop Environment: \033[1;97m$DE_TYPE\033[0m"
+    echo -e "  \033[1;97m📇\033[0m Install Mode: \033[1;97m${INSTALL_MODE^}\033[0m"
+    echo
+
+    # Performance Configuration
+    echo -e "\033[1;38;5;208m⚡ Performance Configuration:\033[0m"
+    echo -e "  \033[1;97m💿\033[0m ZRAM Size: \033[1;97m$ZRAM_SIZE\033[0m"
+    echo -e "  \033[1;97m📁\033[0m ZRAM Compression: \033[1;97m$ZRAM_COMPRESSION\033[0m"
+    echo
+
+    echo -e "\033[1;38;5;87m🚀 Your new Arch Linux system is ready!\033[0m"
+
+    # Ask user if they want to reboot now
+    while true; do
+        echo -en "\033[1;93mDo you want to reboot now? [Y/n/s(show log)]: \033[0m"
+        # Clear input buffer before reading
+        while read -r -t 0; do read -r; done
+        read -r reboot_choice
+        
+        case $reboot_choice in
+            [Yy])
+                echo -e "\n\033[1;94m🔄 Unmounting filesystems and rebooting system...\033[0m"
+                umount -R /mnt 2>/dev/null
+                zfs umount -a 2>/dev/null
+                zpool export -a 2>/dev/null
+                
+                # Reboot the system
+                echo -e "\033[1;92m👋 Rebooting now. See you on the other side!\033[0m"
+                sleep 1
+                reboot
+                exit 0  # Ensure the script exits immediately
+                ;;
+            [Ss])
+                echo -e "\033[1;94mShowing installation log. Press q to return to reboot prompt.\033[0m"
+                less "$LOG_FILE"
+                echo -e "\033[1;93mReturning to reboot prompt...\033[0m"
+                # Continue with the reboot prompt after viewing log
+                continue
+                ;;
+            [Nn])
+                echo -e "\n\033[1;94mSystem is ready. You can reboot manually when ready with 'reboot' command.\033[0m"
+                echo -e "\033[1;93m⚠️  Remember to properly unmount filesystems before rebooting:\033[0m"
+                echo -e "  \033[1;37m•\033[0m umount -R /mnt"
+                echo -e "  \033[1;37m•\033[0m zfs umount -a"
+                echo -e "  \033[1;37m•\033[0m zpool export -a\n\n"
+                exit 0
+                ;;
+            *)
+                echo -e "\033[1;91m⚠️ Invalid choice. Please answer Y, N, or S.\033[0m"
+                # The loop will continue and repeat the question
+                ;;
+        esac
+    done
+else
+    # Display message if installation was aborted
+    echo -e "\n\033[1;91m❌ Installation was aborted due to errors.\033[0m"
+    echo -e "\033[1;93mCheck the log file for details: $LOG_FILE\033[0m"
+    echo -e "\033[1;37mYou can view the log with: less $LOG_FILE\033[0m\n"
+    exit 1
 fi
-echo -e "  \033[1;97m🔊\033[0m Audio Server: \033[1;97m$AUDIO_SERVER\033[0m"
-echo
-
-# Storage Configuration
-echo -e "\033[1;38;5;220m💾 Storage Configuration:\033[0m"
-echo -e "  \033[1;97m🔐\033[0m Disk Encryption: \033[1;97m${ENCRYPT_DISK^}\033[0m"
-echo -e "  \033[1;97m📁\033[0m ZFS Compression: \033[1;97m$ZFS_COMPRESSION\033[0m"
-if [ "$INSTALL_MODE" = "advanced" ]; then
-    echo -e "  \033[1;97m📊\033[0m EFI Partition: \033[1;97m$EFI_PART_SIZE\033[0m"
-    echo -e "  \033[1;97m📊\033[0m Root Partition: \033[1;97m$ROOT_PART_SIZE\033[0m"
-    echo -e "  \033[1;97m📂\033[0m Separate Datasets: \033[1;97m${SEPARATE_DATASETS^}\033[0m"
-fi
-echo
-
-# Software Configuration
-echo -e "\033[1;38;5;114m🖱️ Software Configuration:\033[0m"
-echo -e "  \033[1;97m💻\033[0m Desktop Environment: \033[1;97m$DE_TYPE\033[0m"
-echo -e "  \033[1;97m📇\033[0m Install Mode: \033[1;97m${INSTALL_MODE^}\033[0m"
-echo
-
-# Performance Configuration
-echo -e "\033[1;38;5;208m⚡ Performance Configuration:\033[0m"
-echo -e "  \033[1;97m💿\033[0m ZRAM Size: \033[1;97m$ZRAM_SIZE\033[0m"
-echo -e "  \033[1;97m📁\033[0m ZRAM Compression: \033[1;97m$ZRAM_COMPRESSION\033[0m"
-echo
-
-echo -e "\033[1;38;5;87m🚀 Your new Arch Linux system is ready!\033[0m"
-
-# Ask user if they want to reboot now
-while true; do
-    echo -en "\033[1;93mDo you want to reboot now? [Y/n/s(show log)]: \033[0m"
-    # Clear input buffer before reading
-    while read -r -t 0; do read -r; done
-    read -r reboot_choice
-    
-    case $reboot_choice in
-        [Yy])
-            echo -e "\n\033[1;94m🔄 Unmounting filesystems and rebooting system...\033[0m"
-            umount -R /mnt 2>/dev/null
-            zfs umount -a 2>/dev/null
-            zpool export -a 2>/dev/null
-            
-            # Reboot the system
-            echo -e "\033[1;92m👋 Rebooting now. See you on the other side!\033[0m"
-            sleep 1
-            reboot
-            exit 0  # Ensure the script exits immediately
-            ;;
-        [Ss])
-            echo -e "\033[1;94mShowing installation log. Press q to return to reboot prompt.\033[0m"
-            less "$LOG_FILE"
-            echo -e "\033[1;93mReturning to reboot prompt...\033[0m"
-            # Continue with the reboot prompt after viewing log
-            continue
-            ;;
-        [Nn])
-            echo -e "\n\033[1;94mSystem is ready. You can reboot manually when ready with 'reboot' command.\033[0m"
-            echo -e "\033[1;93m⚠️  Remember to properly unmount filesystems before rebooting:\033[0m"
-            echo -e "  \033[1;37m•\033[0m umount -R /mnt"
-            echo -e "  \033[1;37m•\033[0m zfs umount -a"
-            echo -e "  \033[1;37m•\033[0m zpool export -a\n\n"
-            exit 0
-            ;;
-        *)
-            echo -e "\033[1;91m⚠️ Invalid choice. Please answer Y, N, or S.\033[0m"
-            # The loop will continue and repeat the question
-            ;;
-    esac
-done
