@@ -2277,13 +2277,57 @@ while true; do
     case \$CUSTOM_PACKAGES_CHOICE in
         "1")
             echo -e "\n\033[1;94mEnter the package names separated by spaces:\033[0m"
-            echo -e "\033[1;93mExample: neofetch htop vlc gimp\033[0m"
+            echo -e "\033[1;93mExample: fastfetch htop vlc gimp\033[0m\n"
             echo -en "\033[1;94mPackages: \033[0m"
             read -r CUSTOM_PACKAGES
             
             if [ -n "\$CUSTOM_PACKAGES" ]; then
-                echo -e "\n\033[1;92m✨ Installing custom packages: \033[1;97m\$CUSTOM_PACKAGES\033[0m"
-                run_command "pacman -S --noconfirm --needed \$CUSTOM_PACKAGES" "install custom packages"
+                # Keep trying to install packages until successful or user skips
+                while true; do
+                    echo -e "\n\033[1;92m✨ Installing custom packages: \033[1;97m\$CUSTOM_PACKAGES\033[0m"
+                    
+                    # Run the installation command
+                    if pacman -S --noconfirm --needed \$CUSTOM_PACKAGES; then
+                        echo -e "\033[1;92m✅ Successfully installed custom packages\033[0m\n"
+                        break  # Exit the loop on success
+                    else
+                        # Installation failed, ask user what to do
+                        echo -e "\033[1;31m❌ Error: Failed to install custom packages\033[0m" >&2
+                        
+                        while true; do
+                            read -p $'\n\033[1;33mRetry? (r), Modify packages (m), Skip (s), or Abort (a): \033[0m' choice
+                            case "\$choice" in
+                                [Rr]*)
+                                    echo -e "\n\033[1;34m🔄 Retrying with same packages\033[0m"
+                                    break  # Break inner loop to retry with same packages
+                                    ;;
+                                [Mm]*)
+                                    # Prompt for new package selection
+                                    echo -e "\n\033[1;94mPrevious package selection: \033[1;97m\$CUSTOM_PACKAGES\033[0m"
+                                    echo -en "\033[1;94mNew packages: \033[0m"
+                                    read -r NEW_CUSTOM_PACKAGES
+                                    
+                                    # Use the new selection if provided, otherwise keep the previous
+                                    if [ -n "\$NEW_CUSTOM_PACKAGES" ]; then
+                                        CUSTOM_PACKAGES="\$NEW_CUSTOM_PACKAGES"
+                                    fi
+                                    break  # Break inner loop to try with new packages
+                                    ;;
+                                [Ss]*)
+                                    echo -e "\n\033[1;33m⏩ Skipping custom package installation\033[0m"
+                                    break 2  # Break both loops to skip
+                                    ;;
+                                [Aa]*)
+                                    echo -e "\n\033[1;31m🛑 Aborting installation\033[0m"
+                                    exit 1
+                                    ;;
+                                *)
+                                    echo -e "\n\033[1;35m⚠️ Invalid choice. Please enter 'r', 'm', 's', or 'a'\033[0m"
+                                    ;;
+                            esac
+                        done
+                    fi
+                done
             else
                 echo -e "\n\033[1;93m⚠️ No packages specified. Skipping custom package installation.\033[0m"
             fi
