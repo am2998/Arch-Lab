@@ -9,9 +9,9 @@ This is a personal repository created to make Arch Linux code experiments.
 Contains various Arch Linux installation scripts:
 
 - **basic/** - Core installation scripts with different priorities:
-  - `install-fast.sh` - Quick installation focused on speed
-  - `install-reliable.sh` - Balanced installation prioritizing reliability
-  - `install-secure+stable.sh` - Installation focused on security and stability
+  - `install-fast.sh` - Performance-oriented installation using EFISTUB and ext4 filesystem
+  - `install-reliable.sh` - Reliability-focused installation using ZFS filesystem (with ZFSBootMenu)
+  - `install-secure+stable.sh` - Hardened installation with LVM, BTRFS and LUKS encryption for security and stability
 
 - **flexible/** - Customizable installation options:
   - `install-flexible.sh` - Adaptable installation script with more configuration options
