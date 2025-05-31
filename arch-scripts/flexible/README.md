@@ -4,105 +4,61 @@ This script automates the Arch Linux installation process while allowing you to 
 
 ## 📋 Prerequisites
 
-- 💿 A bootable Arch Linux installation media
+- 💿 A bootable Arch Linux installation media (it's suggested to use a custom ZFS-enabled image like the one from https://github.com/r-maerz/archlinux-lts-zfs)
 - 🌐 Working internet connection
 - 💻 Basic knowledge of Linux commands
 
-## 🔌 Remote Installation via SSH
+## 🔧 How to Use This Script
 
-You can perform the installation remotely by connecting to the target machine via SSH. This approach is useful for headless setups or remote management.
+Follow these steps to use this flexible installation script:
 
-### 1. Setting Up Network Connection 🌐
+### 1. Boot Into Arch Linux Live Environment 💻
 
-> **Note:** This step is only for WiFi connections. Skip to step 2 if using a wired connection.
+Boot your computer using the Arch Linux installation media. 
 
-#### Using iwctl to Connect to WiFi 📡
+### 2. Connect to the Internet 🌐
 
-1. **Start the interactive prompt:**
-   ```bash
-   iwctl
-   ```
-
-2. **List all available wireless devices:**
-   ```bash
-   [iwd]# device list
-   ```
-   You should see your wireless adapter (e.g., wlan0)
-
-3. **Scan for networks:**
-   ```bash
-   [iwd]# station wlan0 scan
-   ```
-
-4. **List available networks:**
-   ```bash
-   [iwd]# station wlan0 get-networks
-   ```
-
-5. **Connect to your network:**
-   ```bash
-   [iwd]# station wlan0 connect "Your-Network-SSID"
-   ```
-   You will be prompted for the network password
-
-6. **Exit the iwctl prompt:**
-   ```bash
-   [iwd]# exit
-   ```
-
-7. **Verify your connection:**
-   ```bash
-   ping -c 3 archlinux.org
-   ```
-
-### 2. Enable SSH on the Target Machine 🔐
-
-Boot the target machine using the Arch Linux installation media and set a root password:
-
+#### For Wired Connection
+If you're using a wired connection, it should work automatically. Verify with:
 ```bash
-passwd
+ping -c 3 archlinux.org
 ```
 
-Start the SSH service:
-
+#### For Wireless Connection
+If you need to connect to WiFi, use the `iwctl` command:
 ```bash
-systemctl start sshd
+iwctl station wlan0 connect "Your-Network-SSID"
+```
+Enter your password when prompted. Replace `wlan0` with your actual wireless device name.
+
+### 3. Clone the Repository 📥
+
+Clone this repository to get the installation scripts:
+```bash
+pacman -Sy git --noconfirm
+git clone https://github.com/yourusername/Arch-Lab.git
+cd Arch-Lab/arch-scripts/flexible
 ```
 
-Find the IP address of the target machine:
+### 4. Run the Flexible Installation Script ⚙️
 
+Execute the flexible installation script:
 ```bash
-ip addr show
+chmod +x install.sh
+./install.sh
 ```
 
-### 3. Connect from Your Local Machine 🖥️
+The script will guide you through the installation process, allowing you to customize various aspects of your Arch Linux installation.
 
-Connect to the target machine from your local computer:
+### 5. Follow the Interactive Prompts 🖥️
 
-```bash
-ssh root@TARGET_IP_ADDRESS
-```
+The flexible script will present you with multiple options for:
+- Disk partitioning and filesystem setup
+- Desktop environment selection
+- Additional packages installation
+- System configuration options
 
-### 4. Transfer the Installation Script 📤
-
-There are several ways to transfer the script to the target machine:
-
-#### Using SCP (from your local machine):
-
-```bash
-scp /path/to/install-flexible.sh root@TARGET_IP_ADDRESS:/root/
-```
-
-### 5. Make the Script Executable and Run It 🚀
-
-On the target machine, make the script executable and run it:
-
-```bash
-chmod +x install-flexible.sh
-./install-flexible.sh
-```
-
----
+Choose the options that best suit your needs.
 
 ## 📊 ZFS Management Commands (Post Installation)
 
