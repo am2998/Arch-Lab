@@ -36,7 +36,7 @@ Enter your password when prompted. Replace `wlan0` with your actual wireless dev
 Clone this repository to get the installation scripts:
 ```bash
 pacman -Sy git --noconfirm
-git clone https://github.com/yourusername/Arch-Lab.git
+git clone https://github.com/am2998/Arch-Lab.git
 cd Arch-Lab/arch-scripts/flexible
 ```
 
