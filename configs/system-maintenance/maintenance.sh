@@ -3,8 +3,8 @@
 # === CONFIGURATION ===
 POOL="zroot/rootfs"
 BACKUP_POOL="backupzroot/rootfs"
-DATE=$(date +%m%d)
-SNAP_PREFIX="weekly-${DATE}-v"
+DATE=$(date +%d%m)  # DDMM format
+SNAP_PREFIX="snap-${DATE}-n"
 MAX_SNAPSHOTS=5
 LOGFILE="/var/log/system-maintenance.log"
 
@@ -31,7 +31,7 @@ log_msg() {
 }
 
 log_success() {
-    echo "      [✓] $1"
+    echo "      [\u2713] $1"
 }
 
 log_warning() {
@@ -39,7 +39,7 @@ log_warning() {
 }
 
 log_error() {
-    echo "      [✗] $1"
+    echo "      [\u2717] $1"
 }
 
 cleanup_old_logs() {
@@ -49,27 +49,18 @@ cleanup_old_logs() {
     done
 }
 
-# === START MAIN LOGGING ===
 {
-# Determine snapshot version
-all_snaps=$(zfs list -H -t snapshot -o name | grep "^${POOL}@weekly-.*-v[0-9]\+\.[0-9]\+" | sort -V)
+# === DETERMINE NEXT SNAPSHOT NAME ===
+all_snaps=$(zfs list -H -t snapshot -o name | grep "^${POOL}@snap-[0-9]\{4\}-n[0-9]\+" | sort -t'n' -k2 -n)
 latest_snap=$(echo "$all_snaps" | tail -n 1)
 
-if [[ "$latest_snap" =~ ${POOL}@weekly-[0-9]{4}-v([0-9]+)\.([0-9]+) ]]; then
-    major="${BASH_REMATCH[1]}"
-    minor="${BASH_REMATCH[2]}"
-    new_minor=$((minor + 1))
-    if (( new_minor >= 10 )); then
-        new_minor=0
-        major=$((major + 1))
-    fi
+if [[ "$latest_snap" =~ ${POOL}@snap-[0-9]{4}-n([0-9]+) ]]; then
+    next_num=$((BASH_REMATCH[1] + 1))
 else
-    major=1
-    minor=0
+    next_num=1
 fi
 
-new_snapshot="${SNAP_PREFIX}${major}.${minor}"
-
+new_snapshot="snap-${DATE}-n${next_num}"
 log_snapshot_start "$new_snapshot"
 
 # === SYSTEM CLEANUP ===
@@ -129,7 +120,7 @@ rm -f /tmp/snapshot_error.log
 # === SNAPSHOT CLEANUP ===
 log_header "SNAPSHOT CLEANUP"
 
-snapshots=($(zfs list -H -t snapshot -o name | grep "^${POOL}@weekly-" | sort -V))
+snapshots=($(zfs list -H -t snapshot -o name | grep "^${POOL}@snap-" | sort -t'n' -k2 -n))
 num_snapshots=${#snapshots[@]}
 
 if (( num_snapshots > MAX_SNAPSHOTS )); then
@@ -157,7 +148,7 @@ BACKUP_DONE=false
 
 log_msg "Checking remote pool '${BACKUP_POOL}'..."
 if zfs list "${BACKUP_POOL}" >/dev/null 2>&1; then
-    last_backup_snap=$(zfs list -H -t snapshot -o name | grep "^${BACKUP_POOL}@weekly-" | sort -V | tail -n 1)
+    last_backup_snap=$(zfs list -H -t snapshot -o name | grep "^${BACKUP_POOL}@snap-" | sort -t'n' -k2 -n | tail -n 1)
     if [[ -n "$last_backup_snap" ]]; then
         base_last_backup_snap=${last_backup_snap##*@}
         log_msg "Performing incremental send from $base_last_backup_snap to $new_snapshot..."
