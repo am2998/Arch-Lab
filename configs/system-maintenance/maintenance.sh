@@ -52,9 +52,10 @@ cleanup_old_logs() {
 # === START MAIN LOGGING ===
 {
 # Determine snapshot version
-latest_snap=$(zfs list -H -t snapshot -o name | grep "^${POOL}@${SNAP_PREFIX}" | sort -V | tail -n 1)
+all_snaps=$(zfs list -H -t snapshot -o name | grep "^${POOL}@weekly-.*-v[0-9]\+\.[0-9]\+" | sort -V)
+latest_snap=$(echo "$all_snaps" | tail -n 1)
 
-if [[ "$latest_snap" =~ ${POOL}@${SNAP_PREFIX}([0-9]+)\.([0-9]+) ]]; then
+if [[ "$latest_snap" =~ ${POOL}@weekly-[0-9]{4}-v([0-9]+)\.([0-9]+) ]]; then
     major="${BASH_REMATCH[1]}"
     minor="${BASH_REMATCH[2]}"
     new_minor=$((minor + 1))
@@ -180,15 +181,20 @@ else
 fi
 
 # === SYSTEM UPDATE ===
-log_header "SYSTEM UPDATE"
+if [ "$(date +%u)" -eq 6 ]; then
+    log_header "SYSTEM UPDATE (Saturday only)"
 
-log_msg "Running full system update..."
-if pacman -Syu --noconfirm > /dev/null 2>&1 && flatpak update -y > /dev/null 2>&1; then
-    log_success "System update completed successfully"
-    UPDATE_DONE=true
+    log_msg "Running full system update..."
+    if pacman -Syu --noconfirm > /dev/null 2>&1 && flatpak update -y > /dev/null 2>&1; then
+        log_success "System update completed successfully"
+        UPDATE_DONE=true
+    else
+        log_error "System update failed"
+        UPDATE_DONE=false
+    fi
 else
-    log_error "System update failed"
-    UPDATE_DONE=false
+    log_header "SYSTEM UPDATE"
+    log_msg "Skipped system update: today is not Saturday"
 fi
 
 log_snapshot_end "$new_snapshot"
