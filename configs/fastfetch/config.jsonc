@@ -3,9 +3,11 @@
     "logo": {
         "type": "kitty",
         "source": "~/Path/To/IMAGE.png",
-        "height": 25,
+        "height": 21,
+        "width": 45,
     	"padding": {
-    		"top": 2
+    		"top": 2,
+    		"left": 3
     	}
     },
     "modules": [
