@@ -1,6 +1,7 @@
 #!/bin/bash
 
 # ZFS + ZFS BOOTMENU
+# NO DESKTOP ENVIRONMENT
 
 cat <<'EOF'
  ______                                             ______                       __              _______   ________  __       __ 
