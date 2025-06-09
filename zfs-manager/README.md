@@ -60,7 +60,7 @@ A GTK GUI application for managing ZFS snapshots on Arch Linux.
 
 3. Run the application:
    ```
-   python -m zfs_manager
+   python -m src.zfs_manager
    ```
 
 ## Usage
