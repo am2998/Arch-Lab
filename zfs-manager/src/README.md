@@ -2,6 +2,21 @@
 
 A GTK GUI application for managing ZFS snapshots on Arch Linux.
 
+## Project Structure
+
+```
+zfs-manager/
+├── PKGBUILD          # Arch Linux package build script
+├── .SRCINFO          # AUR package metadata
+└── src/              # Source code directory
+    ├── __init__.py   # Package initialization
+    ├── application.py   # Main application class
+    ├── zfs_manager.py   # Core ZFS operations
+    ├── models.py        # Data models
+    ├── ui_*.py          # UI components
+    └── requirements.txt # Python dependencies
+```
+
 ## Features
 
 - **Snapshot Management**:
@@ -49,8 +64,8 @@ A GTK GUI application for managing ZFS snapshots on Arch Linux.
 
 1. Clone the repository:
    ```
-   git clone https://github.com/am2998/Arch-Lab.git
-   cd zfs-manager
+  git clone https://github.com/am2998/zfs-manager.git
+  cd zfs-manager/src
    ```
 
 2. Install dependencies:
@@ -60,8 +75,20 @@ A GTK GUI application for managing ZFS snapshots on Arch Linux.
 
 3. Run the application:
    ```
-   python -m src.zfs_manager
+   python -m zfs_manager
    ```
+
+### Using AUR Package (Arch Linux)
+
+Alternatively, you can install via AUR:
+
+```
+git clone https://aur.archlinux.org/zfs-manager.git
+cd zfs-manager
+makepkg -si
+```
+
+Then simply run `zfs-manager` from your application menu or terminal.
 
 ## Usage
 
