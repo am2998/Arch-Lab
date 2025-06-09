@@ -30,6 +30,20 @@ Contains configuration files for various applications:
 - **kitty/** - Terminal emulator configurations
   - `kitty.conf` - Kitty terminal settings and customizations
 
+- **system-maintenance/** - System maintenance automation
+  - `maintenance.md` - Documentation for setting up automated system maintenance
+  - `maintenance.sh` - Script for ZFS snapshots, system updates, and cleanup tasks
+
+### 🔧 zfs-manager
+
+A GTK GUI application for managing ZFS snapshots on Arch Linux:
+
+- Modern GTK4 and libadwaita interface for ZFS management
+- Create, delete, and roll back to snapshots
+- Schedule automatic snapshots using systemd timers
+- View and modify ZFS dataset properties
+- Pacman integration for pre-update snapshots
+
 ---
 
-*Feel free to explore and use these configurations and scripts for your own Arch Linux installations.* 
+*Feel free to explore and use these configurations and scripts for your own Arch Linux installations.*

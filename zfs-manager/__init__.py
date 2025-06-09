@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # ZFS Manager package
-# Author: GitHub Copilot
+# Author: am2998 (With contributions from GitHub Copilot)
 
 from .application import Application
 from .common import APP_NAME, VERSION

@@ -49,13 +49,18 @@ A GTK GUI application for managing ZFS snapshots on Arch Linux.
 
 1. Clone the repository:
    ```
-   git clone https://github.com/yourusername/zfs-manager.git
+   git clone https://github.com/am2998/Arch-Lab.git
    cd zfs-manager
    ```
 
-2. Run the application:
+2. Install dependencies:
    ```
-   python main.py
+   pip install -r requirements.txt
+   ```
+
+3. Run the application:
+   ```
+   python -m zfs_manager
    ```
 
 ## Usage
