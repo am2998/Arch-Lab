@@ -1,17 +1,17 @@
-# ZFS Manager for Arch Linux
+# ZFS Assistant for Arch Linux
 
 A GTK GUI application for managing ZFS snapshots on Arch Linux.
 
 ## Project Structure
 
 ```
-zfs-manager/
+zfs-assistant/
 ├── PKGBUILD          # Arch Linux package build script
 ├── .SRCINFO          # AUR package metadata
-└── src/              # Source code directory
-    ├── __init__.py   # Package initialization
+└── src/              # Source code directory      
+    ├── __init__.py      # Package initialization
     ├── application.py   # Main application class
-    ├── zfs_manager.py   # Core ZFS operations
+    ├── zfs_assistant.py # Core ZFS operations
     ├── models.py        # Data models
     ├── ui_*.py          # UI components
     └── requirements.txt # Python dependencies
@@ -63,9 +63,8 @@ zfs-manager/
 ## Installation
 
 1. Clone the repository:
-   ```
-  git clone https://github.com/am2998/zfs-manager.git
-  cd zfs-manager/src
+   ```  git clone https://github.com/am2998/zfs-assistant.git
+  cd zfs-assistant/src
    ```
 
 2. Install dependencies:
@@ -75,7 +74,7 @@ zfs-manager/
 
 3. Run the application:
    ```
-   python -m zfs_manager
+   python -m zfs_assistant
    ```
 
 ### Using AUR Package (Arch Linux)
@@ -83,12 +82,12 @@ zfs-manager/
 Alternatively, you can install via AUR:
 
 ```
-git clone https://aur.archlinux.org/zfs-manager.git
-cd zfs-manager
+git clone https://aur.archlinux.org/zfs-assistant.git
+cd zfs-assistant
 makepkg -si
 ```
 
-Then simply run `zfs-manager` from your application menu or terminal.
+Then simply run `zfs-assistant` from your application menu or terminal.
 
 ## Usage
 

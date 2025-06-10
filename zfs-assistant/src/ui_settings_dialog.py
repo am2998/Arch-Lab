@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# ZFS Manager - Settings Dialog
+# ZFS Assistant - Settings Dialog
 # Author: GitHub Copilot
 
 import gi
@@ -26,8 +26,8 @@ class SettingsDialog(Gtk.Dialog):
         )
         
         self.parent = parent
-        self.zfs_manager = parent.zfs_manager
-        self.config = self.zfs_manager.config.copy()
+        self.zfs_assistant = parent.zfs_assistant
+        self.config = self.zfs_assistant.config.copy()
         
         self.add_button("Cancel", Gtk.ResponseType.CANCEL)
         self.add_button("Save", Gtk.ResponseType.OK)
@@ -77,10 +77,9 @@ class SettingsDialog(Gtk.Dialog):
         appearance_box.append(notif_box)
         
         # Snapshot prefix
-        prefix_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
-        prefix_box.append(Gtk.Label(label="Snapshot Prefix:"))
+        prefix_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)        prefix_box.append(Gtk.Label(label="Snapshot Prefix:"))
         self.prefix_entry = Gtk.Entry()
-        self.prefix_entry.set_text(self.config.get("prefix", "zfs-manager"))
+        self.prefix_entry.set_text(self.config.get("prefix", "zfs-assistant"))
         prefix_box.append(self.prefix_entry)
         general_box.append(prefix_box)
         
@@ -99,7 +98,7 @@ class SettingsDialog(Gtk.Dialog):
         scrolled.set_child(self.datasets_list)
         
         # Add available datasets with checkboxes
-        available_datasets = self.zfs_manager.get_datasets()
+        available_datasets = self.zfs_assistant.get_datasets()
         managed_datasets = self.config.get("datasets", [])
         
         for dataset in available_datasets:
@@ -496,11 +495,11 @@ class SettingsDialog(Gtk.Dialog):
             self.config["pacman_integration"] = self.pacman_switch.get_active()
             
             # Save config
-            self.zfs_manager.config = self.config
-            self.zfs_manager.save_config()
+            self.zfs_assistant.config = self.config
+            self.zfs_assistant.save_config()
             
             # Setup pacman hook
-            self.zfs_manager.setup_pacman_hook(self.config["pacman_integration"])
+            self.zfs_assistant.setup_pacman_hook(self.config["pacman_integration"])
               # Setup systemd timers
             schedules = {
                 "hourly": self.hourly_check.get_active(),
@@ -514,7 +513,7 @@ class SettingsDialog(Gtk.Dialog):
             self.config["monthly_schedule"] = self.monthly_check.get_active()
             
             if self.config["auto_snapshot"]:
-                self.zfs_manager.setup_systemd_timers(schedules)
+                self.zfs_assistant.setup_systemd_timers(schedules)
             
             # Update theme if dark mode changed
             if dark_mode_changed:

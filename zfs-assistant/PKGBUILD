@@ -1,5 +1,5 @@
 # Maintainer: Andrea Moscato <am2998@github.com>
-pkgname=zfs-manager
+pkgname=zfs-assistant
 pkgver=1.0.0
 pkgrel=1
 pkgdesc="A GTK GUI application for managing ZFS snapshots on Arch Linux"
@@ -13,14 +13,14 @@ source=("git+$url.git")
 sha256sums=('SKIP')
 
 build() {
-  cd "$srcdir/Arch-Lab/zfs-manager"
+  cd "$srcdir/Arch-Lab/zfs-assistant"
 }
 
 package() {
-  cd "$srcdir/Arch-Lab/zfs-manager"
+  cd "$srcdir/Arch-Lab/zfs-assistant"
   
   # Create required directories
-  install -dm755 "$pkgdir/usr/lib/python3.11/site-packages/zfs_manager"
+  install -dm755 "$pkgdir/usr/lib/python3.11/site-packages/zfs_assistant"
   install -dm755 "$pkgdir/usr/bin"
   install -dm755 "$pkgdir/usr/share/applications"
   install -dm755 "$pkgdir/usr/share/icons/hicolor/scalable/apps"
@@ -28,36 +28,36 @@ package() {
   
   # Install Python package files
   for file in src/*.py; do
-    install -m644 "$file" "$pkgdir/usr/lib/python3.11/site-packages/zfs_manager/"
+    install -m644 "$file" "$pkgdir/usr/lib/python3.11/site-packages/zfs_assistant/"
   done
   
   # Install license
   install -m644 "$srcdir/Arch-Lab/LICENSE" "$pkgdir/usr/share/licenses/$pkgname/"
   
   # Create launcher script
-  cat > "$pkgdir/usr/bin/zfs-manager" << EOF
+  cat > "$pkgdir/usr/bin/zfs-assistant" << EOF
 #!/bin/sh
-exec python -m zfs_manager.src.zfs_manager
+exec python -m zfs_assistant.src.zfs_assistant
 EOF
-  chmod 755 "$pkgdir/usr/bin/zfs-manager"
+  chmod 755 "$pkgdir/usr/bin/zfs-assistant"
   
   # Create desktop entry
-  cat > "$pkgdir/usr/share/applications/zfs-manager.desktop" << EOF
+  cat > "$pkgdir/usr/share/applications/zfs-assistant.desktop" << EOF
 [Desktop Entry]
-Name=ZFS Snapshot Manager
+Name=ZFS Snapshot Assistant
 Comment=Manage ZFS snapshots on Arch Linux
-Exec=zfs-manager
-Icon=zfs-manager
+Exec=zfs-assistant
+Icon=zfs-assistant
 Terminal=false
 Type=Application
 Categories=System;
-Keywords=ZFS;Snapshot;Manager;
+Keywords=ZFS;Snapshot;Assistant;
 EOF
 
   # Create a simple SVG icon if none exists
   # This is a placeholder - you should replace with a proper icon
-  if [ ! -f "$pkgdir/usr/share/icons/hicolor/scalable/apps/zfs-manager.svg" ]; then
-    cat > "$pkgdir/usr/share/icons/hicolor/scalable/apps/zfs-manager.svg" << EOF
+  if [ ! -f "$pkgdir/usr/share/icons/hicolor/scalable/apps/zfs-assistant.svg" ]; then
+    cat > "$pkgdir/usr/share/icons/hicolor/scalable/apps/zfs-assistant.svg" << EOF
 <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 48 48">
   <rect width="40" height="40" x="4" y="4" fill="#3584e4" rx="8" />
   <text x="24" y="29" font-family="Sans" font-size="16" text-anchor="middle" fill="white">ZFS</text>

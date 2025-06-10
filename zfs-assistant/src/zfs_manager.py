@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# ZFS Manager - Core ZFS operations
+# ZFS Assistant - Core ZFS operations
 # Author: GitHub Copilot
 
 import os
@@ -291,7 +291,7 @@ Target = *
 [Action]
 Description = Creating ZFS snapshot before pacman transaction...
 When = PreTransaction
-Exec = /usr/bin/python /usr/local/bin/zfs-manager-pacman-hook.py
+Exec = /usr/bin/python /usr/local/bin/zfs-assistant-pacman-hook.py
 Depends = python
 """
             # Create the hook script
@@ -302,8 +302,7 @@ import json
 import os
 
 def create_pre_pacman_snapshot():
-    try:
-        config_file = os.path.expanduser("~/.config/zfs-manager/config.json")
+    try:        config_file = os.path.expanduser("~/.config/zfs-assistant/config.json")
         
         # Load configuration
         with open(config_file, 'r') as f:
@@ -313,7 +312,7 @@ def create_pre_pacman_snapshot():
             return
         
         timestamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
-        prefix = config.get("prefix", "zfs-manager")
+        prefix = config.get("prefix", "zfs-assistant")
         
         for dataset in config.get("datasets", []):
             snapshot_name = f"{dataset}@{prefix}-pacman-{timestamp}"
@@ -373,7 +372,7 @@ import sys
 
 def create_scheduled_snapshot(interval):
     try:
-        config_file = os.path.expanduser("~/.config/zfs-manager/config.json")
+        config_file = os.path.expanduser("~/.config/zfs-assistant/config.json")
         
         # Load configuration
         with open(config_file, 'r') as f:
@@ -392,7 +391,7 @@ def create_scheduled_snapshot(interval):
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:
-        print("Usage: zfs-manager-systemd.py <interval>")
+        print("Usage: zfs-assistant-systemd.py <interval>")
         sys.exit(1)
     
     interval = sys.argv[1]
@@ -417,7 +416,7 @@ After=zfs.target
 
 [Service]
 Type=oneshot
-ExecStart=/usr/local/bin/zfs-manager-systemd.py %i
+ExecStart=/usr/local/bin/zfs-assistant-systemd.py %i
 """
             # Write the service file
             service_path = os.path.join(user_systemd_dir, "zfs-snapshot@.service")

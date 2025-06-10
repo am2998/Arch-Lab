@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# ZFS Manager - Main Window UI
+# ZFS Assistant - Main Window UI
 # Author: GitHub Copilot
 
 import gi
@@ -34,11 +34,10 @@ class SnapshotListModel(GObject.GObject):
     def get_snapshot_count(self):
         return len(self.snapshots)
 
-class MainWindow(Gtk.ApplicationWindow):
-    def __init__(self, app):
-        super().__init__(application=app, title="ZFS Snapshot Manager")
+class MainWindow(Gtk.ApplicationWindow):    def __init__(self, app):
+        super().__init__(application=app, title="ZFS Snapshot Assistant")
         self.app = app
-        self.zfs_manager = app.zfs_manager
+        self.zfs_assistant = app.zfs_assistant
         self.snapshot_model = SnapshotListModel()
         
         # Set up the window
@@ -183,12 +182,11 @@ class MainWindow(Gtk.ApplicationWindow):
     def update_dataset_combo(self):
         """Update the dataset combo box with available datasets"""
         model = Gtk.StringList.new([])
-        
-        # Add "All Datasets" option
+          # Add "All Datasets" option
         model.append("All Datasets")
         
         # Add available datasets
-        datasets = self.zfs_manager.get_datasets()
+        datasets = self.zfs_assistant.get_datasets()
         for dataset in datasets:
             model.append(dataset['name'])
         
@@ -202,13 +200,12 @@ class MainWindow(Gtk.ApplicationWindow):
         
         # Clear current list
         self.selection_model.get_model().remove_all()
-        
-        if selected == 0:
+          if selected == 0:
             # "All Datasets" is selected
-            snapshots = self.zfs_manager.get_snapshots()
+            snapshots = self.zfs_assistant.get_snapshots()
         else:
             dataset = model.get_string(selected)
-            snapshots = self.zfs_manager.get_snapshots(dataset)
+            snapshots = self.zfs_assistant.get_snapshots(dataset)
         
         # Add snapshots to model
         for snapshot in snapshots:
@@ -294,9 +291,8 @@ class MainWindow(Gtk.ApplicationWindow):
             return
         
         dataset_name = model.get_string(selected)
-        
-        # Get dataset properties
-        datasets = self.zfs_manager.get_datasets()
+          # Get dataset properties
+        datasets = self.zfs_assistant.get_datasets()
         dataset_info = None
         for dataset in datasets:
             if dataset['name'] == dataset_name:
@@ -414,8 +410,7 @@ class MainWindow(Gtk.ApplicationWindow):
             progress_dialog.present()
             
             # Run cleanup in a separate thread to avoid blocking UI
-            def cleanup_thread():
-                success, message = self.zfs_manager.cleanup_snapshots()
+            def cleanup_thread():                success, message = self.zfs_assistant.cleanup_snapshots()
                 
                 # Update UI on main thread
                 GLib.idle_add(self._cleanup_completed, progress_dialog, success, message)
@@ -487,10 +482,9 @@ class MainWindow(Gtk.ApplicationWindow):
         """Handle rollback dialog response"""
         dialog.destroy()
         
-        if response == Gtk.ResponseType.YES:
-            # Perform rollback
+        if response == Gtk.ResponseType.YES:            # Perform rollback
             snapshot_full_name = f"{snapshot.dataset}@{snapshot.name}"
-            success, message = self.zfs_manager.rollback_snapshot(snapshot_full_name)
+            success, message = self.zfs_assistant.rollback_snapshot(snapshot_full_name)
             
             # Show result dialog
             result_dialog = Gtk.MessageDialog(
@@ -567,7 +561,7 @@ class MainWindow(Gtk.ApplicationWindow):
             
             # Perform clone
             snapshot_full_name = f"{snapshot.dataset}@{snapshot.name}"
-            success, message = self.zfs_manager.clone_snapshot(snapshot_full_name, target_name)
+            success, message = self.zfs_assistant.clone_snapshot(snapshot_full_name, target_name)
             
             # Show result dialog
             result_dialog = Gtk.MessageDialog(
@@ -615,7 +609,7 @@ class MainWindow(Gtk.ApplicationWindow):
         if response == Gtk.ResponseType.YES:
             # Perform delete
             snapshot_full_name = f"{snapshot.dataset}@{snapshot.name}"
-            success, message = self.zfs_manager.delete_snapshot(snapshot_full_name)
+            success, message = self.zfs_assistant.delete_snapshot(snapshot_full_name)
             
             # Show result dialog
             result_dialog = Gtk.MessageDialog(

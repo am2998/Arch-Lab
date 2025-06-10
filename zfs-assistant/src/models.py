@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# ZFS Manager - ZFSSnapshot class
+# ZFS Assistant - ZFSSnapshot class
 # Author: GitHub Copilot
 
 import datetime

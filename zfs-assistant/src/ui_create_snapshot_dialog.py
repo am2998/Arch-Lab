@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# ZFS Manager - Create Snapshot Dialog
+# ZFS Assistant - Create Snapshot Dialog
 # Author: GitHub Copilot
 
 import gi
@@ -15,11 +15,10 @@ class CreateSnapshotDialog(Gtk.Dialog):
             title="Create Snapshot",
             transient_for=parent,
             modal=True,
-            destroy_with_parent=True
-        )
+            destroy_with_parent=True        )
         
         self.parent = parent
-        self.zfs_manager = parent.zfs_manager
+        self.zfs_assistant = parent.zfs_assistant
         
         self.add_button("Cancel", Gtk.ResponseType.CANCEL)
         self.add_button("Create", Gtk.ResponseType.OK)
@@ -35,11 +34,10 @@ class CreateSnapshotDialog(Gtk.Dialog):
         content_area.append(Gtk.Label(label="Select Dataset:"))
         
         # Dataset combo
-        self.dataset_combo = Gtk.DropDown()
-        model = Gtk.StringList.new([])
+        self.dataset_combo = Gtk.DropDown()        model = Gtk.StringList.new([])
         
         # Add available datasets
-        datasets = self.zfs_manager.get_datasets()
+        datasets = self.zfs_assistant.get_datasets()
         for dataset in datasets:
             model.append(dataset['name'])
         
@@ -54,11 +52,10 @@ class CreateSnapshotDialog(Gtk.Dialog):
         self.custom_name_check.connect("toggled", self.on_custom_name_toggled)
         content_area.append(self.custom_name_check)
         
-        # Custom name entry
-        self.name_entry = Gtk.Entry()
+        # Custom name entry        self.name_entry = Gtk.Entry()
         self.name_entry.set_sensitive(False)
         timestamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
-        prefix = self.zfs_manager.config['prefix']
+        prefix = self.zfs_assistant.config['prefix']
         self.name_entry.set_text(f"{prefix}-{timestamp}")
         content_area.append(self.name_entry)
         
@@ -85,11 +82,10 @@ class CreateSnapshotDialog(Gtk.Dialog):
                 name = None
                 if self.custom_name_check.get_active():
                     name = self.name_entry.get_text().strip()
-                    if not name:
-                        name = None
+                    if not name:                    name = None
                 
                 # Create snapshot
-                success, result = self.zfs_manager.create_snapshot(dataset, name)
+                success, result = self.zfs_assistant.create_snapshot(dataset, name)
                 
                 # Show result dialog
                 result_dialog = Gtk.MessageDialog(

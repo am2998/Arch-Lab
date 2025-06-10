@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# ZFS Manager - Common utilities and constants
+# ZFS Assistant - Common utilities and constants
 # Author: GitHub Copilot
 
 import os
@@ -8,8 +8,8 @@ import subprocess
 import datetime
 
 # Application constants
-APP_NAME = "ZFS Snapshot Manager"
-APP_ID = "org.archlinux.zfsmanager"
+APP_NAME = "ZFS Snapshot Assistant"
+APP_ID = "org.archlinux.zfsassistant"
 VERSION = "1.0.0"
 
 # Default window sizes
@@ -26,25 +26,24 @@ DEFAULT_CONFIG = {
         "daily": 7,
         "weekly": 4,
         "monthly": 12
-    },
-    "hourly_schedule": [8, 12, 16, 20],  # Default to business hours
+    },    "hourly_schedule": [8, 12, 16, 20],  # Default to business hours
     "daily_schedule": [0, 1, 2, 3, 4],    # Default to weekdays
     "daily_hour": 0,                      # Default hour for daily snapshots
     "weekly_schedule": True,              # Enable weekly by default
     "monthly_schedule": True,             # Enable monthly by default
     "datasets": [],
     "pacman_integration": True,
-    "prefix": "zfs-manager",
+    "prefix": "zfs-assistant",
     "dark_mode": False,
     "notifications_enabled": True
 }
 
 # File paths
-CONFIG_DIR = os.path.expanduser("~/.config/zfs-manager")
+CONFIG_DIR = os.path.expanduser("~/.config/zfs-assistant")
 CONFIG_FILE = os.path.join(CONFIG_DIR, "config.json")
 PACMAN_HOOK_PATH = "/etc/pacman.d/hooks/00-zfs-snapshot.hook"
-SYSTEMD_SCRIPT_PATH = "/usr/local/bin/zfs-manager-systemd.py"
-PACMAN_SCRIPT_PATH = "/usr/local/bin/zfs-manager-pacman-hook.py"
+SYSTEMD_SCRIPT_PATH = "/usr/local/bin/zfs-assistant-systemd.py"
+PACMAN_SCRIPT_PATH = "/usr/local/bin/zfs-assistant-pacman-hook.py"
 
 # Utility functions
 def run_command(cmd, capture_output=True, check=True):

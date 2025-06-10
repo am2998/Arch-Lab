@@ -1,4 +1,4 @@
-# ZFS Manager dependencies
+# ZFS Assistant dependencies
 PyGObject>=3.42.0  # For GTK4 and libadwaita
 pycairo>=1.20.0    # Required by PyGObject for rendering
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# ZFS Manager - Advanced Settings Tab
+# ZFS Assistant - Advanced Settings Tab
 # Author: GitHub Copilot
 
 import gi
@@ -11,7 +11,7 @@ from gi.repository import Gtk, Adw, GLib, Gio, Gdk
 class AdvancedSettingsTab:
     def __init__(self, parent_dialog):
         self.dialog = parent_dialog
-        self.zfs_manager = parent_dialog.zfs_manager
+        self.zfs_assistant = parent_dialog.zfs_assistant
         
         # Create main box
         self.box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
@@ -64,18 +64,16 @@ class AdvancedSettingsTab:
         filter_any.set_name("All Files")
         filter_any.add_pattern("*")
         dialog.add_filter(filter_any)
-        
-        # Set default filename
-        dialog.set_current_name("zfs-manager-config.json")
+          # Set default filename
+        dialog.set_current_name("zfs-assistant-config.json")
         
         dialog.connect("response", self._on_export_dialog_response)
         dialog.present()
-    
-    def _on_export_dialog_response(self, dialog, response):
+      def _on_export_dialog_response(self, dialog, response):
         """Handle export dialog response"""
         if response == Gtk.ResponseType.ACCEPT:
             file_path = dialog.get_file().get_path()
-            success, message = self.zfs_manager.export_config(file_path)
+            success, message = self.zfs_assistant.export_config(file_path)
             
             # Show result dialog
             result_dialog = Gtk.MessageDialog(
@@ -114,12 +112,11 @@ class AdvancedSettingsTab:
         
         dialog.connect("response", self._on_import_dialog_response)
         dialog.present()
-    
-    def _on_import_dialog_response(self, dialog, response):
+      def _on_import_dialog_response(self, dialog, response):
         """Handle import dialog response"""
         if response == Gtk.ResponseType.ACCEPT:
             file_path = dialog.get_file().get_path()
-            success, message = self.zfs_manager.import_config(file_path)
+            success, message = self.zfs_assistant.import_config(file_path)
             
             # Show result dialog
             result_dialog = Gtk.MessageDialog(
