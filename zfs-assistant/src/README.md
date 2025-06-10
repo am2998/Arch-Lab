@@ -63,7 +63,7 @@ zfs-assistant/
 ## Installation
 
 1. Clone the repository:
-   ```  git clone https://github.com/am2998/zfs-assistant.git
+   ```  git clone https://github.com/am2998/Arch-Lab.git
   cd zfs-assistant/src
    ```
 

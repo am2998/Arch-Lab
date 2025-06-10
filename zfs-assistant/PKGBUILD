@@ -21,9 +21,7 @@ package() {
   
   # Create required directories
   install -dm755 "$pkgdir/usr/lib/python3.11/site-packages/zfs_assistant"
-  install -dm755 "$pkgdir/usr/bin"
-  install -dm755 "$pkgdir/usr/share/applications"
-  install -dm755 "$pkgdir/usr/share/icons/hicolor/scalable/apps"
+  mkdir -p "$pkgdir/usr/share/icons/hicolor/scalable/apps"
   install -dm755 "$pkgdir/usr/share/licenses/$pkgname"
   
   # Install Python package files
