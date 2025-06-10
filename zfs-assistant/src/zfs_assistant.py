@@ -8,12 +8,38 @@ import subprocess
 import datetime
 from pathlib import Path
 
-from .common import (
-    CONFIG_DIR, CONFIG_FILE, PACMAN_HOOK_PATH, 
-    SYSTEMD_SCRIPT_PATH, PACMAN_SCRIPT_PATH,
-    DEFAULT_CONFIG, run_command, get_timestamp
-)
-from .models import ZFSSnapshot
+# Try relative imports first, fall back to absolute imports if run as a script
+try:
+    from .common import (
+        CONFIG_DIR, CONFIG_FILE, PACMAN_HOOK_PATH, 
+        SYSTEMD_SCRIPT_PATH, PACMAN_SCRIPT_PATH,
+        DEFAULT_CONFIG, run_command, get_timestamp
+    )
+    from .models import ZFSSnapshot
+except ImportError:
+    # For direct script execution
+    import sys
+    parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    if parent_dir not in sys.path:
+        sys.path.insert(0, parent_dir)
+    try:
+        # Try with src as a direct submodule
+        from src.common import (
+            CONFIG_DIR, CONFIG_FILE, PACMAN_HOOK_PATH, 
+            SYSTEMD_SCRIPT_PATH, PACMAN_SCRIPT_PATH,
+            DEFAULT_CONFIG, run_command, get_timestamp
+        )
+        from src.models import ZFSSnapshot
+    except ImportError:
+        # Last resort, use direct file paths
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        sys.path.insert(0, current_dir)
+        from common import (
+            CONFIG_DIR, CONFIG_FILE, PACMAN_HOOK_PATH, 
+            SYSTEMD_SCRIPT_PATH, PACMAN_SCRIPT_PATH,
+            DEFAULT_CONFIG, run_command, get_timestamp
+        )
+        from models import ZFSSnapshot
 
 class ZFSAssistant:
     """

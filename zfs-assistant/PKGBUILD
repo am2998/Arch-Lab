@@ -7,7 +7,7 @@ arch=('any')
 url="https://github.com/am2998/Arch-Lab"
 license=('MIT')
 depends=('python>=3.6' 'gtk4' 'libadwaita' 'python-gobject' 'python-cairo' 'zfs-dkms' 'zfs-utils')
-makedepends=('python-setuptools' 'python-build' 'python-installer' 'python-wheel')
+makedepends=('python-setuptools' 'python-build' 'python-installer' 'python-wheel' 'python-pip')
 optdepends=('python-notify2: For desktop notifications')
 source=("git+$url.git")
 sha256sums=('SKIP')
@@ -19,15 +19,13 @@ build() {
 package() {
   cd "$srcdir/Arch-Lab/zfs-assistant"
   
+  # Use Python's setuptools to install the package
+  python -m build --wheel --no-isolation
+  python -m installer --destdir="$pkgdir" dist/*.whl
+  
   # Create required directories
-  install -dm755 "$pkgdir/usr/lib/python3.11/site-packages/zfs_assistant"
   mkdir -p "$pkgdir/usr/share/icons/hicolor/scalable/apps"
   install -dm755 "$pkgdir/usr/share/licenses/$pkgname"
-  
-  # Install Python package files
-  for file in src/*.py; do
-    install -m644 "$file" "$pkgdir/usr/lib/python3.11/site-packages/zfs_assistant/"
-  done
   
   # Install license
   install -m644 "$srcdir/Arch-Lab/LICENSE" "$pkgdir/usr/share/licenses/$pkgname/"
@@ -35,7 +33,7 @@ package() {
   # Create launcher script
   cat > "$pkgdir/usr/bin/zfs-assistant" << EOF
 #!/bin/sh
-exec python -m zfs_assistant.src.zfs_assistant
+exec python -m zfs_assistant
 EOF
   chmod 755 "$pkgdir/usr/bin/zfs-assistant"
   
