@@ -64,12 +64,14 @@ class AdvancedSettingsTab:
         filter_any.set_name("All Files")
         filter_any.add_pattern("*")
         dialog.add_filter(filter_any)
-          # Set default filename
+        
+        # Set default filename
         dialog.set_current_name("zfs-assistant-config.json")
         
         dialog.connect("response", self._on_export_dialog_response)
         dialog.present()
-      def _on_export_dialog_response(self, dialog, response):
+        
+    def _on_export_dialog_response(self, dialog, response):
         """Handle export dialog response"""
         if response == Gtk.ResponseType.ACCEPT:
             file_path = dialog.get_file().get_path()
@@ -81,9 +83,9 @@ class AdvancedSettingsTab:
                 modal=True,
                 message_type=Gtk.MessageType.INFO if success else Gtk.MessageType.ERROR,
                 buttons=Gtk.ButtonsType.OK,
-                text="Export Configuration"
+                text="Export Configuration",
+                secondary_text=message
             )
-            result_dialog.format_secondary_text(message)
             result_dialog.connect("response", lambda d, r: d.destroy())
             result_dialog.present()
         
@@ -112,7 +114,8 @@ class AdvancedSettingsTab:
         
         dialog.connect("response", self._on_import_dialog_response)
         dialog.present()
-      def _on_import_dialog_response(self, dialog, response):
+        
+    def _on_import_dialog_response(self, dialog, response):
         """Handle import dialog response"""
         if response == Gtk.ResponseType.ACCEPT:
             file_path = dialog.get_file().get_path()
@@ -124,9 +127,9 @@ class AdvancedSettingsTab:
                 modal=True,
                 message_type=Gtk.MessageType.INFO if success else Gtk.MessageType.ERROR,
                 buttons=Gtk.ButtonsType.OK,
-                text="Import Configuration"
+                text="Import Configuration",
+                secondary_text=message
             )
-            result_dialog.format_secondary_text(message)
             
             if success:
                 # Need to reload the settings dialog if import successful

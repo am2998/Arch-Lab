@@ -34,7 +34,8 @@ class SnapshotListModel(GObject.GObject):
     def get_snapshot_count(self):
         return len(self.snapshots)
 
-class MainWindow(Gtk.ApplicationWindow):    def __init__(self, app):
+class MainWindow(Gtk.ApplicationWindow):
+    def __init__(self, app):
         super().__init__(application=app, title="ZFS Snapshot Assistant")
         self.app = app
         self.zfs_assistant = app.zfs_assistant
@@ -54,13 +55,6 @@ class MainWindow(Gtk.ApplicationWindow):    def __init__(self, app):
         refresh_button.set_tooltip_text("Refresh Snapshots")
         refresh_button.connect("clicked", self.on_refresh_clicked)
         header.pack_start(refresh_button)
-        
-        # Add cleanup button to header
-        cleanup_button = Gtk.Button()
-        cleanup_button.set_icon_name("user-trash-symbolic")
-        cleanup_button.set_tooltip_text("Clean up Snapshots")
-        cleanup_button.connect("clicked", self.on_cleanup_clicked)
-        header.pack_start(cleanup_button)
         
         # Add settings button to header
         settings_button = Gtk.Button()
@@ -90,9 +84,11 @@ class MainWindow(Gtk.ApplicationWindow):    def __init__(self, app):
         dataset_label = Gtk.Label(label="Dataset:")
         top_area.append(dataset_label)
         
-        # Dataset dropdown
+        # Dataset dropdown - initialize with empty model
         self.dataset_combo = Gtk.DropDown()
-        self.update_dataset_combo()
+        model = Gtk.StringList.new(["All Datasets"])
+        self.dataset_combo.set_model(model)
+        self.dataset_combo.set_selected(0)
         top_area.append(self.dataset_combo)
         
         # Create notebook for tabs
@@ -111,23 +107,12 @@ class MainWindow(Gtk.ApplicationWindow):    def __init__(self, app):
         scrolled_window.set_hexpand(True)
         snapshots_box.append(scrolled_window)
         
-        # Create a list view for snapshots
-        self.snapshot_list = Gtk.ListView()
-        scrolled_window.set_child(self.snapshot_list)
-        
-        # Create factory
-        factory = Gtk.SignalListItemFactory()
-        factory.connect("setup", self._on_factory_setup)
-        factory.connect("bind", self._on_factory_bind)
-        
-        # Create selection model
-        self.selection_model = Gtk.SingleSelection.new(Gio.ListStore())
-        self.snapshot_list.set_model(self.selection_model)
-        self.snapshot_list.set_factory(factory)
-        
-        # Connect to selection changed
-        self.selection_model.connect("selection-changed", self._on_selection_changed)
-        
+        # Create snapshots list with a ListBox
+        self.snapshots_list = Gtk.ListBox()
+        self.snapshots_list.set_selection_mode(Gtk.SelectionMode.SINGLE)
+        self.snapshots_list.connect("row-selected", self.on_snapshot_selected)
+        scrolled_window.set_child(self.snapshots_list)
+
         # Create action buttons area for snapshots
         action_area = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
         action_area.set_homogeneous(True)
@@ -173,16 +158,28 @@ class MainWindow(Gtk.ApplicationWindow):    def __init__(self, app):
         self.properties_grid.set_margin_end(10)
         props_scrolled_window.set_child(self.properties_grid)
         
-        # Update snapshot list
-        self.refresh_snapshots()
-        
         # Connect to dataset combo changed
         self.dataset_combo.connect("notify::selected", self.on_dataset_changed)
+        
+        # Use GLib.timeout_add to ensure the window is fully rendered before initializing
+        GLib.timeout_add(100, self._deferred_init)
+    
+    def _deferred_init(self):
+        """Initialize data after the window is fully constructed"""
+        try:
+            # Update dataset combo
+            self.update_dataset_combo()
+            # Update snapshot list
+            self.refresh_snapshots()
+        except Exception as e:
+            print(f"Error during deferred initialization: {e}")
+        return False  # Don't repeat the timeout
 
     def update_dataset_combo(self):
         """Update the dataset combo box with available datasets"""
         model = Gtk.StringList.new([])
-          # Add "All Datasets" option
+        
+        # Add "All Datasets" option
         model.append("All Datasets")
         
         # Add available datasets
@@ -191,28 +188,54 @@ class MainWindow(Gtk.ApplicationWindow):    def __init__(self, app):
             model.append(dataset['name'])
         
         self.dataset_combo.set_model(model)
-        self.dataset_combo.set_selected(0)  # Select "All Datasets" by default
+        
+        # Find a top-level dataset to use as default
+        # Get all dataset names and find the first top-level one (the most parent dataset)
+        if datasets:
+            # Sort datasets by name length to find parent datasets first
+            sorted_datasets = sorted(datasets, key=lambda d: len(d['name'].split('/')))
+            if sorted_datasets:
+                # Find the index of the first dataset in the model
+                first_dataset_name = sorted_datasets[0]['name']
+                for i in range(model.get_n_items()):
+                    if model.get_string(i) == first_dataset_name:
+                        self.dataset_combo.set_selected(i)
+                        break
+                else:
+                    # If we couldn't find it, default to "All Datasets"
+                    self.dataset_combo.set_selected(0)
+            else:
+                self.dataset_combo.set_selected(0)
+        else:
+            self.dataset_combo.set_selected(0)
 
     def refresh_snapshots(self):
         """Refresh the snapshot list"""
-        selected = self.dataset_combo.get_selected()
-        model = self.dataset_combo.get_model()
-        
-        # Clear current list
-        self.selection_model.get_model().remove_all()
-          if selected == 0:
-            # "All Datasets" is selected
-            snapshots = self.zfs_assistant.get_snapshots()
-        else:
-            dataset = model.get_string(selected)
-            snapshots = self.zfs_assistant.get_snapshots(dataset)
-        
-        # Add snapshots to model
-        for snapshot in snapshots:
-            self.selection_model.get_model().append(snapshot)
+        try:
+            selected = self.dataset_combo.get_selected()
+            model = self.dataset_combo.get_model()
+            
+            # Clear current list
+            self.snapshots_list.remove_all()
+            if selected == 0:
+                # "All Datasets" is selected
+                snapshots = self.zfs_assistant.get_snapshots()
+            else:
+                dataset = model.get_string(selected)
+                snapshots = self.zfs_assistant.get_snapshots(dataset)
+            
+            # Add snapshots to model
+            for snapshot in snapshots:
+                self.add_snapshot_to_list(snapshot)
+        except Exception as e:
+            print(f"Error refreshing snapshots: {e}")
 
-    def _on_factory_setup(self, factory, list_item):
-        """Set up a row for the snapshot list"""
+    def add_snapshot_to_list(self, snapshot):
+        """Add a snapshot to the snapshots list"""
+        # Create a row for the snapshot
+        row = Gtk.ListBoxRow()
+        
+        # Create a box to contain the snapshot info
         box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
         box.set_margin_top(5)
         box.set_margin_bottom(5)
@@ -239,34 +262,43 @@ class MainWindow(Gtk.ApplicationWindow):    def __init__(self, app):
         size_label = Gtk.Label(xalign=0)
         box.append(size_label)
         
-        list_item.set_child(box)
-        list_item.name_label = name_label
-        list_item.dataset_label = dataset_label
-        list_item.date_label = date_label
-        list_item.size_label = size_label
+        row.set_child(box)
+        row.name_label = name_label
+        row.dataset_label = dataset_label
+        row.date_label = date_label
+        row.size_label = size_label
+        
+        # Bind data to the row
+        self._bind_snapshot_to_row(snapshot, row)
+        
+        # Add the row to the snapshots list
+        self.snapshots_list.append(row)
 
-    def _on_factory_bind(self, factory, list_item):
-        """Bind data to a row in the snapshot list"""
-        snapshot = list_item.get_item()
+    def _bind_snapshot_to_row(self, snapshot, row):
+        """Bind snapshot data to a row in the snapshots list"""
+        # Make sure we handle Python objects correctly
+        if isinstance(snapshot, GObject.Object):
+            # Extract the ZFSSnapshot object from the GObject wrapper
+            snapshot = snapshot.get_property("value")
         
         # Set snapshot name
-        list_item.name_label.set_markup(f"<b>{snapshot.name}</b>")
+        row.name_label.set_markup(f"<b>{snapshot.name}</b>")
         
         # Set dataset name
-        list_item.dataset_label.set_text(f"{snapshot.dataset}")
+        row.dataset_label.set_text(f"{snapshot.dataset}")
         
         # Format and set creation date
-        list_item.date_label.set_text(snapshot.formatted_creation_date)
+        row.date_label.set_text(snapshot.formatted_creation_date)
         
         # Set size info
-        list_item.size_label.set_text(f"Used: {snapshot.formatted_used}")
+        row.size_label.set_text(f"Used: {snapshot.formatted_used}")
 
-    def _on_selection_changed(self, selection_model, position, n_items):
-        """Handle selection change in the snapshot list"""
-        selected = selection_model.get_selected()
-        self.rollback_button.set_sensitive(selected != Gtk.INVALID_LIST_POSITION)
-        self.clone_button.set_sensitive(selected != Gtk.INVALID_LIST_POSITION)
-        self.delete_button.set_sensitive(selected != Gtk.INVALID_LIST_POSITION)
+    def on_snapshot_selected(self, list_box, row):
+        """Handle snapshot selection"""
+        selected = row is not None
+        self.rollback_button.set_sensitive(selected)
+        self.clone_button.set_sensitive(selected)
+        self.delete_button.set_sensitive(selected)
 
     def on_dataset_changed(self, combo, pspec):
         """Handle dataset selection change"""
@@ -275,99 +307,125 @@ class MainWindow(Gtk.ApplicationWindow):    def __init__(self, app):
         
     def refresh_dataset_properties(self):
         """Refresh the dataset properties grid"""
-        # Clear the grid
-        for child in self.properties_grid.get_children():
-            self.properties_grid.remove(child)
+        try:
+            # Use a completely different approach to clear the grid that doesn't rely on get_first_child
+            # First create a new grid with the same properties
+            new_grid = Gtk.Grid()
+            new_grid.set_column_spacing(20)
+            new_grid.set_row_spacing(10)
+            new_grid.set_margin_top(10)
+            new_grid.set_margin_bottom(10)
+            new_grid.set_margin_start(10)
+            new_grid.set_margin_end(10)
             
-        selected = self.dataset_combo.get_selected()
-        model = self.dataset_combo.get_model()
-        
-        if selected == 0 or selected == Gtk.INVALID_LIST_POSITION:
-            # "All Datasets" is selected or no selection
-            info_label = Gtk.Label(label="Select a specific dataset to view its properties")
-            info_label.set_margin_top(20)
-            info_label.set_margin_bottom(20)
-            self.properties_grid.attach(info_label, 0, 0, 2, 1)
-            return
-        
-        dataset_name = model.get_string(selected)
-          # Get dataset properties
-        datasets = self.zfs_assistant.get_datasets()
-        dataset_info = None
-        for dataset in datasets:
-            if dataset['name'] == dataset_name:
-                dataset_info = dataset
-                break
+            # Get the parent widget that contains our grid
+            parent = self.properties_grid.get_parent()
+            if parent:
+                # Remove the old grid and add the new one
+                parent.set_child(new_grid)
+                # Update our reference
+                self.properties_grid = new_grid
                 
-        if not dataset_info:
-            return
+            selected = self.dataset_combo.get_selected()
+            model = self.dataset_combo.get_model()
             
-        # Add header
-        header_label = Gtk.Label()
-        header_label.set_markup(f"<b>Properties for dataset: {dataset_name}</b>")
-        header_label.set_margin_bottom(10)
-        self.properties_grid.attach(header_label, 0, 0, 2, 1)
-        
-        # Add property headers
-        prop_header = Gtk.Label()
-        prop_header.set_markup("<b>Property</b>")
-        prop_header.set_xalign(0)
-        prop_header.set_margin_bottom(5)
-        
-        value_header = Gtk.Label()
-        value_header.set_markup("<b>Value</b>")
-        value_header.set_xalign(0)
-        value_header.set_margin_bottom(5)
-        
-        self.properties_grid.attach(prop_header, 0, 1, 1, 1)
-        self.properties_grid.attach(value_header, 1, 1, 1, 1)
-        
-        # Add properties
-        row = 2
-        properties = dataset_info['properties']
-        
-        # Define property groups and their order
-        property_groups = [
-            {
-                "name": "Storage",
-                "props": ["used", "available", "referenced", "compressratio", "quota", "reservation"]
-            },
-            {
-                "name": "Configuration",
-                "props": ["type", "mountpoint", "compression", "recordsize", "readonly"]
-            },
-            {
-                "name": "Security",
-                "props": ["encryption"]
-            }
-        ]
-        
-        for group in property_groups:
-            # Add group header
-            group_label = Gtk.Label()
-            group_label.set_markup(f"<b>{group['name']}</b>")
-            group_label.set_xalign(0)
-            group_label.set_margin_top(15)
-            group_label.set_margin_bottom(5)
-            self.properties_grid.attach(group_label, 0, row, 2, 1)
-            row += 1
+            if selected == 0 or selected == Gtk.INVALID_LIST_POSITION:
+                # "All Datasets" is selected or no selection
+                info_label = Gtk.Label(label="Select a specific dataset to view its properties")
+                info_label.set_margin_top(20)
+                info_label.set_margin_bottom(20)
+                self.properties_grid.attach(info_label, 0, 0, 2, 1)
+                return
             
-            # Add properties in this group
-            for prop in group["props"]:
-                if prop in properties:
-                    prop_label = Gtk.Label(label=prop)
-                    prop_label.set_xalign(0)
+            dataset_name = model.get_string(selected)
+            # Get dataset properties
+            datasets = self.zfs_assistant.get_datasets()
+            dataset_info = None
+            for dataset in datasets:
+                if dataset['name'] == dataset_name:
+                    dataset_info = dataset
+                    break
                     
-                    value_label = Gtk.Label(label=properties[prop])
-                    value_label.set_xalign(0)
-                    value_label.set_selectable(True)
-                    
-                    self.properties_grid.attach(prop_label, 0, row, 1, 1)
-                    self.properties_grid.attach(value_label, 1, row, 1, 1)
-                    row += 1
-        
-        # Make sure all is visible
-        self.properties_grid.show()
+            if not dataset_info:
+                info_label = Gtk.Label(label=f"No properties found for dataset: {dataset_name}")
+                info_label.set_margin_top(20)
+                info_label.set_margin_bottom(20)
+                self.properties_grid.attach(info_label, 0, 0, 2, 1)
+                return
+                
+            # Add header
+            header_label = Gtk.Label()
+            header_label.set_markup(f"<b>Properties for dataset: {dataset_name}</b>")
+            header_label.set_margin_bottom(10)
+            self.properties_grid.attach(header_label, 0, 0, 2, 1)
+            
+            # Add property headers
+            prop_header = Gtk.Label()
+            prop_header.set_markup("<b>Property</b>")
+            prop_header.set_xalign(0)
+            prop_header.set_margin_bottom(5)
+            
+            value_header = Gtk.Label()
+            value_header.set_markup("<b>Value</b>")
+            value_header.set_xalign(0)
+            value_header.set_margin_bottom(5)
+            
+            self.properties_grid.attach(prop_header, 0, 1, 1, 1)
+            self.properties_grid.attach(value_header, 1, 1, 1, 1)
+            
+            # Add properties
+            row = 2
+            properties = dataset_info['properties']
+            
+            # Define property groups and their order
+            property_groups = [
+                {
+                    "name": "Storage",
+                    "props": ["used", "available", "referenced", "compressratio", "quota", "reservation"]
+                },
+                {
+                    "name": "Configuration",
+                    "props": ["type", "mountpoint", "compression", "recordsize", "readonly"]
+                },
+                {
+                    "name": "Security",
+                    "props": ["encryption"]
+                }
+            ]
+            
+            for group in property_groups:
+                # Add group header
+                group_label = Gtk.Label()
+                group_label.set_markup(f"<b>{group['name']}</b>")
+                group_label.set_xalign(0)
+                group_label.set_margin_top(15)
+                group_label.set_margin_bottom(5)
+                self.properties_grid.attach(group_label, 0, row, 2, 1)
+                row += 1
+                
+                # Add properties in this group
+                for prop in group["props"]:
+                    if prop in properties:
+                        prop_label = Gtk.Label(label=prop)
+                        prop_label.set_xalign(0)
+                        
+                        value_label = Gtk.Label(label=properties[prop])
+                        value_label.set_xalign(0)
+                        value_label.set_selectable(True)
+                        
+                        self.properties_grid.attach(prop_label, 0, row, 1, 1)
+                        self.properties_grid.attach(value_label, 1, row, 1, 1)
+                        row += 1
+            
+            # Make sure all is visible
+            self.properties_grid.show()
+        except Exception as e:
+            print(f"Error refreshing dataset properties: {e}")
+            # Add a simple error message to the grid
+            error_label = Gtk.Label(label=f"Error loading dataset properties: {str(e)}")
+            error_label.set_margin_top(20)
+            error_label.set_margin_bottom(20)
+            self.properties_grid.attach(error_label, 0, 0, 2, 1)
 
     def on_refresh_clicked(self, button):
         """Handle refresh button click"""
@@ -383,11 +441,9 @@ class MainWindow(Gtk.ApplicationWindow):    def __init__(self, app):
             modal=True,
             message_type=Gtk.MessageType.WARNING,
             buttons=Gtk.ButtonsType.YES_NO,
-            text="Clean Up Snapshots"
-        )
-        dialog.format_secondary_text(
-            "This will delete old snapshots based on your retention policy settings.\n\n"
-            "Do you want to continue?"
+            text="Clean Up Snapshots",
+            secondary_text="This will delete old snapshots based on your retention policy settings.\n\n"
+                         "Do you want to continue?"
         )
         
         dialog.connect("response", self._on_cleanup_dialog_response)
@@ -404,13 +460,14 @@ class MainWindow(Gtk.ApplicationWindow):    def __init__(self, app):
                 modal=True,
                 message_type=Gtk.MessageType.INFO,
                 buttons=Gtk.ButtonsType.NONE,
-                text="Cleaning Up Snapshots"
+                text="Cleaning Up Snapshots",
+                secondary_text="Please wait while snapshots are being cleaned up..."
             )
-            progress_dialog.format_secondary_text("Please wait while snapshots are being cleaned up...")
             progress_dialog.present()
             
             # Run cleanup in a separate thread to avoid blocking UI
-            def cleanup_thread():                success, message = self.zfs_assistant.cleanup_snapshots()
+            def cleanup_thread():
+                success, message = self.zfs_assistant.cleanup_snapshots()
                 
                 # Update UI on main thread
                 GLib.idle_add(self._cleanup_completed, progress_dialog, success, message)
@@ -431,14 +488,14 @@ class MainWindow(Gtk.ApplicationWindow):    def __init__(self, app):
             modal=True,
             message_type=Gtk.MessageType.INFO if success else Gtk.MessageType.ERROR,
             buttons=Gtk.ButtonsType.OK,
-            text="Cleanup Result"
+            text="Cleanup Result",
+            secondary_text=message
         )
-        result_dialog.format_secondary_text(message)
         result_dialog.connect("response", lambda d, r: d.destroy())
         result_dialog.present()
         
         # Send notification
-        self.app.send_notification("Snapshot Cleanup Completed", message)
+        self.app.send_app_notification("Snapshot Cleanup Completed", message)
         
         # Refresh snapshot list
         self.refresh_snapshots()
@@ -457,9 +514,10 @@ class MainWindow(Gtk.ApplicationWindow):    def __init__(self, app):
 
     def on_rollback_clicked(self, button):
         """Handle rollback button click"""
-        selected = self.selection_model.get_selected()
-        if selected != Gtk.INVALID_LIST_POSITION:
-            snapshot = self.selection_model.get_model().get_item(selected)
+        selected = self.snapshots_list.get_selected_row()
+        if selected is not None:
+            # Get the snapshot object from the selected row
+            snapshot = selected.get_child().snapshot
             
             # Create confirmation dialog
             dialog = Gtk.MessageDialog(
@@ -467,12 +525,10 @@ class MainWindow(Gtk.ApplicationWindow):    def __init__(self, app):
                 modal=True,
                 message_type=Gtk.MessageType.WARNING,
                 buttons=Gtk.ButtonsType.YES_NO,
-                text="Rollback to Snapshot"
-            )
-            dialog.format_secondary_text(
-                f"Are you sure you want to roll back to snapshot '{snapshot.name}'?\n\n"
-                "This will revert your dataset to the state at the time of this snapshot.\n"
-                "Any changes made after this snapshot will be lost."
+                text="Rollback to Snapshot",
+                secondary_text=f"Are you sure you want to roll back to snapshot '{snapshot.name}'?\n\n"
+                             "This will revert your dataset to the state at the time of this snapshot.\n"
+                             "Any changes made after this snapshot will be lost."
             )
             
             dialog.connect("response", self._on_rollback_dialog_response, snapshot)
@@ -492,23 +548,24 @@ class MainWindow(Gtk.ApplicationWindow):    def __init__(self, app):
                 modal=True,
                 message_type=Gtk.MessageType.INFO if success else Gtk.MessageType.ERROR,
                 buttons=Gtk.ButtonsType.OK,
-                text="Rollback Result"
+                text="Rollback Result",
+                secondary_text=message
             )
-            result_dialog.format_secondary_text(message)
             result_dialog.connect("response", lambda d, r: d.destroy())
             result_dialog.present()
             
             if success:
                 self.refresh_snapshots()
                 # Send notification
-                self.app.send_notification("Snapshot Rollback", 
+                self.app.send_app_notification("Snapshot Rollback", 
                                           f"Dataset {snapshot.dataset} has been rolled back to snapshot {snapshot.name}.")
 
     def on_clone_clicked(self, button):
         """Handle clone button click"""
-        selected = self.selection_model.get_selected()
-        if selected != Gtk.INVALID_LIST_POSITION:
-            snapshot = self.selection_model.get_model().get_item(selected)
+        selected = self.snapshots_list.get_selected_row()
+        if selected is not None:
+            # Get the snapshot object from the selected row
+            snapshot = selected.get_child().snapshot
             
             # Create clone dialog
             dialog = Gtk.Dialog(
@@ -552,9 +609,9 @@ class MainWindow(Gtk.ApplicationWindow):    def __init__(self, app):
                     modal=True,
                     message_type=Gtk.MessageType.ERROR,
                     buttons=Gtk.ButtonsType.OK,
-                    text="Invalid Target Name"
+                    text="Invalid Target Name",
+                    secondary_text="Please enter a valid target dataset name."
                 )
-                error_dialog.format_secondary_text("Please enter a valid target dataset name.")
                 error_dialog.connect("response", lambda d, r: d.destroy())
                 error_dialog.present()
                 return
@@ -569,9 +626,9 @@ class MainWindow(Gtk.ApplicationWindow):    def __init__(self, app):
                 modal=True,
                 message_type=Gtk.MessageType.INFO if success else Gtk.MessageType.ERROR,
                 buttons=Gtk.ButtonsType.OK,
-                text="Clone Result"
+                text="Clone Result",
+                secondary_text=message
             )
-            result_dialog.format_secondary_text(message)
             result_dialog.connect("response", lambda d, r: d.destroy())
             result_dialog.present()
             
@@ -582,9 +639,10 @@ class MainWindow(Gtk.ApplicationWindow):    def __init__(self, app):
 
     def on_delete_clicked(self, button):
         """Handle delete button click"""
-        selected = self.selection_model.get_selected()
-        if selected != Gtk.INVALID_LIST_POSITION:
-            snapshot = self.selection_model.get_model().get_item(selected)
+        selected = self.snapshots_list.get_selected_row()
+        if selected is not None:
+            # Get the snapshot object from the selected row
+            snapshot = selected.get_child().snapshot
             
             # Create confirmation dialog
             dialog = Gtk.MessageDialog(
@@ -592,11 +650,9 @@ class MainWindow(Gtk.ApplicationWindow):    def __init__(self, app):
                 modal=True,
                 message_type=Gtk.MessageType.WARNING,
                 buttons=Gtk.ButtonsType.YES_NO,
-                text="Delete Snapshot"
-            )
-            dialog.format_secondary_text(
-                f"Are you sure you want to delete snapshot '{snapshot.name}'?\n\n"
-                "This operation cannot be undone."
+                text="Delete Snapshot",
+                secondary_text=f"Are you sure you want to delete snapshot '{snapshot.name}'?\n\n"
+                             "This operation cannot be undone."
             )
             
             dialog.connect("response", self._on_delete_dialog_response, snapshot)
@@ -611,19 +667,21 @@ class MainWindow(Gtk.ApplicationWindow):    def __init__(self, app):
             snapshot_full_name = f"{snapshot.dataset}@{snapshot.name}"
             success, message = self.zfs_assistant.delete_snapshot(snapshot_full_name)
             
-            # Show result dialog
-            result_dialog = Gtk.MessageDialog(
-                transient_for=self,
-                modal=True,
-                message_type=Gtk.MessageType.INFO if success else Gtk.MessageType.ERROR,
-                buttons=Gtk.ButtonsType.OK,
-                text="Delete Result"
-            )
-            result_dialog.format_secondary_text(message)
-            result_dialog.connect("response", lambda d, r: d.destroy())
-            result_dialog.present()
-            
-            if success:
+            # Only show dialog on error
+            if not success:
+                # Show error dialog
+                error_dialog = Gtk.MessageDialog(
+                    transient_for=self,
+                    modal=True,
+                    message_type=Gtk.MessageType.ERROR,
+                    buttons=Gtk.ButtonsType.OK,
+                    text="Delete Error",
+                    secondary_text=message
+                )
+                error_dialog.connect("response", lambda d, r: d.destroy())
+                error_dialog.present()
+            else:
+                # Just refresh the list and send notification
                 self.refresh_snapshots()
                 # Send notification
-                self.app.send_notification("Snapshot Deleted", f"Snapshot {snapshot.name} has been deleted.")
+                self.app.send_app_notification("Snapshot Deleted", f"Snapshot {snapshot.name} has been deleted.")

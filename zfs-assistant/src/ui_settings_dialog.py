@@ -12,9 +12,14 @@ from gi.repository import Gtk, Adw, GLib, Gio, Gdk, GObject
 
 # Try to import advanced settings
 try:
+    # First try relative imports (when running as a package)
     from .ui_advanced_settings import AdvancedSettingsTab
 except ImportError:
-    AdvancedSettingsTab = None
+    # Fall back to absolute imports (when running directly)
+    try:
+        from ui_advanced_settings import AdvancedSettingsTab
+    except ImportError:
+        AdvancedSettingsTab = None
 
 class SettingsDialog(Gtk.Dialog):
     def __init__(self, parent):
@@ -32,7 +37,9 @@ class SettingsDialog(Gtk.Dialog):
         self.add_button("Cancel", Gtk.ResponseType.CANCEL)
         self.add_button("Save", Gtk.ResponseType.OK)
         
-        self.set_default_size(500, 400)
+        # Match the main window size
+        self.set_default_size(900, 600)
+        self.set_size_request(800, 500)
         
         # Create notebook for tabs
         notebook = Gtk.Notebook()
@@ -77,7 +84,8 @@ class SettingsDialog(Gtk.Dialog):
         appearance_box.append(notif_box)
         
         # Snapshot prefix
-        prefix_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)        prefix_box.append(Gtk.Label(label="Snapshot Prefix:"))
+        prefix_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
+        prefix_box.append(Gtk.Label(label="Snapshot Prefix:"))
         self.prefix_entry = Gtk.Entry()
         self.prefix_entry.set_text(self.config.get("prefix", "zfs-assistant"))
         prefix_box.append(self.prefix_entry)
@@ -137,6 +145,7 @@ class SettingsDialog(Gtk.Dialog):
         # Enable scheduled snapshots
         self.schedule_switch = Gtk.Switch()
         self.schedule_switch.set_active(self.config.get("auto_snapshot", True))
+        self.schedule_switch.connect("state-set", self.on_schedule_switch_toggled)
         schedule_enable_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
         schedule_enable_box.append(Gtk.Label(label="Enable Scheduled Snapshots:"))
         schedule_enable_box.append(self.schedule_switch)
@@ -190,13 +199,13 @@ class SettingsDialog(Gtk.Dialog):
         hourly_button_box.set_margin_bottom(5)
         hourly_button_box.set_margin_start(20)  # Indent
         
-        hourly_select_all = Gtk.Button(label="Select All Hours")
-        hourly_select_all.connect("clicked", self.on_hourly_select_all_clicked)
-        hourly_button_box.append(hourly_select_all)
+        self.hourly_select_all_button = Gtk.Button(label="Select All Hours")
+        self.hourly_select_all_button.connect("clicked", self.on_hourly_select_all_clicked)
+        hourly_button_box.append(self.hourly_select_all_button)
         
-        hourly_select_none = Gtk.Button(label="Clear Hours")
-        hourly_select_none.connect("clicked", self.on_hourly_select_none_clicked)
-        hourly_button_box.append(hourly_select_none)
+        self.hourly_select_none_button = Gtk.Button(label="Clear Hours")
+        self.hourly_select_none_button.connect("clicked", self.on_hourly_select_none_clicked)
+        hourly_button_box.append(self.hourly_select_none_button)
         
         hourly_section.append(hourly_button_box)
         
@@ -250,13 +259,13 @@ class SettingsDialog(Gtk.Dialog):
         daily_button_box.set_margin_bottom(5)
         daily_button_box.set_margin_start(20)  # Indent
         
-        daily_select_all = Gtk.Button(label="Select All Days")
-        daily_select_all.connect("clicked", self.on_daily_select_all_clicked)
-        daily_button_box.append(daily_select_all)
+        self.daily_select_all_button = Gtk.Button(label="Select All Days")
+        self.daily_select_all_button.connect("clicked", self.on_daily_select_all_clicked)
+        daily_button_box.append(self.daily_select_all_button)
         
-        daily_select_none = Gtk.Button(label="Clear Days")
-        daily_select_none.connect("clicked", self.on_daily_select_none_clicked)
-        daily_button_box.append(daily_select_none)
+        self.daily_select_none_button = Gtk.Button(label="Clear Days")
+        self.daily_select_none_button.connect("clicked", self.on_daily_select_none_clicked)
+        daily_button_box.append(self.daily_select_none_button)
         
         daily_section.append(daily_button_box)
         
@@ -388,6 +397,29 @@ class SettingsDialog(Gtk.Dialog):
         self.on_hourly_check_toggled(self.hourly_check)
         self.on_daily_check_toggled(self.daily_check)
         
+        # Initialize sensitivity based on auto-snapshot setting
+        auto_snapshot_enabled = self.config.get("auto_snapshot", True)
+        if not auto_snapshot_enabled:
+            self.hourly_check.set_sensitive(False)
+            self.daily_check.set_sensitive(False)
+            self.weekly_check.set_sensitive(False)
+            self.monthly_check.set_sensitive(False)
+            
+            # Disable selection buttons when auto-snapshot is disabled
+            self.hourly_select_all_button.set_sensitive(False)
+            self.hourly_select_none_button.set_sensitive(False)
+            self.daily_select_all_button.set_sensitive(False)
+            self.daily_select_none_button.set_sensitive(False)
+            
+            # Disable all hour checkboxes
+            for check in self.hour_checks.values():
+                check.set_sensitive(False)
+                
+            # Disable all day checkboxes and time selector
+            for check in self.day_checks.values():
+                check.set_sensitive(False)
+            self.daily_hour_spin.set_sensitive(False)
+        
         self.show()
 
     def on_select_all_clicked(self, button):
@@ -402,7 +434,9 @@ class SettingsDialog(Gtk.Dialog):
         for row in self.datasets_list:
             box = row.get_child()
             check = box.get_first_child()
-            check.set_active(False)    def on_response(self, dialog, response):
+            check.set_active(False)
+            
+    def on_response(self, dialog, response):
         """Handle dialog response"""
         if response == Gtk.ResponseType.OK:
             # Validate schedules - ensure at least one hour/day is selected if the schedule is enabled
@@ -417,10 +451,8 @@ class SettingsDialog(Gtk.Dialog):
                     modal=True,
                     message_type=Gtk.MessageType.ERROR,
                     buttons=Gtk.ButtonsType.OK,
-                    text="Invalid Schedule"
-                )
-                error_dialog.format_secondary_text(
-                    "Please select at least one hour for hourly snapshots, or disable hourly snapshots."
+                    text="Invalid Schedule",
+                    secondary_text="Please select at least one hour for hourly snapshots, or disable hourly snapshots."
                 )
                 error_dialog.connect("response", lambda d, r: d.destroy())
                 error_dialog.present()
@@ -434,10 +466,8 @@ class SettingsDialog(Gtk.Dialog):
                     modal=True,
                     message_type=Gtk.MessageType.ERROR,
                     buttons=Gtk.ButtonsType.OK,
-                    text="Invalid Schedule"
-                )
-                error_dialog.format_secondary_text(
-                    "Please select at least one day for daily snapshots, or disable daily snapshots."
+                    text="Invalid Schedule",
+                    secondary_text="Please select at least one day for daily snapshots, or disable daily snapshots."
                 )
                 error_dialog.connect("response", lambda d, r: d.destroy())
                 error_dialog.present()
@@ -522,25 +552,25 @@ class SettingsDialog(Gtk.Dialog):
             # Update notifications setting
             self.parent.app.toggle_notifications(self.notifications_switch.get_active())
             
-            # Show success message
-            result_dialog = Gtk.MessageDialog(
-                transient_for=self.parent,
-                modal=True,
-                message_type=Gtk.MessageType.INFO,
-                buttons=Gtk.ButtonsType.OK,
-                text="Settings Saved"
-            )
-            result_dialog.format_secondary_text("Settings have been saved successfully.")
-            result_dialog.connect("response", lambda d, r: d.destroy())
-            result_dialog.present()
+            # Close the dialog without showing a message
+            self.destroy()
+            return
         
         self.destroy()
+        
+    # Success handler removed since we no longer show the success dialog
 
     def on_hourly_check_toggled(self, button):
         """Handle hourly checkbox toggle to enable/disable hour selection"""
         active = button.get_active()
         for hour, check in self.hour_checks.items():
             check.set_sensitive(active)
+            
+        # Also enable/disable the selection buttons
+        auto_snapshot_enabled = self.config.get("auto_snapshot", True)
+        if auto_snapshot_enabled:  # Only toggle if auto_snapshot is enabled
+            self.hourly_select_all_button.set_sensitive(active)
+            self.hourly_select_none_button.set_sensitive(active)
             
     def on_hourly_select_all_clicked(self, button):
         """Select all hours"""
@@ -559,6 +589,12 @@ class SettingsDialog(Gtk.Dialog):
             check.set_sensitive(active)
         self.daily_hour_spin.set_sensitive(active)
         
+        # Also enable/disable the selection buttons
+        auto_snapshot_enabled = self.config.get("auto_snapshot", True)
+        if auto_snapshot_enabled:  # Only toggle if auto_snapshot is enabled
+            self.daily_select_all_button.set_sensitive(active)
+            self.daily_select_none_button.set_sensitive(active)
+        
     def on_daily_select_all_clicked(self, button):
         """Select all days"""
         for check in self.day_checks.values():
@@ -568,3 +604,30 @@ class SettingsDialog(Gtk.Dialog):
         """Deselect all days"""
         for check in self.day_checks.values():
             check.set_active(False)
+            
+    def on_schedule_switch_toggled(self, widget, state):
+        """Enable or disable all schedule widgets based on auto-snapshot toggle"""
+        # Update sensitivity of all schedule-related widgets
+        self.hourly_check.set_sensitive(state)
+        self.daily_check.set_sensitive(state)
+        self.weekly_check.set_sensitive(state)
+        self.monthly_check.set_sensitive(state)
+        
+        # Update sensitivity of hourly buttons
+        self.hourly_select_all_button.set_sensitive(state)
+        self.hourly_select_none_button.set_sensitive(state)
+        
+        # Update sensitivity of daily buttons
+        self.daily_select_all_button.set_sensitive(state)
+        self.daily_select_none_button.set_sensitive(state)
+        
+        # Update sensitivity of hourly grid
+        for check in self.hour_checks.values():
+            check.set_sensitive(state and self.hourly_check.get_active())
+            
+        # Update sensitivity of daily grid and time selector
+        for check in self.day_checks.values():
+            check.set_sensitive(state and self.daily_check.get_active())
+        self.daily_hour_spin.set_sensitive(state and self.daily_check.get_active())
+        
+        return False  # Allow the state change to proceed

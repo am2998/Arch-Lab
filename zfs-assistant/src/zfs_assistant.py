@@ -51,6 +51,37 @@ class ZFSAssistant:
         self.pacman_hook_path = PACMAN_HOOK_PATH
         self.default_config = DEFAULT_CONFIG
         self.config = self.load_config()
+        self.pkexec_authorized = False
+
+    # Helper method to run pkexec commands with cached authorization
+    def run_pkexec_command(self, cmd):
+        """Run a command with pkexec, using cached authorization if available"""
+        try:
+            # Check if the command already includes pkexec
+            has_pkexec = cmd[0] == 'pkexec' if cmd else False
+            
+            if not self.pkexec_authorized:
+                # First command will trigger authorization prompt
+                auth_cmd = ['pkexec', 'true']
+                subprocess.run(auth_cmd, capture_output=True, check=True)
+                self.pkexec_authorized = True
+            
+            # Now run the actual command
+            # If cmd already includes pkexec, use it as is
+            # Otherwise, prepend pkexec to the command
+            if not has_pkexec:
+                cmd = ['pkexec'] + cmd
+                
+            result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+            return True, result
+        except subprocess.CalledProcessError as e:
+            error_msg = e.stderr
+            if "Permission denied" in error_msg or "authorization failed" in error_msg:
+                self.pkexec_authorized = False
+                return False, "Permission denied. ZFS operations require administrative privileges."
+            return False, f"Error executing command: {error_msg}"
+        except Exception as e:
+            return False, f"Error: {str(e)}"
 
     def load_config(self):
         """Load configuration from file or create with defaults if it doesn't exist"""
@@ -123,6 +154,9 @@ class ZFSAssistant:
                                     capture_output=True, text=True, check=True)
             dataset_names = result.stdout.strip().split('\n')
             
+            # Filter out top-level zpools (those that don't have a '/' in their name)
+            dataset_names = [name for name in dataset_names if '/' in name]
+            
             # Now get properties for each dataset
             datasets = []
             for name in dataset_names:
@@ -133,6 +167,11 @@ class ZFSAssistant:
                 })
             
             return datasets
+        except subprocess.CalledProcessError as e:
+            # This is a read-only operation, so we don't need elevated privileges,
+            # but users might still encounter permission issues
+            print(f"Error getting datasets: {e.stderr}")
+            return []
         except Exception as e:
             print(f"Error getting datasets: {e}")
             return []
@@ -180,6 +219,11 @@ class ZFSAssistant:
                         snapshots.append(snapshot)
             
             return snapshots
+        except subprocess.CalledProcessError as e:
+            # This is a read-only operation, so we don't need elevated privileges,
+            # but users might still encounter permission issues
+            print(f"Error getting snapshots: {e.stderr}")
+            return []
         except Exception as e:
             print(f"Error getting snapshots: {e}")
             return []
@@ -187,9 +231,9 @@ class ZFSAssistant:
     def cleanup_snapshots(self):
         """Clean up snapshots based on retention policy"""
         try:
-            if not self.config.get("auto_snapshot", True):
-                return True, "Auto-snapshot is disabled, skipping cleanup"
-                
+            # Check if auto_snapshot is disabled - for manual cleanups we'll still proceed
+            auto_snapshot_disabled = not self.config.get("auto_snapshot", True)
+            
             retention = self.config.get("snapshot_retention", {})
             prefix = self.config.get("prefix", "zfs-assistant")
             
@@ -243,6 +287,10 @@ class ZFSAssistant:
             if error_count > 0:
                 result_message += f", {error_count} errors"
                 if errors:
+                    # Check if any permission errors occurred
+                    if any("Permission denied" in err for err in errors):
+                        result_message += "\nSome operations failed due to insufficient permissions. " \
+                                         "ZFS operations require administrative privileges."
                     result_message += f"\nErrors: {'; '.join(errors[:5])}"
                     if len(errors) > 5:
                         result_message += f" and {len(errors) - 5} more"
@@ -259,22 +307,23 @@ class ZFSAssistant:
                 name = f"{self.config['prefix']}-{timestamp}"
             
             snapshot_name = f"{dataset}@{name}"
-            result = subprocess.run(['zfs', 'snapshot', snapshot_name], 
-                                    capture_output=True, text=True, check=True)
+            
+            # Use cached pkexec authorization
+            success, result = self.run_pkexec_command(['zfs', 'snapshot', snapshot_name])
+            if not success:
+                return False, result
             return True, name
-        except subprocess.CalledProcessError as e:
-            return False, f"Error creating snapshot: {e.stderr}"
         except Exception as e:
             return False, f"Error: {str(e)}"
 
     def delete_snapshot(self, snapshot_full_name):
         """Delete a ZFS snapshot by its full name (dataset@snapshot)"""
         try:
-            result = subprocess.run(['zfs', 'destroy', snapshot_full_name],
-                                    capture_output=True, text=True, check=True)
+            # Use cached pkexec authorization
+            success, result = self.run_pkexec_command(['zfs', 'destroy', snapshot_full_name])
+            if not success:
+                return False, result
             return True, f"Snapshot {snapshot_full_name} deleted"
-        except subprocess.CalledProcessError as e:
-            return False, f"Error deleting snapshot: {e.stderr}"
         except Exception as e:
             return False, f"Error: {str(e)}"
 
@@ -286,21 +335,22 @@ class ZFSAssistant:
                 cmd.append('-r')
             cmd.append(snapshot_full_name)
             
-            result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+            # Use cached pkexec authorization
+            success, result = self.run_pkexec_command(cmd)
+            if not success:
+                return False, result
             return True, f"Rolled back to snapshot {snapshot_full_name}"
-        except subprocess.CalledProcessError as e:
-            return False, f"Error rolling back: {e.stderr}"
         except Exception as e:
             return False, f"Error: {str(e)}"
 
     def clone_snapshot(self, snapshot_full_name, target_name):
         """Clone a ZFS snapshot to a new dataset"""
         try:
-            result = subprocess.run(['zfs', 'clone', snapshot_full_name, target_name],
-                                    capture_output=True, text=True, check=True)
+            # Use cached pkexec authorization
+            success, result = self.run_pkexec_command(['zfs', 'clone', snapshot_full_name, target_name])
+            if not success:
+                return False, result
             return True, f"Cloned snapshot {snapshot_full_name} to {target_name}"
-        except subprocess.CalledProcessError as e:
-            return False, f"Error cloning snapshot: {e.stderr}"
         except Exception as e:
             return False, f"Error: {str(e)}"
 
@@ -328,7 +378,8 @@ import json
 import os
 
 def create_pre_pacman_snapshot():
-    try:        config_file = os.path.expanduser("~/.config/zfs-assistant/config.json")
+    try:        
+        config_file = os.path.expanduser("~/.config/zfs-assistant/config.json")
         
         # Load configuration
         with open(config_file, 'r') as f:
@@ -340,6 +391,12 @@ def create_pre_pacman_snapshot():
         timestamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
         prefix = config.get("prefix", "zfs-assistant")
         
+        # Try to cache authorization with a single pkexec call
+        try:
+            subprocess.run(['pkexec', 'true'], check=True, capture_output=True)
+        except:
+            pass
+            
         for dataset in config.get("datasets", []):
             snapshot_name = f"{dataset}@{prefix}-pacman-{timestamp}"
             subprocess.run(['zfs', 'snapshot', snapshot_name], check=True)
@@ -407,6 +464,12 @@ def create_scheduled_snapshot(interval):
         timestamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
         prefix = config.get("prefix", "zfs-assistant")
         
+        # Try to cache authorization with a single pkexec call
+        try:
+            subprocess.run(['pkexec', 'true'], check=True, capture_output=True)
+        except:
+            pass
+            
         for dataset in config.get("datasets", []):
             snapshot_name = f"{dataset}@{prefix}-{interval}-{timestamp}"
             subprocess.run(['zfs', 'snapshot', snapshot_name], check=True)

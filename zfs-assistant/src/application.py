@@ -3,14 +3,29 @@
 # Author: GitHub Copilot
 
 import gi
+import os
+import sys
 
 gi.require_version('Gtk', '4.0')
 gi.require_version('Adw', '1')
 from gi.repository import Gtk, Adw, GLib, Gio, Gdk
 
-from .zfs_assistant import ZFSAssistant
-from .ui_main_window import MainWindow
-from .common import APP_ID
+# Add the current directory to sys.path
+current_dir = os.path.dirname(os.path.abspath(__file__))
+if current_dir not in sys.path:
+    sys.path.insert(0, current_dir)
+
+# Use absolute imports with proper paths
+try:
+    # First try relative imports (when running as a package)
+    from .zfs_assistant import ZFSAssistant
+    from .ui_main_window import MainWindow
+    from .common import APP_ID
+except ImportError:
+    # Fall back to direct imports from current directory
+    from zfs_assistant import ZFSAssistant
+    from ui_main_window import MainWindow
+    from common import APP_ID
 
 class Application(Adw.Application):    
     def __init__(self):
@@ -30,7 +45,8 @@ class Application(Adw.Application):
         if not win:
             win = MainWindow(app)
         win.present()
-          def run(self):
+
+    def run(self):
         """Run the application"""
         print("Running ZFS Assistant application...")
         return super().run(None)
@@ -54,7 +70,7 @@ class Application(Adw.Application):
         else:
             style_manager.set_color_scheme(Adw.ColorScheme.FORCE_LIGHT)
             
-    def send_notification(self, title, body=None):
+    def send_app_notification(self, title, body=None):
         """Send a system notification"""
         if not self.notification_enabled:
             return
@@ -62,7 +78,8 @@ class Application(Adw.Application):
         notification = Gio.Notification.new(title)
         if body:
             notification.set_body(body)
-        self.send(notification)
+        # Use send_notification method from Gio.Application
+        super().send_notification(APP_ID, notification)
         
     def toggle_notifications(self, enabled):
         """Toggle notifications"""

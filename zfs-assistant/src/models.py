@@ -3,18 +3,46 @@
 # Author: GitHub Copilot
 
 import datetime
+import gi
+gi.require_version('Gtk', '4.0')
+gi.require_version('Adw', '1')
+from gi.repository import GObject
+
 from .common import format_datetime, format_size
 
+# Create a standard Python class instead of a GObject
+# This resolves the GType registration issues
 class ZFSSnapshot:
     """
     Represents a ZFS snapshot with its properties
     """
+    
     def __init__(self, name, creation_date, dataset, used=None, referenced=None):
-        self.name = name
-        self.creation_date = creation_date
-        self.dataset = dataset
-        self.used = used
-        self.referenced = referenced
+        self._name = name
+        self._creation_date = creation_date
+        self._dataset = dataset
+        self._used = used
+        self._referenced = referenced
+        
+    @property
+    def name(self):
+        return self._name
+        
+    @property
+    def creation_date(self):
+        return self._creation_date
+        
+    @property
+    def dataset(self):
+        return self._dataset
+        
+    @property
+    def used(self):
+        return self._used
+        
+    @property
+    def referenced(self):
+        return self._referenced
         
     @property
     def full_name(self):

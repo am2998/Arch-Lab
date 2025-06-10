@@ -15,7 +15,8 @@ class CreateSnapshotDialog(Gtk.Dialog):
             title="Create Snapshot",
             transient_for=parent,
             modal=True,
-            destroy_with_parent=True        )
+            destroy_with_parent=True
+        )
         
         self.parent = parent
         self.zfs_assistant = parent.zfs_assistant
@@ -34,7 +35,8 @@ class CreateSnapshotDialog(Gtk.Dialog):
         content_area.append(Gtk.Label(label="Select Dataset:"))
         
         # Dataset combo
-        self.dataset_combo = Gtk.DropDown()        model = Gtk.StringList.new([])
+        self.dataset_combo = Gtk.DropDown()
+        model = Gtk.StringList.new([])
         
         # Add available datasets
         datasets = self.zfs_assistant.get_datasets()
@@ -52,7 +54,8 @@ class CreateSnapshotDialog(Gtk.Dialog):
         self.custom_name_check.connect("toggled", self.on_custom_name_toggled)
         content_area.append(self.custom_name_check)
         
-        # Custom name entry        self.name_entry = Gtk.Entry()
+        # Custom name entry
+        self.name_entry = Gtk.Entry()
         self.name_entry.set_sensitive(False)
         timestamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
         prefix = self.zfs_assistant.config['prefix']
@@ -82,28 +85,34 @@ class CreateSnapshotDialog(Gtk.Dialog):
                 name = None
                 if self.custom_name_check.get_active():
                     name = self.name_entry.get_text().strip()
-                    if not name:                    name = None
+                    if not name:
+                        name = None
                 
                 # Create snapshot
                 success, result = self.zfs_assistant.create_snapshot(dataset, name)
                 
-                # Show result dialog
-                result_dialog = Gtk.MessageDialog(
-                    transient_for=self.parent,
-                    modal=True,
-                    message_type=Gtk.MessageType.INFO if success else Gtk.MessageType.ERROR,
-                    buttons=Gtk.ButtonsType.OK,
-                    text="Snapshot Creation Result"
-                )
-                
-                if success:
-                    result_dialog.format_secondary_text(f"Snapshot '{result}' created successfully.")
+                # Only show error message, not success message
+                if not success:
+                    # Show error dialog
+                    error_dialog = Gtk.MessageDialog(
+                        transient_for=self.parent,
+                        modal=True,
+                        message_type=Gtk.MessageType.ERROR,
+                        buttons=Gtk.ButtonsType.OK,
+                        text="Snapshot Creation Error",
+                        secondary_text=result
+                    )
+                    error_dialog.connect("response", lambda d, r: d.destroy())
+                    error_dialog.present()
                 else:
-                    result_dialog.format_secondary_text(result)
+                    # Just refresh the snapshot list and send notification
+                    self.parent.refresh_snapshots()
+                    self.parent.app.send_app_notification("Snapshot Created", "A new ZFS snapshot has been created successfully.")
+                    self.destroy()
                 
-                # Use a separate function to handle the dialog response to ensure proper cleanup
-                result_dialog.connect("response", self._on_result_dialog_response)
-                result_dialog.present()
+                # Close the create dialog immediately if successful
+                if success:
+                    self.destroy()
             else:
                 # No dataset selected, show error
                 error_dialog = Gtk.MessageDialog(
@@ -111,25 +120,12 @@ class CreateSnapshotDialog(Gtk.Dialog):
                     modal=True,
                     message_type=Gtk.MessageType.ERROR,
                     buttons=Gtk.ButtonsType.OK,
-                    text="No Dataset Selected"
+                    text="No Dataset Selected",
+                    secondary_text="Please select a dataset for the snapshot."
                 )
-                error_dialog.format_secondary_text("Please select a dataset for the snapshot.")
                 error_dialog.connect("response", lambda d, r: d.destroy())
                 error_dialog.present()
                 return  # Don't destroy the dialog so user can select a dataset
         else:
             # Cancel was clicked, just destroy the dialog
             self.destroy()
-            
-    def _on_result_dialog_response(self, dialog, response):
-        """Handle result dialog response"""
-        dialog.destroy()
-        
-        # Refresh the snapshot list in the parent window
-        self.parent.refresh_snapshots()
-        
-        # Send notification
-        self.parent.app.send_notification("Snapshot Created", "A new ZFS snapshot has been created successfully.")
-        
-        # Now destroy the create snapshot dialog
-        self.destroy()
