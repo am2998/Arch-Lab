@@ -12,7 +12,8 @@ from .zfs_assistant import ZFSAssistant
 from .ui_main_window import MainWindow
 from .common import APP_ID
 
-class Application(Adw.Application):    def __init__(self):
+class Application(Adw.Application):    
+    def __init__(self):
         super().__init__(application_id=APP_ID, flags=Gio.ApplicationFlags.FLAGS_NONE)
         self.connect("activate", self.on_activate)
         self.zfs_assistant = ZFSAssistant()
@@ -29,6 +30,10 @@ class Application(Adw.Application):    def __init__(self):
         if not win:
             win = MainWindow(app)
         win.present()
+          def run(self):
+        """Run the application"""
+        print("Running ZFS Assistant application...")
+        return super().run(None)
         
     def setup_theme(self):
         """Setup application theme based on config"""

@@ -11,11 +11,12 @@ with open('src/requirements.txt') as f:
 setup(
     name="zfs-assistant",
     version="0.1.0",
-    packages=find_packages(),
+    packages=['zfs_assistant'],
+    package_dir={'zfs_assistant': 'src'},
     install_requires=requirements,
     entry_points={
         'console_scripts': [
-            'zfs-assistant=src.__main__:main',
+            'zfs-assistant=zfs_assistant.__main__:main',
         ],
     },
     python_requires='>=3.6',

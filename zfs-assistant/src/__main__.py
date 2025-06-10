@@ -29,6 +29,7 @@ except ImportError:
         from application import Application
 
 def main():
+    print("Starting ZFS Assistant...")
     app = Application()
     return app.run()
 
