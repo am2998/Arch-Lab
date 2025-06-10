@@ -127,9 +127,7 @@ class SettingsDialog(Gtk.Dialog):
         select_none_button.connect("clicked", self.on_select_none_clicked)
         button_box.append(select_none_button)
         
-        general_box.append(button_box)
-        
-        # Schedule settings tab
+        general_box.append(button_box)        # Schedule settings tab
         schedule_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
         schedule_box.set_margin_top(10)
         schedule_box.set_margin_bottom(10)
@@ -145,27 +143,177 @@ class SettingsDialog(Gtk.Dialog):
         schedule_enable_box.append(self.schedule_switch)
         schedule_box.append(schedule_enable_box)
         
-        # Snapshot schedules
-        schedule_box.append(Gtk.Label(label="Snapshot Schedules:"))
+        # Add explanation text
+        explanation_label = Gtk.Label(
+            label="You can set up multiple schedules below. For hourly and daily snapshots, "
+                  "you can select multiple hours or days."
+        )
+        explanation_label.set_wrap(True)
+        explanation_label.set_margin_top(5)
+        explanation_label.set_margin_bottom(5)
+        schedule_box.append(explanation_label)
         
-        # Hourly snapshots
+        # Snapshot schedules frame
+        schedule_frame = Gtk.Frame()
+        schedule_frame.set_label("Snapshot Schedules")
+        schedule_frame.set_margin_top(10)
+        schedule_frame.set_margin_bottom(10)
+        schedule_box.append(schedule_frame)
+        
+        schedule_types_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
+        schedule_types_box.set_margin_top(10)
+        schedule_types_box.set_margin_bottom(10)
+        schedule_types_box.set_margin_start(10)
+        schedule_types_box.set_margin_end(10)
+        schedule_frame.set_child(schedule_types_box)
+          # Hourly snapshots with multiple hours selection
+        hourly_section = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=5)
+        hourly_header = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
         self.hourly_check = Gtk.CheckButton(label="Hourly Snapshots")
-        schedule_box.append(self.hourly_check)
+        self.hourly_check.connect("toggled", self.on_hourly_check_toggled)
+        hourly_header.append(self.hourly_check)
+        hourly_section.append(hourly_header)
         
-        # Daily snapshots
+        # Add explanation for hourly
+        hourly_explanation = Gtk.Label(label="Select the specific hours when snapshots should be taken")
+        hourly_explanation.set_margin_start(20)
+        hourly_explanation.set_halign(Gtk.Align.START)
+        hourly_section.append(hourly_explanation)
+          # Hours selection grid
+        self.hourly_grid = Gtk.Grid()
+        self.hourly_grid.set_column_homogeneous(True)
+        self.hourly_grid.set_row_spacing(5)
+        self.hourly_grid.set_column_spacing(10)
+        self.hourly_grid.set_margin_start(20)  # Indent
+        
+        # Hour selection button box
+        hourly_button_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
+        hourly_button_box.set_margin_bottom(5)
+        hourly_button_box.set_margin_start(20)  # Indent
+        
+        hourly_select_all = Gtk.Button(label="Select All Hours")
+        hourly_select_all.connect("clicked", self.on_hourly_select_all_clicked)
+        hourly_button_box.append(hourly_select_all)
+        
+        hourly_select_none = Gtk.Button(label="Clear Hours")
+        hourly_select_none.connect("clicked", self.on_hourly_select_none_clicked)
+        hourly_button_box.append(hourly_select_none)
+        
+        hourly_section.append(hourly_button_box)
+        
+        # Create hour checkboxes
+        self.hour_checks = {}
+        hourly_schedule = self.config.get("hourly_schedule", list(range(24)))
+        
+        for hour in range(24):
+            row = hour // 6
+            col = hour % 6
+            hour_label = f"{hour:02d}:00"
+            check = Gtk.CheckButton(label=hour_label)
+            check.set_active(hour in hourly_schedule)
+            self.hour_checks[hour] = check
+            self.hourly_grid.attach(check, col, row, 1, 1)
+        
+        hourly_section.append(self.hourly_grid)
+        schedule_types_box.append(hourly_section)
+        
+        # Add a separator
+        schedule_types_box.append(Gtk.Separator(orientation=Gtk.Orientation.HORIZONTAL))        # Daily snapshots with multiple days selection
+        daily_section = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=5)
+        daily_header = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
         self.daily_check = Gtk.CheckButton(label="Daily Snapshots")
-        schedule_box.append(self.daily_check)
+        self.daily_check.connect("toggled", self.on_daily_check_toggled)
+        daily_header.append(self.daily_check)
         
-        # Weekly snapshots
-        self.weekly_check = Gtk.CheckButton(label="Weekly Snapshots")
-        schedule_box.append(self.weekly_check)
+        # Time selection for daily snapshots
+        daily_header.append(Gtk.Label(label="at time:"))
+        self.daily_hour_spin = Gtk.SpinButton.new_with_range(0, 23, 1)
+        self.daily_hour_spin.set_value(self.config.get("daily_hour", 0))
+        daily_header.append(self.daily_hour_spin)
+        daily_header.append(Gtk.Label(label=":00"))
+        
+        daily_section.append(daily_header)
+        
+        # Add explanation for daily
+        daily_explanation = Gtk.Label(label="Select the days of the week when snapshots should be taken")
+        daily_explanation.set_margin_start(20)
+        daily_explanation.set_halign(Gtk.Align.START)
+        daily_section.append(daily_explanation)
+          # Days selection grid
+        self.daily_grid = Gtk.Grid()
+        self.daily_grid.set_column_homogeneous(True)
+        self.daily_grid.set_row_spacing(5)
+        self.daily_grid.set_column_spacing(10)
+        self.daily_grid.set_margin_start(20)  # Indent
+        
+        # Day selection button box
+        daily_button_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
+        daily_button_box.set_margin_bottom(5)
+        daily_button_box.set_margin_start(20)  # Indent
+        
+        daily_select_all = Gtk.Button(label="Select All Days")
+        daily_select_all.connect("clicked", self.on_daily_select_all_clicked)
+        daily_button_box.append(daily_select_all)
+        
+        daily_select_none = Gtk.Button(label="Clear Days")
+        daily_select_none.connect("clicked", self.on_daily_select_none_clicked)
+        daily_button_box.append(daily_select_none)
+        
+        daily_section.append(daily_button_box)
+        
+        # Create day checkboxes
+        self.day_checks = {}
+        days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+        daily_schedule = self.config.get("daily_schedule", list(range(7)))
+        
+        for day_idx, day_name in enumerate(days):
+            row = day_idx // 4
+            col = day_idx % 4
+            check = Gtk.CheckButton(label=day_name)
+            check.set_active(day_idx in daily_schedule)
+            self.day_checks[day_idx] = check
+            self.daily_grid.attach(check, col, row, 1, 1)
+        
+        daily_section.append(self.daily_grid)
+        schedule_types_box.append(daily_section)
+        
+        # Add a separator
+        schedule_types_box.append(Gtk.Separator(orientation=Gtk.Orientation.HORIZONTAL))
+          # Weekly snapshots
+        weekly_section = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=5)
+        self.weekly_check = Gtk.CheckButton(label="Weekly Snapshots (every Monday at midnight)")
+        weekly_section.append(self.weekly_check)
+        schedule_types_box.append(weekly_section)
+        
+        # Add a separator
+        schedule_types_box.append(Gtk.Separator(orientation=Gtk.Orientation.HORIZONTAL))
         
         # Monthly snapshots
-        self.monthly_check = Gtk.CheckButton(label="Monthly Snapshots")
-        schedule_box.append(self.monthly_check)
+        monthly_section = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=5)
+        self.monthly_check = Gtk.CheckButton(label="Monthly Snapshots (on the 1st of each month at midnight)")
+        monthly_section.append(self.monthly_check)
+        schedule_types_box.append(monthly_section)
         
         # Retention settings
-        schedule_box.append(Gtk.Label(label="Retention Policy (Number to Keep):"))
+        retention_frame = Gtk.Frame()
+        retention_frame.set_label("Retention Policy")
+        retention_frame.set_margin_top(10)
+        retention_frame.set_margin_bottom(10)
+        schedule_box.append(retention_frame)
+        
+        retention_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
+        retention_box.set_margin_top(10)
+        retention_box.set_margin_bottom(10)
+        retention_box.set_margin_start(10)
+        retention_box.set_margin_end(10)
+        retention_frame.set_child(retention_box)
+        
+        retention_explanation = Gtk.Label(
+            label="Specify how many snapshots of each type to keep. Older snapshots will be automatically deleted."
+        )
+        retention_explanation.set_wrap(True)
+        retention_explanation.set_margin_bottom(10)
+        retention_box.append(retention_explanation)
         
         # Hourly retention
         hourly_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
@@ -173,7 +321,7 @@ class SettingsDialog(Gtk.Dialog):
         self.hourly_spin = Gtk.SpinButton.new_with_range(1, 100, 1)
         self.hourly_spin.set_value(self.config.get("snapshot_retention", {}).get("hourly", 24))
         hourly_box.append(self.hourly_spin)
-        schedule_box.append(hourly_box)
+        retention_box.append(hourly_box)
         
         # Daily retention
         daily_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
@@ -181,7 +329,7 @@ class SettingsDialog(Gtk.Dialog):
         self.daily_spin = Gtk.SpinButton.new_with_range(1, 100, 1)
         self.daily_spin.set_value(self.config.get("snapshot_retention", {}).get("daily", 7))
         daily_box.append(self.daily_spin)
-        schedule_box.append(daily_box)
+        retention_box.append(daily_box)
         
         # Weekly retention
         weekly_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
@@ -189,7 +337,7 @@ class SettingsDialog(Gtk.Dialog):
         self.weekly_spin = Gtk.SpinButton.new_with_range(1, 100, 1)
         self.weekly_spin.set_value(self.config.get("snapshot_retention", {}).get("weekly", 4))
         weekly_box.append(self.weekly_spin)
-        schedule_box.append(weekly_box)
+        retention_box.append(weekly_box)
         
         # Monthly retention
         monthly_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
@@ -197,7 +345,7 @@ class SettingsDialog(Gtk.Dialog):
         self.monthly_spin = Gtk.SpinButton.new_with_range(1, 100, 1)
         self.monthly_spin.set_value(self.config.get("snapshot_retention", {}).get("monthly", 12))
         monthly_box.append(self.monthly_spin)
-        schedule_box.append(monthly_box)
+        retention_box.append(monthly_box)
         
         # Pacman integration tab
         pacman_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
@@ -225,6 +373,21 @@ class SettingsDialog(Gtk.Dialog):
         
         # Connect to response signal
         self.connect("response", self.on_response)
+          # Set initial state of hourly and daily sections
+        hourly_has_hours = bool(self.config.get("hourly_schedule", []))
+        daily_has_days = bool(self.config.get("daily_schedule", []))
+        
+        self.hourly_check.set_active(hourly_has_hours)
+        self.daily_check.set_active(daily_has_days)
+        self.weekly_check.set_active(self.config.get("weekly_schedule", False))
+        self.monthly_check.set_active(self.config.get("monthly_schedule", False))
+        
+        # Set initial state of time selectors
+        self.daily_hour_spin.set_sensitive(daily_has_days)
+        
+        # Initialize sensitivity based on checkbox state
+        self.on_hourly_check_toggled(self.hourly_check)
+        self.on_daily_check_toggled(self.daily_check)
         
         self.show()
 
@@ -240,11 +403,47 @@ class SettingsDialog(Gtk.Dialog):
         for row in self.datasets_list:
             box = row.get_child()
             check = box.get_first_child()
-            check.set_active(False)
-
-    def on_response(self, dialog, response):
+            check.set_active(False)    def on_response(self, dialog, response):
         """Handle dialog response"""
         if response == Gtk.ResponseType.OK:
+            # Validate schedules - ensure at least one hour/day is selected if the schedule is enabled
+            hourly_enabled = self.hourly_check.get_active()
+            daily_enabled = self.daily_check.get_active()
+            
+            # Check if any hours are selected for hourly schedule
+            selected_hours = [hour for hour, check in self.hour_checks.items() if check.get_active()]
+            if hourly_enabled and not selected_hours:
+                error_dialog = Gtk.MessageDialog(
+                    transient_for=self,
+                    modal=True,
+                    message_type=Gtk.MessageType.ERROR,
+                    buttons=Gtk.ButtonsType.OK,
+                    text="Invalid Schedule"
+                )
+                error_dialog.format_secondary_text(
+                    "Please select at least one hour for hourly snapshots, or disable hourly snapshots."
+                )
+                error_dialog.connect("response", lambda d, r: d.destroy())
+                error_dialog.present()
+                return
+            
+            # Check if any days are selected for daily schedule
+            selected_days = [day for day, check in self.day_checks.items() if check.get_active()]
+            if daily_enabled and not selected_days:
+                error_dialog = Gtk.MessageDialog(
+                    transient_for=self,
+                    modal=True,
+                    message_type=Gtk.MessageType.ERROR,
+                    buttons=Gtk.ButtonsType.OK,
+                    text="Invalid Schedule"
+                )
+                error_dialog.format_secondary_text(
+                    "Please select at least one day for daily snapshots, or disable daily snapshots."
+                )
+                error_dialog.connect("response", lambda d, r: d.destroy())
+                error_dialog.present()
+                return
+                
             # Update config
             
             # Update prefix
@@ -266,9 +465,24 @@ class SettingsDialog(Gtk.Dialog):
                     managed_datasets.append(check.get_label())
             
             self.config["datasets"] = managed_datasets
-            
-            # Update auto snapshot settings
+              # Update auto snapshot settings
             self.config["auto_snapshot"] = self.schedule_switch.get_active()
+            
+            # Update hourly schedule with selected hours
+            hourly_schedule = []
+            if self.hourly_check.get_active():
+                for hour, check in self.hour_checks.items():
+                    if check.get_active():
+                        hourly_schedule.append(hour)
+            self.config["hourly_schedule"] = hourly_schedule
+              # Update daily schedule with selected days and time
+            daily_schedule = []
+            if self.daily_check.get_active():
+                for day, check in self.day_checks.items():
+                    if check.get_active():
+                        daily_schedule.append(day)
+            self.config["daily_schedule"] = daily_schedule
+            self.config["daily_hour"] = int(self.daily_hour_spin.get_value())
             
             # Update retention policy
             self.config["snapshot_retention"] = {
@@ -287,14 +501,17 @@ class SettingsDialog(Gtk.Dialog):
             
             # Setup pacman hook
             self.zfs_manager.setup_pacman_hook(self.config["pacman_integration"])
-            
-            # Setup systemd timers
+              # Setup systemd timers
             schedules = {
                 "hourly": self.hourly_check.get_active(),
                 "daily": self.daily_check.get_active(),
                 "weekly": self.weekly_check.get_active(),
                 "monthly": self.monthly_check.get_active()
             }
+            
+            # Save the weekly and monthly state in config
+            self.config["weekly_schedule"] = self.weekly_check.get_active()
+            self.config["monthly_schedule"] = self.monthly_check.get_active()
             
             if self.config["auto_snapshot"]:
                 self.zfs_manager.setup_systemd_timers(schedules)
@@ -319,3 +536,36 @@ class SettingsDialog(Gtk.Dialog):
             result_dialog.present()
         
         self.destroy()
+
+    def on_hourly_check_toggled(self, button):
+        """Handle hourly checkbox toggle to enable/disable hour selection"""
+        active = button.get_active()
+        for hour, check in self.hour_checks.items():
+            check.set_sensitive(active)
+            
+    def on_hourly_select_all_clicked(self, button):
+        """Select all hours"""
+        for check in self.hour_checks.values():
+            check.set_active(True)
+            
+    def on_hourly_select_none_clicked(self, button):
+        """Deselect all hours"""
+        for check in self.hour_checks.values():
+            check.set_active(False)
+            
+    def on_daily_check_toggled(self, button):
+        """Handle daily checkbox toggle to enable/disable day selection and time selection"""
+        active = button.get_active()
+        for day, check in self.day_checks.items():
+            check.set_sensitive(active)
+        self.daily_hour_spin.set_sensitive(active)
+        
+    def on_daily_select_all_clicked(self, button):
+        """Select all days"""
+        for check in self.day_checks.values():
+            check.set_active(True)
+            
+    def on_daily_select_none_clicked(self, button):
+        """Deselect all days"""
+        for check in self.day_checks.values():
+            check.set_active(False)

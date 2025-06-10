@@ -436,18 +436,17 @@ ExecStart=/usr/local/bin/zfs-manager-systemd.py %i
                 timer_path = os.path.join(user_systemd_dir, timer_file)
                 if os.path.exists(timer_path):
                     os.remove(timer_path)
-            
-            # Define timer templates
+              # Define timer templates
             timer_templates = {
                 "hourly": {
                     "filename": "zfs-snapshot-hourly.timer",
                     "description": "Take hourly ZFS snapshots",
-                    "oncalendar": "*-*-* *:00:00"
+                    "oncalendar": "*-*-* *:00:00"  # This will be overridden for custom hours
                 },
                 "daily": {
                     "filename": "zfs-snapshot-daily.timer",
                     "description": "Take daily ZFS snapshots",
-                    "oncalendar": "*-*-* 00:00:00"
+                    "oncalendar": "*-*-* 00:00:00"  # This will be overridden for custom days
                 },
                 "weekly": {
                     "filename": "zfs-snapshot-weekly.timer",
@@ -460,12 +459,101 @@ ExecStart=/usr/local/bin/zfs-manager-systemd.py %i
                     "oncalendar": "*-*-01 00:00:00"
                 }
             }
-            
-            # Create needed timer files
+              # Create needed timer files
             for interval, enabled in schedules.items():
                 if enabled and interval in timer_templates:
                     template = timer_templates[interval]
-                    timer_content = f"""[Unit]
+                      # Handle multi-hourly schedule
+                    if interval == "hourly" and "hourly_schedule" in self.config and self.config["hourly_schedule"]:
+                        # Create separate timer for each selected hour
+                        selected_hours = self.config["hourly_schedule"]
+                        
+                        # If no hours are selected but hourly is enabled, use all hours as fallback
+                        if not selected_hours:
+                            selected_hours = list(range(24))
+                        
+                        # Remove any existing hourly timer
+                        hourly_timer_path = os.path.join(user_systemd_dir, template["filename"])
+                        if os.path.exists(hourly_timer_path):
+                            os.remove(hourly_timer_path)
+                        
+                        # Remove existing numbered hourly timers
+                        for i in range(24):
+                            numbered_timer = f"zfs-snapshot-hourly-{i:02d}.timer"
+                            numbered_timer_path = os.path.join(user_systemd_dir, numbered_timer)
+                            if os.path.exists(numbered_timer_path):
+                                os.remove(numbered_timer_path)
+                        
+                        # Create new timers for each selected hour
+                        for hour in selected_hours:
+                            hour_timer_name = f"zfs-snapshot-hourly-{hour:02d}.timer"
+                            hour_timer_content = f"""[Unit]
+Description=Take hourly ZFS snapshot at {hour:02d}:00
+
+[Timer]
+OnCalendar=*-*-* {hour:02d}:00:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+"""
+                            hour_timer_path = os.path.join(user_systemd_dir, hour_timer_name)
+                            with open(hour_timer_path, 'w') as f:
+                                f.write(hour_timer_content)
+                                
+                            # Enable and start the timer
+                            subprocess.run(['systemctl', '--user', 'enable', hour_timer_name], check=True)
+                            subprocess.run(['systemctl', '--user', 'start', hour_timer_name], check=True)
+                          # Handle multi-daily schedule
+                    elif interval == "daily" and "daily_schedule" in self.config and self.config["daily_schedule"]:
+                        # Create separate timer for each selected day
+                        selected_days = self.config["daily_schedule"]
+                        
+                        # If no days are selected but daily is enabled, use all days as fallback
+                        if not selected_days:
+                            selected_days = list(range(7))
+                        
+                        # Days of the week in systemd format
+                        days_of_week = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+                        
+                        # Remove any existing daily timer
+                        daily_timer_path = os.path.join(user_systemd_dir, template["filename"])
+                        if os.path.exists(daily_timer_path):
+                            os.remove(daily_timer_path)
+                        
+                        # Remove existing numbered daily timers
+                        for i in range(7):
+                            numbered_timer = f"zfs-snapshot-daily-{days_of_week[i]}.timer"
+                            numbered_timer_path = os.path.join(user_systemd_dir, numbered_timer)
+                            if os.path.exists(numbered_timer_path):
+                                os.remove(numbered_timer_path)
+                        
+                        # Create new timers for each selected day
+                        for day_idx in selected_days:
+                            if 0 <= day_idx < 7:  # Safety check                                day_name = days_of_week[day_idx]
+                                daily_hour = self.config.get("daily_hour", 0)
+                                day_timer_name = f"zfs-snapshot-daily-{day_name}.timer"
+                                day_timer_content = f"""[Unit]
+Description=Take daily ZFS snapshot on {day_name}days at {daily_hour:02d}:00
+
+[Timer]
+OnCalendar={day_name} *-*-* {daily_hour:02d}:00:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+"""
+                                day_timer_path = os.path.join(user_systemd_dir, day_timer_name)
+                                with open(day_timer_path, 'w') as f:
+                                    f.write(day_timer_content)
+                                    
+                                # Enable and start the timer
+                                subprocess.run(['systemctl', '--user', 'enable', day_timer_name], check=True)
+                                subprocess.run(['systemctl', '--user', 'start', day_timer_name], check=True)
+                    
+                    # Handle regular weekly and monthly timers
+                    else:
+                        timer_content = f"""[Unit]
 Description={template["description"]}
 
 [Timer]
@@ -475,28 +563,48 @@ Persistent=true
 [Install]
 WantedBy=timers.target
 """
-                    timer_path = os.path.join(user_systemd_dir, template["filename"])
-                    with open(timer_path, 'w') as f:
-                        f.write(timer_content)
+                        timer_path = os.path.join(user_systemd_dir, template["filename"])
+                        with open(timer_path, 'w') as f:
+                            f.write(timer_content)
+                            
+                        # Enable and start the regular timer
+                        subprocess.run(['systemctl', '--user', 'enable', template["filename"]], check=True)
+                        subprocess.run(['systemctl', '--user', 'start', template["filename"]], check=True)
+                
+                elif not enabled and interval in timer_templates:
+                    # Disable and stop timers for disabled schedules
+                    template = timer_templates[interval]
+                    
+                    if interval == "hourly":
+                        # Stop and disable all hourly timers
+                        for i in range(24):
+                            hour_timer_name = f"zfs-snapshot-hourly-{i:02d}.timer"
+                            try:
+                                subprocess.run(['systemctl', '--user', 'stop', hour_timer_name], check=False)
+                                subprocess.run(['systemctl', '--user', 'disable', hour_timer_name], check=False)
+                            except:
+                                pass  # Ignore errors
+                    
+                    elif interval == "daily":
+                        # Stop and disable all daily timers
+                        days_of_week = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+                        for day_name in days_of_week:
+                            day_timer_name = f"zfs-snapshot-daily-{day_name}.timer"
+                            try:
+                                subprocess.run(['systemctl', '--user', 'stop', day_timer_name], check=False)
+                                subprocess.run(['systemctl', '--user', 'disable', day_timer_name], check=False)
+                            except:
+                                pass  # Ignore errors
+                    
+                    # Also stop and disable the main timer
+                    try:
+                        subprocess.run(['systemctl', '--user', 'stop', template["filename"]], check=False)
+                        subprocess.run(['systemctl', '--user', 'disable', template["filename"]], check=False)
+                    except:
+                        pass  # Ignore errors
             
             # Reload systemd user daemon
             subprocess.run(['systemctl', '--user', 'daemon-reload'], check=True)
-            
-            # Enable and start timers
-            for interval, enabled in schedules.items():
-                if enabled and interval in timer_templates:
-                    template = timer_templates[interval]
-                    subprocess.run(['systemctl', '--user', 'enable', template["filename"]], check=True)
-                    subprocess.run(['systemctl', '--user', 'start', template["filename"]], check=True)
-                else:
-                    # Make sure disabled timers are stopped and disabled
-                    if interval in timer_templates:
-                        template = timer_templates[interval]
-                        try:
-                            subprocess.run(['systemctl', '--user', 'stop', template["filename"]], check=False)
-                            subprocess.run(['systemctl', '--user', 'disable', template["filename"]], check=False)
-                        except:
-                            pass  # Ignore errors on stop/disable as the timer might not exist
             
             return True, "Systemd timers set up successfully"
         except Exception as e:

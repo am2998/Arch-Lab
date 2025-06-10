@@ -27,6 +27,11 @@ DEFAULT_CONFIG = {
         "weekly": 4,
         "monthly": 12
     },
+    "hourly_schedule": [8, 12, 16, 20],  # Default to business hours
+    "daily_schedule": [0, 1, 2, 3, 4],    # Default to weekdays
+    "daily_hour": 0,                      # Default hour for daily snapshots
+    "weekly_schedule": True,              # Enable weekly by default
+    "monthly_schedule": True,             # Enable monthly by default
     "datasets": [],
     "pacman_integration": True,
     "prefix": "zfs-manager",
