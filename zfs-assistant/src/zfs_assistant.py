@@ -6,12 +6,12 @@ import os
 import json
 import subprocess
 import datetime
+import tempfile
 from pathlib import Path
 
 # Try relative imports first, fall back to absolute imports if run as a script
-try:
-    from .common import (
-        CONFIG_DIR, CONFIG_FILE, PACMAN_HOOK_PATH, 
+try:    from .common import (
+        CONFIG_DIR, CONFIG_FILE, LOG_FILE, PACMAN_HOOK_PATH, 
         SYSTEMD_SCRIPT_PATH, PACMAN_SCRIPT_PATH,
         DEFAULT_CONFIG, run_command, get_timestamp
     )
@@ -27,9 +27,8 @@ except ImportError:
     if parent_dir not in sys.path:
         sys.path.insert(0, parent_dir)
     try:
-        # Try with src as a direct submodule
-        from src.common import (
-            CONFIG_DIR, CONFIG_FILE, PACMAN_HOOK_PATH, 
+        # Try with src as a direct submodule        from src.common import (
+            CONFIG_DIR, CONFIG_FILE, LOG_FILE, PACMAN_HOOK_PATH, 
             SYSTEMD_SCRIPT_PATH, PACMAN_SCRIPT_PATH,
             DEFAULT_CONFIG, run_command, get_timestamp
         )
@@ -41,9 +40,8 @@ except ImportError:
     except ImportError:
         # Last resort, use direct file paths
         current_dir = os.path.dirname(os.path.abspath(__file__))
-        sys.path.insert(0, current_dir)
-        from common import (
-            CONFIG_DIR, CONFIG_FILE, PACMAN_HOOK_PATH, 
+        sys.path.insert(0, current_dir)        from common import (
+            CONFIG_DIR, CONFIG_FILE, LOG_FILE, PACMAN_HOOK_PATH, 
             SYSTEMD_SCRIPT_PATH, PACMAN_SCRIPT_PATH,
             DEFAULT_CONFIG, run_command, get_timestamp
         )
@@ -756,36 +754,46 @@ def create_pre_pacman_snapshot():
 
 if __name__ == "__main__":
     create_pre_pacman_snapshot()
-"""
-            try:
-                # Ensure directories exist
-                hook_dir = os.path.dirname(self.pacman_hook_path)
-                os.makedirs(hook_dir, exist_ok=True)
+"""            try:                # Create temporary files for both hook and script
                 
-                # Write the hook file
-                with open(self.pacman_hook_path, 'w') as f:
-                    f.write(hook_content)
+                # Create temporary hook file
+                with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.hook') as temp_hook:
+                    temp_hook.write(hook_content)
+                    temp_hook_path = temp_hook.name
                 
-                # Write the hook script
-                script_path = PACMAN_SCRIPT_PATH
-                with open(script_path, 'w') as f:
-                    f.write(script_content)
+                # Create temporary script file
+                with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.py') as temp_script:
+                    temp_script.write(script_content)
+                    temp_script_path = temp_script.name
                 
-                # Make the script executable
-                os.chmod(script_path, 0o755)
+                try:
+                    # Ensure hook directory exists with elevated permissions
+                    hook_dir = os.path.dirname(self.pacman_hook_path)
+                    subprocess.run(['pkexec', 'mkdir', '-p', hook_dir], check=True, capture_output=True)
+                    
+                    # Copy hook file with elevated permissions
+                    subprocess.run(['pkexec', 'cp', temp_hook_path, self.pacman_hook_path], check=True, capture_output=True)
+                    
+                    # Copy script file with elevated permissions
+                    script_path = PACMAN_SCRIPT_PATH
+                    subprocess.run(['pkexec', 'cp', temp_script_path, script_path], check=True, capture_output=True)
+                    
+                    # Make the script executable
+                    subprocess.run(['pkexec', 'chmod', '755', script_path], check=True, capture_output=True)
+                    
+                finally:
+                    # Clean up temporary files
+                    os.unlink(temp_hook_path)
+                    os.unlink(temp_script_path)
                 
                 return True, "Pacman hook installed successfully"
             except Exception as e:
-                return False, f"Error installing pacman hook: {e}"
-        else:
+                return False, f"Error installing pacman hook: {e}"        else:
             # Remove the hook
             try:
-                if os.path.exists(self.pacman_hook_path):
-                    os.remove(self.pacman_hook_path)
-                
-                script_path = PACMAN_SCRIPT_PATH
-                if os.path.exists(script_path):
-                    os.remove(script_path)
+                # Use elevated permissions to remove files
+                subprocess.run(['pkexec', 'rm', '-f', self.pacman_hook_path], check=True, capture_output=True)
+                subprocess.run(['pkexec', 'rm', '-f', PACMAN_SCRIPT_PATH], check=True, capture_output=True)
                 
                 return True, "Pacman hook removed successfully"
             except Exception as e:
@@ -1054,13 +1062,21 @@ if __name__ == "__main__":
     interval = sys.argv[1]
     create_scheduled_snapshot(interval)
 """
-            # Write the script
+            # Write the script using elevated permissions
             script_path = SYSTEMD_SCRIPT_PATH
-            with open(script_path, 'w') as f:
-                f.write(script_content)
+              # Create a temporary file first
+            with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.py') as temp_file:
+                temp_file.write(script_content)
+                temp_path = temp_file.name
             
-            # Make the script executable
-            os.chmod(script_path, 0o755)
+            try:
+                # Copy the temporary file to the system location with elevated permissions
+                subprocess.run(['pkexec', 'cp', temp_path, script_path], check=True, capture_output=True)
+                # Make the script executable
+                subprocess.run(['pkexec', 'chmod', '755', script_path], check=True, capture_output=True)
+            finally:
+                # Clean up temporary file
+                os.unlink(temp_path)
             
             # Create systemd service directory if it doesn't exist
             user_systemd_dir = os.path.expanduser("~/.config/systemd/user")
@@ -1311,9 +1327,8 @@ WantedBy=timers.target
                 send_cmd = ['zfs', 'send', snapshot_full_name]
                 
             receive_cmd = ['zfs', 'receive', '-F', target_pool]
-            
-            self.logger.log_command(' '.join(['pkexec'] + send_cmd))
-            self.logger.log_command(' '.join(['pkexec'] + receive_cmd))
+              self.logger.log_system_command(' '.join(['pkexec'] + send_cmd), True)
+            self.logger.log_system_command(' '.join(['pkexec'] + receive_cmd), True)
             
             # Use cached pkexec authorization for both commands
             success, _ = self.run_pkexec_command(['true'])

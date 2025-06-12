@@ -12,6 +12,16 @@ from pathlib import Path
 from typing import Optional, Dict, Any, List
 from enum import Enum
 
+# Import LOG_FILE constant from common
+try:
+    from .common import LOG_FILE
+except ImportError:
+    try:
+        from common import LOG_FILE
+    except ImportError:
+        # Fallback if import fails
+        LOG_FILE = "/var/log/zfs-assistant.log"
+
 class OperationType(Enum):
     """Types of operations that can be logged"""
     SNAPSHOT_SCHEDULED = "snapshot_scheduled"
@@ -38,30 +48,22 @@ class ZFSLogger:
     """
     Comprehensive logging system for ZFS Assistant operations
     Creates structured logs with timestamps and operation-specific sections
-    """
-    
-    def __init__(self, log_dir: str = "~/.config/zfs-assistant/logs"):
+    """    def __init__(self, log_file: str = None):
         """
         Initialize the logger
         
         Args:
-            log_dir: Directory to store log files
+            log_file: Path to the single log file (defaults to LOG_FILE constant)
         """
-        self.log_dir = Path(log_dir).expanduser()
-        self.log_dir.mkdir(parents=True, exist_ok=True)
+        if log_file is None:
+            log_file = LOG_FILE
+        self.log_file = Path(log_file)
         
-        # Main log file
-        self.main_log_file = self.log_dir / "zfs-assistant.log"
+        # Ensure the log directory exists
+        self.log_file.parent.mkdir(parents=True, exist_ok=True)
         
-        # Operation-specific log files
-        self.operation_logs = {
-            OperationType.SNAPSHOT_SCHEDULED: self.log_dir / "snapshots-scheduled.log",
-            OperationType.SNAPSHOT_MANUAL: self.log_dir / "snapshots-manual.log",
-            OperationType.PACMAN_INTEGRATION: self.log_dir / "pacman-integration.log",
-            OperationType.SYSTEM_UPDATE: self.log_dir / "system-updates.log",
-            OperationType.ZFS_BACKUP: self.log_dir / "zfs-backups.log",
-            OperationType.SYSTEM_MAINTENANCE: self.log_dir / "system-maintenance.log"
-        }
+        # Single unified log file for all operations
+        self.main_log_file = self.log_file
         
         # Current operation context
         self.current_operation: Optional[Dict[str, Any]] = None
@@ -150,13 +152,8 @@ class ZFSLogger:
         }
         
         log_content = f"{header}\n{self._format_log_entry(LogLevel.INFO, start_msg, operation_type, operation_details)}\n{header}"
-        
-        # Write to main log
+          # Write to main log
         self._write_to_log(self.main_log_file, log_content)
-        
-        # Write to operation-specific log if exists
-        if operation_type in self.operation_logs:
-            self._write_to_log(self.operation_logs[operation_type], log_content)
         
         # Log to Python logger
         self.python_logger.info(f"Started operation: {description}")
@@ -182,13 +179,8 @@ class ZFSLogger:
                 'message': message,
                 'details': details or {}
             })
-        
-        # Write to main log
+          # Write to main log
         self._write_to_log(self.main_log_file, log_entry)
-        
-        # Write to operation-specific log if exists
-        if operation_type and operation_type in self.operation_logs:
-            self._write_to_log(self.operation_logs[operation_type], log_entry)
         
         # Log to Python logger
         python_level = getattr(logging, level.value, logging.INFO)
@@ -240,13 +232,8 @@ class ZFSLogger:
         duration_msg = f"Duration: {duration}"
         
         log_content = f"{self._format_log_entry(result_level, end_msg, operation_type, operation_summary)}\n{duration_msg}\n{footer}\n"
-        
-        # Write to main log
+          # Write to main log
         self._write_to_log(self.main_log_file, log_content)
-        
-        # Write to operation-specific log if exists
-        if operation_type in self.operation_logs:
-            self._write_to_log(self.operation_logs[operation_type], log_content)
         
         # Log to Python logger
         python_level = logging.INFO if success else logging.ERROR
@@ -331,8 +318,7 @@ class ZFSLogger:
             backup_details.update(details)
         
         self.log_message(level, message, backup_details)
-    
-    def get_operation_logs(self, operation_type: OperationType, limit: Optional[int] = None) -> List[str]:
+      def get_operation_logs(self, operation_type: OperationType, limit: Optional[int] = None) -> List[str]:
         """
         Get recent log entries for a specific operation type
         
@@ -343,23 +329,26 @@ class ZFSLogger:
         Returns:
             List of log entries
         """
-        log_file = self.operation_logs.get(operation_type)
-        if not log_file or not log_file.exists():
+        if not self.main_log_file.exists():
             return []
         
         try:
-            with open(log_file, 'r', encoding='utf-8') as f:
+            with open(self.main_log_file, 'r', encoding='utf-8') as f:
                 lines = f.readlines()
             
-            if limit:
-                lines = lines[-limit:]
+            # Filter lines for specific operation type
+            operation_lines = []
+            for line in lines:
+                if f"[{operation_type.value.upper()}]" in line:
+                    operation_lines.append(line.strip())
             
-            return [line.strip() for line in lines if line.strip()]
+            if limit:
+                operation_lines = operation_lines[-limit:]
+            
+            return operation_lines
         except Exception as e:
             self.log_message(LogLevel.ERROR, f"Failed to read operation logs: {e}")
-            return []
-    
-    def cleanup_old_logs(self, days_to_keep: int = 30):
+            return []    def cleanup_old_logs(self, days_to_keep: int = 30):
         """
         Clean up log files older than specified days
         
@@ -368,16 +357,16 @@ class ZFSLogger:
         """
         cutoff_date = datetime.datetime.now() - datetime.timedelta(days=days_to_keep)
         
-        for log_file in self.log_dir.glob("*.log"):
-            try:
-                if log_file.stat().st_mtime < cutoff_date.timestamp():
-                    # Archive old log file instead of deleting
-                    archive_name = f"{log_file.stem}-{datetime.datetime.fromtimestamp(log_file.stat().st_mtime).strftime('%Y%m%d')}.log.old"
-                    archive_path = self.log_dir / archive_name
-                    log_file.rename(archive_path)
-                    self.log_message(LogLevel.INFO, f"Archived old log file: {log_file.name} -> {archive_name}")
-            except Exception as e:
-                self.log_message(LogLevel.WARNING, f"Failed to cleanup log file {log_file}: {e}")
+        # For single file logging, we'll just archive the current log if it's old
+        try:
+            if self.main_log_file.exists() and self.main_log_file.stat().st_mtime < cutoff_date.timestamp():
+                # Archive old log file instead of deleting
+                archive_name = f"{self.main_log_file.stem}-{datetime.datetime.fromtimestamp(self.main_log_file.stat().st_mtime).strftime('%Y%m%d')}.log.old"
+                archive_path = self.main_log_file.parent / archive_name
+                self.main_log_file.rename(archive_path)
+                self.log_message(LogLevel.INFO, f"Archived old log file: {self.main_log_file.name} -> {archive_name}")
+        except Exception as e:
+            self.log_message(LogLevel.WARNING, f"Failed to cleanup log file {self.main_log_file}: {e}")
 
 # Global logger instance
 _logger_instance: Optional[ZFSLogger] = None

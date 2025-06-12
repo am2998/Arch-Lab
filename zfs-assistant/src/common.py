@@ -47,6 +47,7 @@ DEFAULT_CONFIG = {
 # File paths
 CONFIG_DIR = os.path.expanduser("~/.config/zfs-assistant")
 CONFIG_FILE = os.path.join(CONFIG_DIR, "config.json")
+LOG_FILE = "/var/log/zfs-assistant.log"
 PACMAN_HOOK_PATH = "/etc/pacman.d/hooks/00-zfs-snapshot.hook"
 SYSTEMD_SCRIPT_PATH = "/usr/local/bin/zfs-assistant-systemd.py"
 PACMAN_SCRIPT_PATH = "/usr/local/bin/zfs-assistant-pacman-hook.py"

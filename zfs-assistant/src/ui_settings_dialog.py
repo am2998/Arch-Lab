@@ -902,10 +902,21 @@ class SettingsDialog(Gtk.Dialog):
             # Save config
             self.zfs_assistant.config = self.config
             self.zfs_assistant.save_config()
-            
-            # Setup pacman hook
-            self.zfs_assistant.setup_pacman_hook(self.config["pacman_integration"])
-              # Setup systemd timers
+              # Setup pacman hook
+            pacman_success, pacman_message = self.zfs_assistant.setup_pacman_hook(self.config["pacman_integration"])
+            if not pacman_success:
+                error_dialog = Gtk.MessageDialog(
+                    transient_for=self,
+                    modal=True,
+                    message_type=Gtk.MessageType.ERROR,
+                    buttons=Gtk.ButtonsType.OK,
+                    text="Pacman Hook Setup Failed",
+                    secondary_text=f"Failed to setup pacman hook: {pacman_message}"
+                )
+                error_dialog.connect("response", lambda d, r: d.destroy())
+                error_dialog.present()
+                
+            # Setup systemd timers
             schedules = {
                 "hourly": self.hourly_check.get_active(),
                 "daily": self.daily_check.get_active(),
@@ -918,7 +929,18 @@ class SettingsDialog(Gtk.Dialog):
             self.config["monthly_schedule"] = self.monthly_check.get_active()
             
             if self.config["auto_snapshot"]:
-                self.zfs_assistant.setup_systemd_timers(schedules)
+                timer_success, timer_message = self.zfs_assistant.setup_systemd_timers(schedules)
+                if not timer_success:
+                    error_dialog = Gtk.MessageDialog(
+                        transient_for=self,
+                        modal=True,
+                        message_type=Gtk.MessageType.ERROR,
+                        buttons=Gtk.ButtonsType.OK,
+                        text="Systemd Timer Setup Failed",
+                        secondary_text=f"Failed to setup systemd timers: {timer_message}"
+                    )
+                    error_dialog.connect("response", lambda d, r: d.destroy())
+                    error_dialog.present()
             
             # Update theme if dark mode changed
             if dark_mode_changed:
