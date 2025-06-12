@@ -8,7 +8,8 @@ import json
 from pathlib import Path
 
 # Try relative imports first, fall back to absolute imports if run as a script
-try:    from .common import (
+try:
+    from .common import (
         CONFIG_DIR, CONFIG_FILE, LOG_FILE, PACMAN_HOOK_PATH, 
         SYSTEMD_SCRIPT_PATH, PACMAN_SCRIPT_PATH,
         DEFAULT_CONFIG, get_timestamp
@@ -30,7 +31,8 @@ except ImportError:
     if parent_dir not in sys.path:
         sys.path.insert(0, parent_dir)
     try:
-        # Try with src as a direct submodule        from src.common import (
+        # Try with src as a direct submodule
+        from src.common import (
             CONFIG_DIR, CONFIG_FILE, LOG_FILE, PACMAN_HOOK_PATH, 
             SYSTEMD_SCRIPT_PATH, PACMAN_SCRIPT_PATH,
             DEFAULT_CONFIG, get_timestamp
@@ -48,7 +50,8 @@ except ImportError:
     except ImportError:
         # Last resort, use direct file paths
         current_dir = os.path.dirname(os.path.abspath(__file__))
-        sys.path.insert(0, current_dir)        from common import (
+        sys.path.insert(0, current_dir)
+        from common import (
             CONFIG_DIR, CONFIG_FILE, LOG_FILE, PACMAN_HOOK_PATH, 
             SYSTEMD_SCRIPT_PATH, PACMAN_SCRIPT_PATH,
             DEFAULT_CONFIG, get_timestamp
