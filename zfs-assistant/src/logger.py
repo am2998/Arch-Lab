@@ -48,7 +48,8 @@ class ZFSLogger:
     """
     Comprehensive logging system for ZFS Assistant operations
     Creates structured logs with timestamps and operation-specific sections
-    """    def __init__(self, log_file: str = None):
+    """
+    def __init__(self, log_file: str = None):
         """
         Initialize the logger
         
@@ -318,7 +319,8 @@ class ZFSLogger:
             backup_details.update(details)
         
         self.log_message(level, message, backup_details)
-      def get_operation_logs(self, operation_type: OperationType, limit: Optional[int] = None) -> List[str]:
+    
+    def get_operation_logs(self, operation_type: OperationType, limit: Optional[int] = None) -> List[str]:
         """
         Get recent log entries for a specific operation type
         
@@ -348,7 +350,9 @@ class ZFSLogger:
             return operation_lines
         except Exception as e:
             self.log_message(LogLevel.ERROR, f"Failed to read operation logs: {e}")
-            return []    def cleanup_old_logs(self, days_to_keep: int = 30):
+            return []
+    
+    def cleanup_old_logs(self, days_to_keep: int = 30):
         """
         Clean up log files older than specified days
         

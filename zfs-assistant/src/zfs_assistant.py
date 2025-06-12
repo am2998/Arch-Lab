@@ -10,7 +10,8 @@ import tempfile
 from pathlib import Path
 
 # Try relative imports first, fall back to absolute imports if run as a script
-try:    from .common import (
+try:
+    from .common import (
         CONFIG_DIR, CONFIG_FILE, LOG_FILE, PACMAN_HOOK_PATH, 
         SYSTEMD_SCRIPT_PATH, PACMAN_SCRIPT_PATH,
         DEFAULT_CONFIG, run_command, get_timestamp
@@ -27,7 +28,8 @@ except ImportError:
     if parent_dir not in sys.path:
         sys.path.insert(0, parent_dir)
     try:
-        # Try with src as a direct submodule        from src.common import (
+        # Try with src as a direct submodule
+        from src.common import (
             CONFIG_DIR, CONFIG_FILE, LOG_FILE, PACMAN_HOOK_PATH, 
             SYSTEMD_SCRIPT_PATH, PACMAN_SCRIPT_PATH,
             DEFAULT_CONFIG, run_command, get_timestamp
@@ -40,7 +42,8 @@ except ImportError:
     except ImportError:
         # Last resort, use direct file paths
         current_dir = os.path.dirname(os.path.abspath(__file__))
-        sys.path.insert(0, current_dir)        from common import (
+        sys.path.insert(0, current_dir)
+        from common import (
             CONFIG_DIR, CONFIG_FILE, LOG_FILE, PACMAN_HOOK_PATH, 
             SYSTEMD_SCRIPT_PATH, PACMAN_SCRIPT_PATH,
             DEFAULT_CONFIG, run_command, get_timestamp
@@ -754,7 +757,9 @@ def create_pre_pacman_snapshot():
 
 if __name__ == "__main__":
     create_pre_pacman_snapshot()
-"""            try:                # Create temporary files for both hook and script
+"""
+            try:
+                # Create temporary files for both hook and script
                 
                 # Create temporary hook file
                 with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.hook') as temp_hook:
@@ -788,7 +793,8 @@ if __name__ == "__main__":
                 
                 return True, "Pacman hook installed successfully"
             except Exception as e:
-                return False, f"Error installing pacman hook: {e}"        else:
+                return False, f"Error installing pacman hook: {e}"
+        else:
             # Remove the hook
             try:
                 # Use elevated permissions to remove files
@@ -1327,7 +1333,7 @@ WantedBy=timers.target
                 send_cmd = ['zfs', 'send', snapshot_full_name]
                 
             receive_cmd = ['zfs', 'receive', '-F', target_pool]
-              self.logger.log_system_command(' '.join(['pkexec'] + send_cmd), True)
+            self.logger.log_system_command(' '.join(['pkexec'] + send_cmd), True)
             self.logger.log_system_command(' '.join(['pkexec'] + receive_cmd), True)
             
             # Use cached pkexec authorization for both commands
