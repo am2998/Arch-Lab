@@ -1,30 +1,31 @@
-# ZFS Assistant for Arch Linux
+# ZFS Assistant
 
-A GTK GUI application for managing ZFS snapshots on Arch Linux.
+A modern GTK4 GUI application for managing ZFS snapshots on Linux systems.
 
 ## Project Structure
 
 ```
 zfs-assistant/
-├── PKGBUILD          # Arch Linux package build script
-├── .SRCINFO          # AUR package metadata
-├── setup.py          # Python setup script for installation
-├── zfs-assistant.py  # Launcher script for direct execution
-└── src/              # Source code directory      
-    ├── __init__.py      # Package initialization
-    ├── __main__.py      # Entry point for module execution
-    ├── application.py   # Main application class
-    ├── zfs_assistant.py # Core ZFS operations
-    ├── models.py        # Data models
-    ├── ui_*.py          # UI components
-    └── requirements.txt # Python dependencies
+├── build-release.sh        # Single comprehensive build script for releases
+├── install.sh              # Installation script
+├── Makefile                # Build automation
+├── setup.py                # Python setup script
+├── zfs-assistant.desktop   # Desktop entry file
+└── src/                    # Source code directory      
+    ├── __init__.py            # Package initialization
+    ├── __main__.py            # Entry point for module execution
+    ├── application.py         # Main application class
+    ├── zfs_assistant.py       # Core ZFS operations
+    ├── models.py              # Data models
+    ├── ui_*.py                # UI components
+    └── requirements.txt       # Python dependencies
 ```
 
 ## Features
 
 - **Snapshot Management**:
   - List ZFS snapshots graphically
-  - Create new snapshots
+  - Create new snapshots with custom names
   - Delete existing snapshots
   - Roll back to snapshots
   - Clone snapshots to new datasets
@@ -32,16 +33,39 @@ zfs-assistant/
 
 - **Dataset Properties**:
   - View ZFS dataset flags and properties
+  - Monitor ZFS pool status
+
+- **Modern UI**:
+  - Built with GTK4 and libadwaita
+  - Adaptive design
+  - Dark mode support
 
 ## Installation
 
-### From AUR (Recommended)
+### AppImage (Recommended)
+
+The easiest way to install ZFS Assistant is using the provided AppImage:
 
 ```bash
-yay -S zfs-assistant
-# or
-paru -S zfs-assistant
+# Clone the repository
+git clone https://github.com/am2998/Arch-Lab.git
+cd Arch-Lab/zfs-assistant
+
+# Build the release AppImage (requires Linux)
+make release
+
+# Install to user directory (~/.local/bin)
+make install
+
+# Or install system-wide (/usr/local/bin)
+sudo make install-system
 ```
+
+The release build creates:
+- `release/ZFS-Assistant-0.1.0-x86_64.AppImage` - The main AppImage
+- `release/ZFS-Assistant-0.1.0-x86_64.AppImage.sha256` - SHA256 checksum
+- `release/ZFS-Assistant-0.1.0-x86_64.AppImage.md5` - MD5 checksum  
+- `release/RELEASE_INFO.txt` - Release information and instructions
 
 ### Manual Installation
 
@@ -51,52 +75,126 @@ paru -S zfs-assistant
    cd Arch-Lab/zfs-assistant
    ```
 
-2. Install dependencies:
+2. Install system dependencies:
+   ```bash
+   # Arch Linux
+   sudo pacman -S gtk4 libadwaita python-gobject python-cairo
+
+   # Ubuntu/Debian
+   sudo apt install libgtk-4-dev libadwaita-1-dev python3-gi python3-gi-cairo
+
+   # Fedora
+   sudo dnf install gtk4-devel libadwaita-devel python3-gobject python3-cairo
+   ```
+
+3. Install Python dependencies:
    ```bash
    pip install -r src/requirements.txt
    ```
 
-3. Install the package:
+4. Install the package:
    ```bash
    pip install -e .
    ```
 
 ## Running the Application
 
-After installation, you can run the application in several ways:
+### From AppImage
 
-### Using the Desktop Entry
+If you installed via AppImage:
+```bash
+# If installed system-wide
+zfs-assistant
 
-If installed from AUR, simply search for "ZFS Assistant" in your application menu.
+# Or run the AppImage directly
+./ZFS-Assistant-0.1.0-x86_64.AppImage
+```
 
-### From the Command Line
+### From Desktop Entry
 
-If installed as a package:
+After installation, you can launch "ZFS Assistant" from your application menu.
+
+### From Command Line
+
+If installed as a Python package:
 ```bash
 zfs-assistant
 ```
 
-Using Python module syntax:
+Running as Python module:
 ```bash
 python -m zfs_assistant
 ```
 
-Running directly from the repository:
+Running directly from source:
 ```bash
-cd /path/to/zfs-assistant
-python zfs-assistant.py
+cd /path/to/zfs-assistant/src
+python __main__.py
 ```
+
+## Building AppImage
+
+To build your own release-ready AppImage:
+
+```bash
+# Make sure you're on a Linux system
+chmod +x build-release.sh
+./build-release.sh
+
+# Or use the Makefile
+make release
+
+# The AppImage and checksums will be created in release/
+```
+
+The build script performs:
+- Pre-flight checks for dependencies
+- Creates proper directory structure
+- Installs Python dependencies 
+- Creates desktop integration files
+- Generates high-quality icons
+- Builds and tests the AppImage
+- Creates checksums and release info
+
+## Prerequisites
+
+- **Linux system** (for AppImage building and ZFS)
+- **Python 3.8+**
+- **GTK4** (>= 4.0.0)
+- **libadwaita** (>= 1.0.0)
+- **ZFS utilities** (zfs-utils or equivalent)
+- **PyGObject** (>= 3.42.0)
+- **pycairo** (>= 1.20.0)
 
 ## Troubleshooting
 
-If you encounter any issues with running the application, try the following:
+### AppImage Issues
 
-1. Make sure all dependencies are installed:
+1. **AppImage won't run**: Make sure it's executable:
+   ```bash
+   chmod +x ZFS-Assistant-*.AppImage
+   ```
+
+2. **Missing dependencies**: The AppImage should be self-contained, but system GTK4/libadwaita libraries are required.
+
+### General Issues
+
+1. **Permission errors**: Make sure your user is in the appropriate groups for ZFS access:
+   ```bash
+   sudo usermod -a -G disk $USER
+   # Logout and login again
+   ```
+
+2. **ZFS not found**: Ensure ZFS is installed and loaded:
+   ```bash
+   sudo modprobe zfs
+   zfs version
+   ```
+
+3. **Python dependencies**: If running from source, install dependencies:
    ```bash
    pip install -r src/requirements.txt
    ```
-
-2. If running as a module fails, try the direct launcher:
    ```bash
    python zfs-assistant.py
    ```

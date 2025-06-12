@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=ZFS Assistant
+Comment=A GUI tool for managing ZFS snapshots
+Exec=zfs-assistant
+Icon=zfs-assistant
+Terminal=false
+Categories=System;Utility;
+Keywords=zfs;snapshot;filesystem;backup;
+StartupNotify=true
