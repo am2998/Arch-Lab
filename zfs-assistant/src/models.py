@@ -3,15 +3,7 @@
 # Author: GitHub Copilot
 
 import datetime
-import gi
-gi.require_version('Gtk', '4.0')
-gi.require_version('Adw', '1')
-from gi.repository import GObject
 
-from .common import format_datetime, format_size
-
-# Create a standard Python class instead of a GObject
-# This resolves the GType registration issues
 class ZFSSnapshot:
     """
     Represents a ZFS snapshot with its properties
@@ -48,21 +40,22 @@ class ZFSSnapshot:
     def full_name(self):
         """Get the full snapshot name (dataset@snapshot)"""
         return f"{self.dataset}@{self.name}"
-        
-    @property
+          @property
     def formatted_creation_date(self):
         """Get formatted creation date"""
-        return format_datetime(self.creation_date)
+        if isinstance(self.creation_date, datetime.datetime):
+            return self.creation_date.strftime("%Y-%m-%d %H:%M")
+        return str(self.creation_date)
         
     @property
     def formatted_used(self):
         """Get formatted used size"""
-        return format_size(self.used)
+        return self.used or "0 B"
         
     @property
     def formatted_referenced(self):
         """Get formatted referenced size"""
-        return format_size(self.referenced)
+        return self.referenced or "0 B"
 
     @staticmethod
     def from_zfs_list(line):

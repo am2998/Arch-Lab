@@ -7,7 +7,7 @@ import datetime
 
 gi.require_version('Gtk', '4.0')
 gi.require_version('Adw', '1')
-from gi.repository import Gtk, Adw, GLib, Gio, Gdk, GObject
+from gi.repository import Gtk, Adw, GObject
 
 from .models import ZFSSnapshot
 from .ui_settings_dialog import SettingsDialog

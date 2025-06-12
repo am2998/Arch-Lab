@@ -8,7 +8,7 @@ import sys
 
 gi.require_version('Gtk', '4.0')
 gi.require_version('Adw', '1')
-from gi.repository import Gtk, Adw, GLib, Gio, Gdk
+from gi.repository import Gtk, Adw, Gio, Gdk
 
 # Add the current directory to sys.path
 current_dir = os.path.dirname(os.path.abspath(__file__))

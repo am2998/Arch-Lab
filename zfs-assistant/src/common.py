@@ -3,7 +3,6 @@
 # Author: GitHub Copilot
 
 import os
-import json
 import subprocess
 import datetime
 
@@ -49,8 +48,8 @@ CONFIG_DIR = os.path.expanduser("~/.config/zfs-assistant")
 CONFIG_FILE = os.path.join(CONFIG_DIR, "config.json")
 LOG_FILE = "/var/log/zfs-assistant.log"
 PACMAN_HOOK_PATH = "/etc/pacman.d/hooks/00-zfs-snapshot.hook"
-SYSTEMD_SCRIPT_PATH = "/usr/local/bin/zfs-assistant-systemd.py"
-PACMAN_SCRIPT_PATH = "/usr/local/bin/zfs-assistant-pacman-hook.py"
+SYSTEMD_SCRIPT_PATH = os.path.expanduser("~/.local/bin/zfs-assistant-systemd.py")
+PACMAN_SCRIPT_PATH = os.path.expanduser("~/.local/bin/zfs-assistant-pacman-hook.py")
 
 # Utility functions
 def run_command(cmd, capture_output=True, check=True):
@@ -67,34 +66,6 @@ def run_command(cmd, capture_output=True, check=True):
         return False, e
     except Exception as e:
         return False, e
-
-def format_size(size_str):
-    """Format size string for display"""
-    if not size_str or size_str == "-" or size_str.lower() == "none":
-        return "0 B"
-    
-    # Return as is if already formatted
-    if any(unit in size_str for unit in ["B", "K", "M", "G", "T", "P"]):
-        return size_str
-    
-    try:
-        size = float(size_str)
-        units = ["B", "KiB", "MiB", "GiB", "TiB", "PiB"]
-        unit_index = 0
-        
-        while size >= 1024 and unit_index < len(units) - 1:
-            size /= 1024
-            unit_index += 1
-        
-        return f"{size:.2f} {units[unit_index]}"
-    except (ValueError, TypeError):
-        return size_str
-
-def format_datetime(dt):
-    """Format datetime for display"""
-    if isinstance(dt, datetime.datetime):
-        return dt.strftime("%Y-%m-%d %H:%M")
-    return str(dt)
 
 def get_timestamp():
     """Get current timestamp formatted for filenames"""

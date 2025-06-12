@@ -1,0 +1,588 @@
+#!/usr/bin/env python3
+# ZFS Assistant - Core ZFS Operations
+# Author: GitHub Copilot
+
+import subprocess
+import datetime
+from typing import List, Optional, Tuple
+from .models import ZFSSnapshot
+from .logger import (
+    OperationType, get_logger,
+    log_info, log_error, log_success, log_warning
+)
+from .common import get_timestamp
+
+
+class ZFSCore:
+    """
+    Core ZFS operations: datasets, snapshots, cloning, rollback.
+    """
+    
+    def __init__(self, privilege_manager, config):
+        self.logger = get_logger()
+        self.privilege_manager = privilege_manager
+        self.config = config
+    
+    def get_datasets(self) -> List[str]:
+        """
+        Get list of ZFS datasets.
+        
+        Returns:
+            List of dataset names
+        """
+        try:
+            log_info("Retrieving ZFS datasets")
+            
+            result = subprocess.run(
+                ['zfs', 'list', '-H', '-o', 'name', '-t', 'filesystem'],
+                capture_output=True, text=True, check=True
+            )
+            
+            datasets = [line.strip() for line in result.stdout.strip().split('\n') 
+                       if line.strip()]
+            
+            log_success(f"Found {len(datasets)} ZFS datasets")
+            return datasets
+            
+        except subprocess.CalledProcessError as e:
+            error_msg = f"Failed to get ZFS datasets: {e.stderr}"
+            log_error(error_msg)
+            return []
+        except Exception as e:
+            error_msg = f"Error getting ZFS datasets: {str(e)}"
+            log_error(error_msg)
+            return []
+    
+    def get_dataset_properties(self, dataset_name: str) -> dict:
+        """
+        Get properties for a specific ZFS dataset.
+        
+        Args:
+            dataset_name: Name of the dataset
+            
+        Returns:
+            Dictionary of dataset properties
+        """
+        try:
+            log_info(f"Getting properties for dataset: {dataset_name}")
+            
+            result = subprocess.run(
+                ['zfs', 'get', '-H', '-p', 'all', dataset_name],
+                capture_output=True, text=True, check=True
+            )
+            
+            properties = {}
+            for line in result.stdout.strip().split('\n'):
+                if line.strip():
+                    parts = line.split('\t')
+                    if len(parts) >= 3:
+                        prop_name = parts[1]
+                        prop_value = parts[2]
+                        properties[prop_name] = prop_value
+            
+            log_success(f"Retrieved {len(properties)} properties for {dataset_name}")
+            return properties
+            
+        except subprocess.CalledProcessError as e:
+            error_msg = f"Failed to get properties for {dataset_name}: {e.stderr}"
+            log_error(error_msg)
+            return {}
+        except Exception as e:
+            error_msg = f"Error getting dataset properties: {str(e)}"
+            log_error(error_msg)
+            return {}
+    
+    def get_snapshots(self, dataset: Optional[str] = None) -> List[ZFSSnapshot]:
+        """
+        Get ZFS snapshots, optionally filtered by dataset.
+        
+        Args:
+            dataset: Optional dataset name to filter snapshots
+            
+        Returns:
+            List of ZFSSnapshot objects
+        """
+        try:
+            cmd = ['zfs', 'list', '-H', '-t', 'snapshot', '-o', 'name,creation,used,refer']
+            if dataset:
+                cmd.append(dataset)
+                log_info(f"Getting snapshots for dataset: {dataset}")
+            else:
+                log_info("Getting all ZFS snapshots")
+            
+            result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+            
+            snapshots = []
+            for line in result.stdout.strip().split('\n'):
+                if line.strip():
+                    parts = line.split('\t')
+                    if len(parts) >= 4:
+                        full_name = parts[0]
+                        if '@' in full_name:
+                            dataset_name, snapshot_name = full_name.split('@', 1)
+                            
+                            # Parse creation time
+                            try:
+                                creation_timestamp = int(parts[1])
+                                creation_date = datetime.datetime.fromtimestamp(creation_timestamp)
+                            except (ValueError, TypeError):
+                                creation_date = parts[1]  # Keep as string if parsing fails
+                            
+                            snapshot = ZFSSnapshot(
+                                name=snapshot_name,
+                                dataset=dataset_name,
+                                full_name=full_name,
+                                creation_date=creation_date,
+                                used_space=parts[2],
+                                referenced_space=parts[3]
+                            )
+                            snapshots.append(snapshot)
+            
+            log_success(f"Found {len(snapshots)} snapshots" + 
+                       (f" for {dataset}" if dataset else ""))
+            return snapshots
+            
+        except subprocess.CalledProcessError as e:
+            error_msg = f"Failed to get snapshots: {e.stderr}"
+            log_error(error_msg)
+            return []
+        except Exception as e:
+            error_msg = f"Error getting snapshots: {str(e)}"
+            log_error(error_msg)
+            return []
+    
+    def create_snapshot(self, dataset: str, name: Optional[str] = None) -> Tuple[bool, str]:
+        """
+        Create a ZFS snapshot for the specified dataset.
+        
+        Args:
+            dataset: Dataset name
+            name: Optional snapshot name (auto-generated if not provided)
+            
+        Returns:
+            (success, message) tuple
+        """
+        try:
+            if not name:
+                name = f"zfs-assistant-{get_timestamp()}"
+            
+            snapshot_full_name = f"{dataset}@{name}"
+            
+            log_info(f"Creating snapshot: {snapshot_full_name}", {
+                'dataset': dataset,
+                'snapshot_name': name,
+                'operation': 'create'
+            })
+            
+            # Start operation tracking
+            operation_id = self.logger.start_operation(OperationType.SNAPSHOT_CREATE, {
+                'dataset': dataset,
+                'snapshot_name': name,
+                'snapshot_full_name': snapshot_full_name
+            })
+            
+            success, result = privilege_manager.run_privileged_command([
+                'zfs', 'snapshot', snapshot_full_name
+            ])
+            
+            if not success:
+                log_error(f"Failed to create snapshot: {snapshot_full_name}", {
+                    'error': result,
+                    'dataset': dataset,
+                    'snapshot_name': name
+                })
+                self.logger.end_operation(operation_id, False, {'error': result})
+                return False, result
+            
+            log_success(f"Successfully created snapshot: {snapshot_full_name}", {
+                'dataset': dataset,
+                'snapshot_name': name
+            })
+            self.logger.log_snapshot_operation('create', dataset, name, True)
+            self.logger.end_operation(operation_id, True, {'snapshot_name': snapshot_full_name})
+            
+            return True, f"Created snapshot {snapshot_full_name}"
+            
+        except Exception as e:
+            error_msg = f"Error creating snapshot: {str(e)}"
+            log_error(error_msg, {
+                'dataset': dataset,
+                'snapshot_name': name,
+                'exception': str(e)
+            })
+            if 'operation_id' in locals():
+                self.logger.end_operation(operation_id, False, {'error': error_msg})
+            return False, error_msg
+    
+    def delete_snapshot(self, snapshot_full_name: str) -> Tuple[bool, str]:
+        """
+        Delete a ZFS snapshot by its full name (dataset@snapshot).
+        
+        Args:
+            snapshot_full_name: Full snapshot name (dataset@snapshot)
+            
+        Returns:
+            (success, message) tuple
+        """
+        try:
+            dataset, snapshot_name = snapshot_full_name.split('@', 1)
+            
+            log_info(f"Deleting snapshot: {snapshot_full_name}", {
+                'dataset': dataset,
+                'snapshot_name': snapshot_name,
+                'operation': 'delete'
+            })
+            
+            # Start operation tracking
+            operation_id = self.logger.start_operation(OperationType.SNAPSHOT_DELETE, {
+                'dataset': dataset,
+                'snapshot_name': snapshot_name,
+                'snapshot_full_name': snapshot_full_name
+            })
+            
+            success, result = privilege_manager.run_privileged_command([
+                'zfs', 'destroy', snapshot_full_name
+            ])
+            
+            if not success:
+                log_error(f"Failed to delete snapshot: {snapshot_full_name}", {
+                    'error': result,
+                    'dataset': dataset,
+                    'snapshot_name': snapshot_name
+                })
+                self.logger.end_operation(operation_id, False, {'error': result})
+                return False, result
+            
+            log_success(f"Successfully deleted snapshot: {snapshot_full_name}", {
+                'dataset': dataset,
+                'snapshot_name': snapshot_name
+            })
+            self.logger.log_snapshot_operation('delete', dataset, snapshot_name, True)
+            self.logger.end_operation(operation_id, True, {'snapshot_name': snapshot_full_name})
+            
+            return True, f"Deleted snapshot {snapshot_full_name}"
+            
+        except Exception as e:
+            error_msg = f"Error deleting snapshot: {str(e)}"
+            log_error(error_msg, {
+                'snapshot_full_name': snapshot_full_name,
+                'exception': str(e)
+            })
+            if 'operation_id' in locals():
+                self.logger.end_operation(operation_id, False, {'error': error_msg})
+            return False, error_msg
+    
+    def rollback_snapshot(self, snapshot_full_name: str, force: bool = False) -> Tuple[bool, str]:
+        """
+        Rollback to a ZFS snapshot.
+        
+        Args:
+            snapshot_full_name: Full snapshot name (dataset@snapshot)
+            force: Whether to force the rollback
+            
+        Returns:
+            (success, message) tuple
+        """
+        try:
+            dataset, snapshot_name = snapshot_full_name.split('@', 1)
+            
+            log_info(f"Rolling back to snapshot: {snapshot_full_name}", {
+                'dataset': dataset,
+                'snapshot_name': snapshot_name,
+                'force': force,
+                'operation': 'rollback'
+            })
+            
+            # Start operation tracking
+            operation_id = self.logger.start_operation(OperationType.SNAPSHOT_ROLLBACK, {
+                'dataset': dataset,
+                'snapshot_name': snapshot_name,
+                'snapshot_full_name': snapshot_full_name,
+                'force': force
+            })
+            
+            cmd = ['zfs', 'rollback']
+            if force:
+                cmd.append('-r')
+            cmd.append(snapshot_full_name)
+            
+            success, result = privilege_manager.run_privileged_command(cmd)
+            
+            if not success:
+                log_error(f"Failed to rollback to snapshot: {snapshot_full_name}", {
+                    'error': result,
+                    'dataset': dataset,
+                    'snapshot_name': snapshot_name,
+                    'force': force
+                })
+                self.logger.end_operation(operation_id, False, {'error': result})
+                return False, result
+            
+            log_success(f"Successfully rolled back to snapshot: {snapshot_full_name}", {
+                'dataset': dataset,
+                'snapshot_name': snapshot_name,
+                'force': force
+            })
+            self.logger.log_snapshot_operation('rollback', dataset, snapshot_name, True)
+            self.logger.end_operation(operation_id, True, {'snapshot_name': snapshot_full_name})
+            
+            return True, f"Rolled back to snapshot {snapshot_full_name}"
+            
+        except Exception as e:
+            error_msg = f"Error rolling back snapshot: {str(e)}"
+            log_error(error_msg, {
+                'snapshot_full_name': snapshot_full_name,
+                'force': force,
+                'exception': str(e)
+            })
+            if 'operation_id' in locals():
+                self.logger.end_operation(operation_id, False, {'error': error_msg})
+            return False, error_msg
+    
+    def clone_snapshot(self, snapshot_full_name: str, target_name: str) -> Tuple[bool, str]:
+        """
+        Clone a ZFS snapshot to a new dataset.
+        
+        Args:
+            snapshot_full_name: Full snapshot name (dataset@snapshot)
+            target_name: Name for the new cloned dataset
+            
+        Returns:
+            (success, message) tuple
+        """
+        try:
+            dataset, snapshot_name = snapshot_full_name.split('@', 1)
+            
+            log_info(f"Cloning snapshot: {snapshot_full_name} to {target_name}", {
+                'source_dataset': dataset,
+                'snapshot_name': snapshot_name,
+                'source_full_name': snapshot_full_name,
+                'target_name': target_name,
+                'operation': 'clone'
+            })
+            
+            # Start operation tracking
+            operation_id = self.logger.start_operation(OperationType.SNAPSHOT_CLONE, {
+                'source_dataset': dataset,
+                'snapshot_name': snapshot_name,
+                'snapshot_full_name': snapshot_full_name,
+                'target_name': target_name
+            })
+            
+            success, result = privilege_manager.run_privileged_command([
+                'zfs', 'clone', snapshot_full_name, target_name
+            ])
+            
+            if not success:
+                log_error(f"Failed to clone snapshot: {snapshot_full_name} to {target_name}", {
+                    'error': result,
+                    'source_dataset': dataset,
+                    'snapshot_name': snapshot_name,
+                    'target_name': target_name
+                })
+                self.logger.end_operation(operation_id, False, {'error': result})
+                return False, result
+            
+            log_success(f"Successfully cloned snapshot: {snapshot_full_name} to {target_name}", {
+                'source_dataset': dataset,
+                'snapshot_name': snapshot_name,
+                'target_name': target_name
+            })
+            self.logger.log_snapshot_operation('clone', dataset, snapshot_name, True, {
+                'target_name': target_name
+            })
+            self.logger.end_operation(operation_id, True, {
+                'snapshot_name': snapshot_full_name,
+                'target_name': target_name
+            })
+            
+            return True, f"Cloned snapshot {snapshot_full_name} to {target_name}"
+            
+        except Exception as e:
+            error_msg = f"Error cloning snapshot: {str(e)}"
+            log_error(error_msg, {
+                'snapshot_full_name': snapshot_full_name,
+                'target_name': target_name,
+                'exception': str(e)
+            })
+            if 'operation_id' in locals():
+                self.logger.end_operation(operation_id, False, {'error': error_msg})
+            return False, error_msg
+    
+    def cleanup_snapshots(self, dataset: str, retention_policy: dict) -> Tuple[bool, str]:
+        """
+        Clean up old snapshots based on retention policy.
+        
+        Args:
+            dataset: Dataset to clean up
+            retention_policy: Dictionary with retention rules
+            
+        Returns:
+            (success, message) tuple
+        """
+        try:
+            log_info(f"Starting snapshot cleanup for dataset: {dataset}", {
+                'dataset': dataset,
+                'retention_policy': retention_policy
+            })
+            
+            # Get all snapshots for the dataset
+            snapshots = self.get_snapshots(dataset)
+            if not snapshots:
+                return True, f"No snapshots found for dataset {dataset}"
+            
+            # Sort snapshots by creation date (newest first)
+            sorted_snapshots = sorted(
+                snapshots,
+                key=lambda x: x.creation_date if isinstance(x.creation_date, datetime.datetime) 
+                         else datetime.datetime.min,
+                reverse=True
+            )
+            
+            snapshots_to_delete = []
+            
+            # Apply retention policy
+            keep_count = retention_policy.get('keep_count', 10)
+            max_age_days = retention_policy.get('max_age_days', 30)
+            
+            for i, snapshot in enumerate(sorted_snapshots):
+                should_delete = False
+                
+                # Check count-based retention
+                if i >= keep_count:
+                    should_delete = True
+                
+                # Check age-based retention
+                if isinstance(snapshot.creation_date, datetime.datetime):
+                    age_days = (datetime.datetime.now() - snapshot.creation_date).days
+                    if age_days > max_age_days:
+                        should_delete = True
+                
+                if should_delete:
+                    snapshots_to_delete.append(snapshot)
+              if not snapshots_to_delete:
+                return True, f"No snapshots to clean up for dataset {dataset}"
+            
+            # Prepare batch deletion commands to reduce pkexec prompts
+            delete_commands = []
+            for snapshot in snapshots_to_delete:
+                delete_commands.append(['zfs', 'destroy', snapshot.full_name])
+            
+            log_info(f"Deleting {len(snapshots_to_delete)} old snapshots in batch for dataset {dataset}")
+            
+            # Execute batch deletion
+            success, batch_result = privilege_manager.run_batch_privileged_commands(delete_commands)
+            
+            if success:
+                deleted_count = len(snapshots_to_delete)
+                failed_count = 0
+                
+                # Log each successful deletion for tracking
+                for snapshot in snapshots_to_delete:
+                    self.logger.log_snapshot_operation('delete', dataset, snapshot.name, True)
+                    
+                message = f"Cleanup completed for {dataset}: {deleted_count} snapshots deleted successfully"
+                log_success(message)
+                return True, message
+            else:
+                # If batch fails, log all as failed
+                for snapshot in snapshots_to_delete:
+                    self.logger.log_snapshot_operation('delete', dataset, snapshot.name, False, 
+                                                     {'error': batch_result})
+                
+                message = f"Cleanup failed for {dataset}: batch deletion failed - {batch_result}"
+                log_error(message)
+                return False, message
+            
+        except Exception as e:
+            error_msg = f"Error during snapshot cleanup: {str(e)}"
+            log_error(error_msg, {
+                'dataset': dataset,
+                'retention_policy': retention_policy,
+                'exception': str(e)
+            })
+            return False, error_msg
+    
+    def create_batch_snapshots(self, datasets: List[str], snapshot_name: str) -> Tuple[bool, str]:
+        """
+        Create snapshots for multiple datasets in a single batch operation.
+        This reduces pkexec prompts by batching all snapshot commands together.
+        
+        Args:
+            datasets: List of dataset names to snapshot
+            snapshot_name: Name for the snapshots (will be applied to all datasets)
+            
+        Returns:
+            (success, message) tuple with batch operation results
+        """
+        try:
+            if not datasets:
+                return False, "No datasets provided for batch snapshot creation"
+                
+            log_info(f"Creating batch snapshots for {len(datasets)} datasets", {
+                'datasets': datasets,
+                'snapshot_name': snapshot_name,
+                'operation': 'batch_create'
+            })
+            
+            # Start operation tracking
+            operation_id = self.logger.start_operation(OperationType.SNAPSHOT_CREATE, {
+                'datasets': datasets,
+                'snapshot_name': snapshot_name,
+                'batch_operation': True,
+                'dataset_count': len(datasets)
+            })
+            
+            # Build batch commands
+            snapshot_commands = []
+            snapshot_details = []
+            
+            for dataset in datasets:
+                snapshot_full_name = f"{dataset}@{snapshot_name}"
+                snapshot_commands.append(['zfs', 'snapshot', snapshot_full_name])
+                snapshot_details.append({
+                    'dataset': dataset,
+                    'snapshot_name': snapshot_name,
+                    'snapshot_full_name': snapshot_full_name
+                })
+            
+            # Execute batch operation
+            success, batch_result = privilege_manager.run_batch_privileged_commands(snapshot_commands)
+            
+            if success:
+                # Log each successful snapshot creation for tracking
+                for detail in snapshot_details:
+                    self.logger.log_snapshot_operation('create', detail['dataset'], 
+                                                     detail['snapshot_name'], True)
+                    log_success(f"Created snapshot: {detail['snapshot_full_name']}")
+                
+                success_msg = f"Successfully created {len(datasets)} snapshots in batch"
+                log_success(success_msg)
+                self.logger.end_operation(operation_id, True, {
+                    'snapshots_created': len(datasets),
+                    'snapshot_details': snapshot_details
+                })
+                return True, success_msg
+            else:
+                # Log all as failed since it was a batch operation
+                for detail in snapshot_details:
+                    self.logger.log_snapshot_operation('create', detail['dataset'], 
+                                                     detail['snapshot_name'], False, 
+                                                     {'error': batch_result})
+                    log_error(f"Failed to create snapshot: {detail['snapshot_full_name']}")
+                
+                error_msg = f"Batch snapshot creation failed: {batch_result}"
+                log_error(error_msg)
+                self.logger.end_operation(operation_id, False, {'error': error_msg})
+                return False, error_msg
+                
+        except Exception as e:
+            error_msg = f"Error during batch snapshot creation: {str(e)}"
+            log_error(error_msg, {
+                'datasets': datasets,
+                'snapshot_name': snapshot_name,
+                'exception': str(e)
+            })
+            if 'operation_id' in locals():
+                self.logger.end_operation(operation_id, False, {'error': error_msg})
+            return False, error_msg
