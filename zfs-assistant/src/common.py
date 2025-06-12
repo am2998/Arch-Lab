@@ -33,7 +33,13 @@ DEFAULT_CONFIG = {
     "monthly_schedule": True,             # Enable monthly by default
     "datasets": [],
     "pacman_integration": True,
+    "update_snapshots": "disabled",       # Default to disabled system updates
+    "clean_cache_after_updates": False,   # Default to not cleaning cache
+    "snapshot_name_format": "prefix-type-timestamp", # Default snapshot naming format
     "prefix": "zfs-assistant",
+    "external_backup_enabled": False,     # Default to disabled external backup
+    "external_pool_name": "",             # No default external pool
+    "backup_frequency": "Manual",         # Default backup frequency
     "dark_mode": False,
     "notifications_enabled": True
 }

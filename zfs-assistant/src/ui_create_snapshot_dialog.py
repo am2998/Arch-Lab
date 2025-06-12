@@ -12,7 +12,7 @@ from gi.repository import Gtk, Adw, GLib, Gio, Gdk, GObject
 class CreateSnapshotDialog(Gtk.Dialog):
     def __init__(self, parent):
         super().__init__(
-            title="Create Snapshot",
+            title="Create Snapshot - Advanced Options",
             transient_for=parent,
             modal=True,
             destroy_with_parent=True
@@ -21,15 +21,19 @@ class CreateSnapshotDialog(Gtk.Dialog):
         self.parent = parent
         self.zfs_assistant = parent.zfs_assistant
         
+        # Set larger dialog size for better fit
+        self.set_default_size(600, 500)  # Increased from default
+        self.set_size_request(500, 400)   # Set minimum size
+        
         self.add_button("Cancel", Gtk.ResponseType.CANCEL)
         self.add_button("Create", Gtk.ResponseType.OK)
         
         content_area = self.get_content_area()
-        content_area.set_margin_top(10)
-        content_area.set_margin_bottom(10)
-        content_area.set_margin_start(10)
-        content_area.set_margin_end(10)
-        content_area.set_spacing(6)
+        content_area.set_margin_top(20)
+        content_area.set_margin_bottom(20)
+        content_area.set_margin_start(20)
+        content_area.set_margin_end(20)
+        content_area.set_spacing(12)
         
         # Dataset selection
         content_area.append(Gtk.Label(label="Select Dataset:"))

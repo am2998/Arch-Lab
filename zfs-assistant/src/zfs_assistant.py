@@ -51,22 +51,14 @@ class ZFSAssistant:
         self.pacman_hook_path = PACMAN_HOOK_PATH
         self.default_config = DEFAULT_CONFIG
         self.config = self.load_config()
-        self.pkexec_authorized = False
 
-    # Helper method to run pkexec commands with cached authorization
+    # Helper method to run pkexec commands
     def run_pkexec_command(self, cmd):
-        """Run a command with pkexec, using cached authorization if available"""
+        """Run a command with pkexec"""
         try:
             # Check if the command already includes pkexec
             has_pkexec = cmd[0] == 'pkexec' if cmd else False
             
-            if not self.pkexec_authorized:
-                # First command will trigger authorization prompt
-                auth_cmd = ['pkexec', 'true']
-                subprocess.run(auth_cmd, capture_output=True, check=True)
-                self.pkexec_authorized = True
-            
-            # Now run the actual command
             # If cmd already includes pkexec, use it as is
             # Otherwise, prepend pkexec to the command
             if not has_pkexec:
@@ -77,7 +69,6 @@ class ZFSAssistant:
         except subprocess.CalledProcessError as e:
             error_msg = e.stderr
             if "Permission denied" in error_msg or "authorization failed" in error_msg:
-                self.pkexec_authorized = False
                 return False, "Permission denied. ZFS operations require administrative privileges."
             return False, f"Error executing command: {error_msg}"
         except Exception as e:
