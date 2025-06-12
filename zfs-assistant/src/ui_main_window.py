@@ -322,6 +322,17 @@ class MainWindow(Gtk.ApplicationWindow):
         status_spacer.set_hexpand(True)
         self.status_bar.append(status_spacer)
         
+        # Settings status label
+        self.settings_status_label = Gtk.Label()
+        self.settings_status_label.add_css_class("settings-status")
+        self.status_bar.append(self.settings_status_label)
+        
+        # Separator
+        status_separator = Gtk.Separator(orientation=Gtk.Orientation.VERTICAL)
+        status_separator.set_margin_start(8)
+        status_separator.set_margin_end(8)
+        self.status_bar.append(status_separator)
+        
         # Snapshot count label with modern styling
         self.snapshot_count_label = Gtk.Label()
         self.snapshot_count_label.add_css_class("count-badge")
@@ -337,6 +348,9 @@ class MainWindow(Gtk.ApplicationWindow):
         
         # Use GLib.timeout_add to ensure the window is fully rendered before initializing
         GLib.timeout_add(100, self._deferred_init)
+        
+        # Update settings status periodically (every 60 seconds)
+        GLib.timeout_add_seconds(60, self._update_settings_status)
     
     def setup_keyboard_shortcuts(self):
         """Setup keyboard shortcuts for common actions"""
@@ -1181,3 +1195,147 @@ class MainWindow(Gtk.ApplicationWindow):
             self.snapshot_count_label.set_text(f"{count} snapshots")
         else:
             self.snapshot_count_label.set_text(f"{visible_count} of {count} snapshots")
+        
+        # Also update settings status when snapshot count is updated
+        self._update_settings_status()
+        
+    def _update_settings_status(self):
+        """Update the settings status display with information about enabled features and next snapshot"""
+        config = self.zfs_assistant.config
+        
+        # Get settings status
+        schedule_status = "on" if (config.get("hourly_schedule", []) or 
+                                 config.get("daily_schedule", []) or
+                                 config.get("weekly_schedule", False) or 
+                                 config.get("monthly_schedule", False)) else "off"
+                                 
+        pacman_status = "on" if config.get("pacman_integration", False) else "off"
+        
+        update_status = "on" if config.get("update_snapshots", "disabled") != "disabled" else "off"
+        
+        clean_status = "on" if config.get("clean_cache_after_updates", False) else "off"
+        
+        # Calculate time until next snapshot
+        next_snapshot_info = self._calculate_next_snapshot_time(config)
+        
+        # Build status text
+        status_text = f"schedule: {schedule_status}    pacman-int: {pacman_status}    sys-update: {update_status}    clean: {clean_status}"
+        
+        if next_snapshot_info:
+            status_text += f"    next snapshot in: {next_snapshot_info}"
+        
+        self.settings_status_label.set_text(status_text)
+        
+        # Return True to allow the timeout to continue
+        return True
+        
+    def _calculate_next_snapshot_time(self, config):
+        """Calculate the time until the next scheduled snapshot"""
+        now = datetime.datetime.now()
+        next_times = []
+        
+        # Check hourly schedule
+        hourly_schedule = config.get("hourly_schedule", [])
+        if hourly_schedule:
+            current_hour = now.hour
+            next_hour = None
+            
+            # Find the next scheduled hour
+            for hour in sorted(hourly_schedule):
+                if hour > current_hour:
+                    next_hour = hour
+                    break
+            
+            # If no next hour found today, get the first hour for tomorrow
+            if next_hour is None and hourly_schedule:
+                next_hour = min(hourly_schedule)
+                next_time = now.replace(hour=next_hour, minute=0, second=0, microsecond=0) + datetime.timedelta(days=1)
+            else:
+                next_time = now.replace(hour=next_hour, minute=0, second=0, microsecond=0)
+            
+            if next_hour is not None:
+                next_times.append(next_time)
+        
+        # Check daily schedule
+        daily_schedule = config.get("daily_schedule", [])
+        daily_hour = config.get("daily_hour", 0)
+        
+        if daily_schedule:
+            current_day = now.weekday()  # 0 is Monday, 6 is Sunday
+            next_day = None
+            
+            # Find the next scheduled day
+            for day in sorted(daily_schedule):
+                if day > current_day:
+                    next_day = day
+                    break
+            
+            # If no next day found this week, get the first day for next week
+            if next_day is None and daily_schedule:
+                next_day = min(daily_schedule)
+                days_until_next = 7 - current_day + next_day
+            else:
+                days_until_next = next_day - current_day
+            
+            # Calculate the datetime for the next daily snapshot
+            next_daily_time = now.replace(hour=daily_hour, minute=0, second=0, microsecond=0)
+            
+            # If the scheduled time for today has passed, add the days until next
+            if days_until_next == 0 and now > next_daily_time:
+                days_until_next = 7
+            
+            next_daily_time += datetime.timedelta(days=days_until_next)
+            next_times.append(next_daily_time)
+        
+        # Check weekly schedule
+        if config.get("weekly_schedule", False):
+            # Assume weekly snapshots happen on Sunday at the daily hour
+            current_day = now.weekday()
+            days_until_sunday = 6 - current_day  # 6 is Sunday
+            if days_until_sunday == 0 and now.hour >= daily_hour:
+                days_until_sunday = 7
+            
+            next_weekly_time = now.replace(hour=daily_hour, minute=0, second=0, microsecond=0) + datetime.timedelta(days=days_until_sunday)
+            next_times.append(next_weekly_time)
+        
+        # Check monthly schedule
+        if config.get("monthly_schedule", False):
+            # Assume monthly snapshots happen on the 1st of each month at the daily hour
+            current_day = now.day
+            
+            if current_day == 1 and now.hour < daily_hour:
+                # It's the 1st and the scheduled hour hasn't passed yet
+                next_monthly_time = now.replace(day=1, hour=daily_hour, minute=0, second=0, microsecond=0)
+            else:
+                # Move to the 1st of next month
+                if now.month == 12:
+                    next_month = 1
+                    next_year = now.year + 1
+                else:
+                    next_month = now.month + 1
+                    next_year = now.year
+                
+                next_monthly_time = datetime.datetime(year=next_year, month=next_month, day=1, hour=daily_hour, minute=0, second=0)
+            
+            next_times.append(next_monthly_time)
+        
+        # Find the earliest next snapshot time
+        if not next_times:
+            return None
+        
+        next_snapshot_time = min(next_times)
+        time_diff = next_snapshot_time - now
+        
+        # Format the time difference
+        days = time_diff.days
+        hours, remainder = divmod(time_diff.seconds, 3600)
+        minutes, _ = divmod(remainder, 60)
+        
+        if days > 0:
+            return f"{days}d {hours}h {minutes}m"
+        elif hours > 0:
+            return f"{hours}h {minutes}m"
+        else:
+            return f"{minutes}m"
+        
+        return None

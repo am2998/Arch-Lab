@@ -166,9 +166,13 @@ class SettingsDialog(Gtk.Dialog):
                   "you can select multiple hours or days. System updates (pacman -Syu) will be "
                   "executed automatically during scheduled snapshots."
         )
+        
         explanation_label.set_wrap(True)
         explanation_label.set_margin_top(5)
         explanation_label.set_margin_bottom(5)
+        explanation_label.set_halign(Gtk.Align.START)
+        explanation_label.set_margin_start(0)  # Align with frame content
+        explanation_label.add_css_class("dim-label")
         schedule_box.append(explanation_label)
         
         # Snapshot naming configuration frame
@@ -237,19 +241,17 @@ class SettingsDialog(Gtk.Dialog):
         naming_box.append(format_box)
         
         # Preview of snapshot names
-        preview_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=5)
+        preview_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
         preview_box.set_halign(Gtk.Align.START)
-        
-        preview_header = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
         preview_label = Gtk.Label(label="Preview:")
         preview_label.set_size_request(140, -1)
         preview_label.set_halign(Gtk.Align.START)
-        preview_header.append(preview_label)
-        preview_box.append(preview_header)
+        preview_box.append(preview_label)
         
         # Container for multiple preview labels
         self.preview_container = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=3)
-        self.preview_container.set_margin_start(10)
+        self.preview_container.set_size_request(400, -1)  # Match the input field width area
+        self.preview_container.set_halign(Gtk.Align.START)
         preview_box.append(self.preview_container)
         
         naming_box.append(preview_box)
@@ -401,7 +403,13 @@ class SettingsDialog(Gtk.Dialog):
         
         # Weekly snapshots
         weekly_section = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=5)
-        self.weekly_check = Gtk.CheckButton(label="Weekly Snapshots (every Monday at midnight)")
+        
+        weekly_label = Gtk.Label(label="Weekly Snapshots (every Monday at midnight)")
+        weekly_label.set_halign(Gtk.Align.START)
+        weekly_label.set_margin_start(0)  # Align with frame content
+        
+        self.weekly_check = Gtk.CheckButton()
+        self.weekly_check.set_child(weekly_label)
         self.weekly_check.connect("toggled", self.on_weekly_check_toggled)
         weekly_section.append(self.weekly_check)
         schedule_types_box.append(weekly_section)
@@ -411,7 +419,13 @@ class SettingsDialog(Gtk.Dialog):
         
         # Monthly snapshots
         monthly_section = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=5)
-        self.monthly_check = Gtk.CheckButton(label="Monthly Snapshots (on the 1st of each month at midnight)")
+        
+        monthly_label = Gtk.Label(label="Monthly Snapshots (on the 1st of each month at midnight)")
+        monthly_label.set_halign(Gtk.Align.START)
+        monthly_label.set_margin_start(0)  # Align with frame content
+        
+        self.monthly_check = Gtk.CheckButton()
+        self.monthly_check.set_child(monthly_label)
         self.monthly_check.connect("toggled", self.on_monthly_check_toggled)
         monthly_section.append(self.monthly_check)
         schedule_types_box.append(monthly_section)
@@ -435,6 +449,9 @@ class SettingsDialog(Gtk.Dialog):
         )
         retention_explanation.set_wrap(True)
         retention_explanation.set_margin_bottom(10)
+        retention_explanation.set_halign(Gtk.Align.START)
+        retention_explanation.set_margin_start(0)  # Align with frame content
+        retention_explanation.add_css_class("dim-label")
         retention_box.append(retention_explanation)
         
         # Hourly retention
@@ -553,7 +570,7 @@ class SettingsDialog(Gtk.Dialog):
         updates_box.append(self.update_disabled_radio)
         
         # Radio button for system update after snapshot (renamed from "before")
-        self.update_before_radio = Gtk.CheckButton(label="Make system update after snapshot (only for schedule)")
+        self.update_before_radio = Gtk.CheckButton(label="Make system update after snapshot (Scheduling needs to be enabled)")
         self.update_before_radio.connect("toggled", self.on_update_option_toggled)
         updates_box.append(self.update_before_radio)
         
@@ -730,6 +747,11 @@ class SettingsDialog(Gtk.Dialog):
             # Disable snapshot naming fields
             self.prefix_entry.set_sensitive(False)
             self.format_combo.set_sensitive(False)
+            
+            # Disable system update options when scheduling is disabled
+            self.update_disabled_radio.set_sensitive(False)
+            self.update_before_radio.set_sensitive(False)
+            self.clean_cache_check.set_sensitive(False)
         
         self.show()
 
@@ -1103,8 +1125,7 @@ class SettingsDialog(Gtk.Dialog):
         timestamp = sample_time.strftime("%Y%m%d-%H%M%S")
         timestamp_short = sample_time.strftime("%Y%m%d-%H%M")
         
-        # Use "pkgop" instead of "pacman" to better distinguish from scheduled snapshots
-        preview = self._generate_preview_name(prefix, "pkgop", timestamp, timestamp_short, format_type)
+        preview = self._generate_preview_name(prefix, "pacman", timestamp, timestamp_short, format_type)
         self.pacman_preview_label.set_text(preview)
             
     def on_schedule_switch_toggled(self, widget, state):
@@ -1135,6 +1156,13 @@ class SettingsDialog(Gtk.Dialog):
         # Update sensitivity of snapshot naming fields
         self.prefix_entry.set_sensitive(state)
         self.format_combo.set_sensitive(state)
+        
+        # Update sensitivity of system update options (only available when scheduling is enabled)
+        self.update_disabled_radio.set_sensitive(state)
+        self.update_before_radio.set_sensitive(state)
+        # Clean cache option should only be enabled if scheduling is on AND update option is enabled
+        current_update_enabled = self.update_before_radio.get_active()
+        self.clean_cache_check.set_sensitive(state and current_update_enabled)
         
         return False  # Allow the state change to proceed
     
