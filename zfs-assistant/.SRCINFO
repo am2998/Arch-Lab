@@ -1,0 +1,23 @@
+pkgbase = zfs-assistant
+	pkgdesc = A GTK GUI application for managing ZFS snapshots on Arch Linux
+	pkgver = 1.0.0
+	pkgrel = 1
+	url = https://github.com/am2998/Arch-Lab
+	arch = any
+	license = MIT
+	makedepends = python-setuptools
+	makedepends = python-build
+	makedepends = python-installer
+	makedepends = python-wheel
+	depends = python>=3.6
+	depends = gtk4
+	depends = libadwaita
+	depends = python-gobject
+	depends = python-cairo
+	depends = zfs-dkms
+	depends = zfs-utils
+	optdepends = python-notify2: For desktop notifications
+	source = git+https://github.com/am2998/Arch-Lab.git
+	sha256sums = SKIP
+
+pkgname = zfs-assistant
