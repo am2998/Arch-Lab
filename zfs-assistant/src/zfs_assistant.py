@@ -342,7 +342,7 @@ def create_pre_pacman_snapshot():
         from .privilege_manager import PrivilegeManager
         
         # Load config
-        config_file = os.path.expanduser("~/.config/zfs-assistant/config.json")
+        config_file = "/etc/zfs-assistant/config.json"
         if os.path.exists(config_file):
             with open(config_file, 'r') as f:
                 config = json.load(f)
@@ -390,8 +390,8 @@ def create_pre_pacman_snapshot():
 def create_scheduled_snapshot(interval):
     """Legacy function for systemd timer compatibility"""
     try:
-        # Load config
-        config_file = os.path.expanduser("~/.config/zfs-assistant/config.json")
+        # Load config from system-wide location
+        config_file = "/etc/zfs-assistant/config.json"
         if os.path.exists(config_file):
             with open(config_file, 'r') as f:
                 config = json.load(f)

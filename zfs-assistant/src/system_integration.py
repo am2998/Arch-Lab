@@ -6,22 +6,367 @@ import os
 import subprocess
 import tempfile
 import glob
+import json
+import datetime
 from typing import Dict, List, Tuple
 from .logger import (
     OperationType, get_logger,
     log_info, log_error, log_success, log_warning
 )
-from .common import PACMAN_HOOK_PATH, SYSTEMD_SCRIPT_PATH, PACMAN_SCRIPT_PATH
+from .common import (
+    CONFIG_DIR, CONFIG_FILE, SYSTEMD_SCRIPT_PATH, PACMAN_SCRIPT_PATH,
+    PACMAN_HOOK_PATH, run_command, get_timestamp
+)
 
 
 class SystemIntegration:
-    """Handles system integration features like pacman hooks and systemd timers."""
+    """Handles system integration for ZFS Assistant (Pacman hooks and systemd timers)"""
     
-    def __init__(self, privilege_manager, config):
-        self.logger = get_logger()
+    def __init__(self, privilege_manager, config: dict):
         self.privilege_manager = privilege_manager
         self.config = config
-        self.pacman_hook_path = PACMAN_HOOK_PATH
+        self.logger = get_logger()
+
+    def setup_systemd_timers(self, schedules: Dict[str, bool]) -> Tuple[bool, str]:
+        """Setup systemd timers for automated snapshots."""
+        try:
+            log_info("Setting up systemd timers for automated snapshots", {
+                'schedules': schedules
+            })
+            
+            # Application runs with elevated privileges, use system-wide services
+            log_info("Using system-wide systemd services")
+            return self._setup_system_timers(schedules)
+            
+        except subprocess.TimeoutExpired as e:
+            error_msg = f"Error setting up systemd timers (timeout): {str(e)}"
+            log_error(error_msg)
+            return False, error_msg
+        except Exception as e:
+            error_msg = f"Error setting up systemd timers: {str(e)}"
+            log_error(error_msg)
+            return False, error_msg
+    
+    def _setup_system_timers(self, schedules: Dict[str, bool]) -> Tuple[bool, str]:
+        """Setup system-level systemd timers when running with elevated privileges."""
+        # Create the snapshot script in system location
+        script_content = self._get_systemd_script_content()
+        system_script_path = "/usr/local/bin/zfs-assistant-systemd.py"
+        
+        # Create script with elevated privileges
+        success, result = self.privilege_manager.create_script_privileged(
+            system_script_path, script_content, executable=True
+        )
+        if not success:
+            return False, f"Error creating system script: {result}"
+        
+        # Create system service file
+        service_content = f"""[Unit]
+Description=ZFS Snapshot %i Job
+After=zfs.target
+
+[Service]
+Type=oneshot
+ExecStart={system_script_path} %i
+User=root
+"""
+        
+        # Create service file with elevated privileges
+        service_path = "/etc/systemd/system/zfs-snapshot@.service"
+        success, result = self.privilege_manager.create_script_privileged(
+            service_path, service_content, executable=False
+        )
+        if not success:
+            return False, f"Error creating system service: {result}"
+        
+        # Clean up existing system timer files
+        self._cleanup_existing_system_timers()
+        
+        # Create new system timer files based on schedules
+        self._create_optimized_system_timers(schedules)
+        
+        # Reload systemd daemon
+        success, result = self.privilege_manager.run_privileged_command(['systemctl', 'daemon-reload'])
+        if not success:
+            return False, f"Error reloading systemd: {result}"
+        
+        log_success("System systemd timers set up successfully")
+        return True, "System systemd timers set up successfully"
+    
+    def disable_schedule(self, schedule_type: str) -> Tuple[bool, str]:
+        """Disable and remove timers for a specific schedule type."""
+        try:
+            log_info(f"Disabling {schedule_type} schedule")
+            
+            # Define timer file patterns for each schedule type (system-wide)
+            timer_patterns = {
+                "hourly": ["/etc/systemd/system/zfs-snapshot-hourly.timer"],
+                "daily": ["/etc/systemd/system/zfs-snapshot-daily.timer"],  # Single daily timer file
+                "weekly": ["/etc/systemd/system/zfs-snapshot-weekly.timer"],
+                "monthly": ["/etc/systemd/system/zfs-snapshot-monthly.timer"]
+            }
+            
+            if schedule_type not in timer_patterns:
+                return False, f"Unknown schedule type: {schedule_type}"
+            
+            # Stop, disable, and remove timer files
+            removed_timers = []
+            
+            for pattern in timer_patterns[schedule_type]:
+                for timer_file in glob.glob(pattern):
+                    timer_name = os.path.basename(timer_file)
+                    
+                    try:
+                        # Stop and disable system timer
+                        self.privilege_manager.run_privileged_command(['systemctl', 'stop', timer_name])
+                        self.privilege_manager.run_privileged_command(['systemctl', 'disable', timer_name])
+                        
+                        # Remove file
+                        success, result = self.privilege_manager.remove_files_privileged([timer_file])
+                        if success:
+                            removed_timers.append(timer_name)
+                        
+                    except Exception as e:
+                        log_warning(f"Error removing timer {timer_name}: {str(e)}")
+            
+            # Reload systemd daemon
+            success, result = self.privilege_manager.run_privileged_command(['systemctl', 'daemon-reload'])
+            if not success:
+                log_warning(f"Failed to reload systemd daemon: {result}")
+            
+            if removed_timers:
+                success_msg = f"Disabled {schedule_type} schedule, removed timers: {', '.join(removed_timers)}"
+                log_success(success_msg)
+                return True, success_msg
+            else:
+                return True, f"No {schedule_type} timers found to remove"
+                
+        except Exception as e:
+            error_msg = f"Error disabling {schedule_type} schedule: {str(e)}"
+            log_error(error_msg)
+            return False, error_msg
+    
+    def get_schedule_status(self) -> Dict[str, bool]:
+        """Check actual systemd timer status to determine if schedules are really active."""
+        try:
+            status = {
+                "hourly": False,
+                "daily": False,
+                "weekly": False,
+                "monthly": False
+            }
+            
+            # Check if system timer files exist and are active
+            timer_patterns = {
+                "hourly": ["/etc/systemd/system/zfs-snapshot-hourly.timer"],  # Single hourly timer file
+                "daily": ["/etc/systemd/system/zfs-snapshot-daily.timer"],  # Single daily timer file
+                "weekly": ["/etc/systemd/system/zfs-snapshot-weekly.timer"],
+                "monthly": ["/etc/systemd/system/zfs-snapshot-monthly.timer"]
+            }
+            
+            for schedule_type, patterns in timer_patterns.items():
+                for pattern in patterns:
+                    timer_files = glob.glob(pattern)
+                    for timer_file in timer_files:
+                        timer_name = os.path.basename(timer_file)
+                        
+                        try:
+                            # Check if timer is active
+                            success, result = self.privilege_manager.run_privileged_command(
+                                ['systemctl', 'is-active', timer_name]
+                            )
+                            
+                            if success and hasattr(result, 'stdout') and result.stdout.strip() == "active":
+                                status[schedule_type] = True
+                                break  # At least one timer of this type is active
+                            elif success and isinstance(result, str) and result.strip() == "active":
+                                status[schedule_type] = True
+                                break  # At least one timer of this type is active
+                        except:
+                            continue
+            
+            return status
+            
+        except Exception as e:
+            log_warning(f"Error checking schedule status: {str(e)}")
+            # Fallback to config-based status if systemctl check fails
+            return {
+                "hourly": bool(self.config.get("hourly_schedule", [])),
+                "daily": bool(self.config.get("daily_schedule", [])),
+                "weekly": bool(self.config.get("weekly_schedule", False)),
+                "monthly": bool(self.config.get("monthly_schedule", False))
+            }
+    
+    def _cleanup_existing_system_timers(self):
+        """Clean up existing system timer files."""
+        timer_patterns = [
+            "/etc/systemd/system/zfs-snapshot-hourly.timer",  # Single hourly timer file
+            "/etc/systemd/system/zfs-snapshot-daily.timer",  # Single daily timer file
+            "/etc/systemd/system/zfs-snapshot-weekly.timer",
+            "/etc/systemd/system/zfs-snapshot-monthly.timer"
+        ]
+        
+        for pattern in timer_patterns:
+            for timer_file in glob.glob(pattern):
+                try:
+                    timer_name = os.path.basename(timer_file)
+                    # Stop and disable system timer
+                    self.privilege_manager.run_privileged_command(['systemctl', 'stop', timer_name])
+                    self.privilege_manager.run_privileged_command(['systemctl', 'disable', timer_name])
+                    
+                    # Remove file
+                    self.privilege_manager.remove_files_privileged([timer_file])
+                except:
+                    pass
+
+    def _create_optimized_system_timers(self, schedules: Dict[str, bool]):
+        """Create optimized system timer files based on enabled schedules."""
+        try:
+            # Hourly snapshots
+            if schedules.get("hourly", False):
+                hourly_schedule = self.config.get("hourly_schedule", [8, 12, 16, 20])
+                log_info(f"Creating hourly timer for hours: {hourly_schedule}")
+                
+                # Create a single timer file with multiple OnCalendar entries
+                timer_content = """[Unit]
+Description=ZFS Hourly Snapshot
+
+[Timer]
+"""
+                
+                # Add one OnCalendar line for each selected hour
+                for hour in sorted(hourly_schedule):
+                    timer_content += f"OnCalendar=*-*-* {hour:02d}:00:00\n"
+                
+                timer_content += """Persistent=true
+Unit=zfs-snapshot@hourly.service
+
+[Install]
+WantedBy=timers.target
+"""
+                timer_path = "/etc/systemd/system/zfs-snapshot-hourly.timer"
+                success, result = self.privilege_manager.create_script_privileged(
+                    timer_path, timer_content, executable=False
+                )
+                if success:
+                    # Enable and start system timer
+                    timer_name = "zfs-snapshot-hourly.timer"
+                    enable_success, enable_result = self.privilege_manager.run_privileged_command(['systemctl', 'enable', timer_name])
+                    start_success, start_result = self.privilege_manager.run_privileged_command(['systemctl', 'start', timer_name])
+                    
+                    if enable_success and start_success:
+                        log_success(f"Successfully enabled and started {timer_name}")
+                    else:
+                        log_error(f"Failed to enable/start {timer_name}: enable={enable_result}, start={start_result}")
+                else:
+                    log_error(f"Failed to create timer file {timer_path}: {result}")
+
+            # Daily snapshots
+            if schedules.get("daily", False):
+                daily_schedule = self.config.get("daily_schedule", [0, 1, 2, 3, 4])  # Weekdays
+                daily_hour = self.config.get("daily_hour", 0)
+                weekdays = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+                
+                log_info(f"Creating daily timer for days: {daily_schedule} at hour {daily_hour}")
+                
+                # Create a single timer file with multiple OnCalendar entries
+                selected_days = []
+                for day in daily_schedule:
+                    if 0 <= day <= 6:
+                        selected_days.append(weekdays[day])
+                
+                # Join day names with commas for the OnCalendar specification
+                days_spec = ",".join(selected_days)
+                
+                timer_content = f"""[Unit]
+Description=ZFS Daily Snapshot on {days_spec}
+
+[Timer]
+OnCalendar={days_spec} *-*-* {daily_hour:02d}:00:00
+Persistent=true
+Unit=zfs-snapshot@daily.service
+
+[Install]
+WantedBy=timers.target
+"""
+                timer_path = "/etc/systemd/system/zfs-snapshot-daily.timer"
+                success, result = self.privilege_manager.create_script_privileged(
+                    timer_path, timer_content, executable=False
+                )
+                if success:
+                    # Enable and start system timer
+                    timer_name = "zfs-snapshot-daily.timer"
+                    enable_success, enable_result = self.privilege_manager.run_privileged_command(['systemctl', 'enable', timer_name])
+                    start_success, start_result = self.privilege_manager.run_privileged_command(['systemctl', 'start', timer_name])
+                    
+                    if enable_success and start_success:
+                        log_success(f"Successfully enabled and started {timer_name}")
+                    else:
+                        log_error(f"Failed to enable/start {timer_name}: enable={enable_result}, start={start_result}")
+                else:
+                    log_error(f"Failed to create timer file {timer_path}: {result}")
+
+            # Weekly snapshots
+            if schedules.get("weekly", False):
+                timer_content = """[Unit]
+Description=ZFS Weekly Snapshot
+
+[Timer]
+OnCalendar=Mon *-*-* 01:00:00
+Persistent=true
+Unit=zfs-snapshot@weekly.service
+
+[Install]
+WantedBy=timers.target
+"""
+                timer_path = "/etc/systemd/system/zfs-snapshot-weekly.timer"
+                success, result = self.privilege_manager.create_script_privileged(
+                    timer_path, timer_content, executable=False
+                )
+                if success:
+                    # Enable and start system timer
+                    enable_success, enable_result = self.privilege_manager.run_privileged_command(['systemctl', 'enable', 'zfs-snapshot-weekly.timer'])
+                    start_success, start_result = self.privilege_manager.run_privileged_command(['systemctl', 'start', 'zfs-snapshot-weekly.timer'])
+                    
+                    if enable_success and start_success:
+                        log_success("Successfully enabled and started zfs-snapshot-weekly.timer")
+                    else:
+                        log_error(f"Failed to enable/start weekly timer: enable={enable_result}, start={start_result}")
+                else:
+                    log_error(f"Failed to create weekly timer file: {result}")
+
+            # Monthly snapshots
+            if schedules.get("monthly", False):
+                timer_content = """[Unit]
+Description=ZFS Monthly Snapshot
+
+[Timer]
+OnCalendar=*-*-01 02:00:00
+Persistent=true
+Unit=zfs-snapshot@monthly.service
+
+[Install]
+WantedBy=timers.target
+"""
+                timer_path = "/etc/systemd/system/zfs-snapshot-monthly.timer"
+                success, result = self.privilege_manager.create_script_privileged(
+                    timer_path, timer_content, executable=False
+                )
+                if success:
+                    # Enable and start system timer
+                    enable_success, enable_result = self.privilege_manager.run_privileged_command(['systemctl', 'enable', 'zfs-snapshot-monthly.timer'])
+                    start_success, start_result = self.privilege_manager.run_privileged_command(['systemctl', 'start', 'zfs-snapshot-monthly.timer'])
+                    
+                    if enable_success and start_success:
+                        log_success("Successfully enabled and started zfs-snapshot-monthly.timer")
+                    else:
+                        log_error(f"Failed to enable/start monthly timer: enable={enable_result}, start={start_result}")
+                else:
+                    log_error(f"Failed to create monthly timer file: {result}")
+
+        except Exception as e:
+            log_error(f"Error creating optimized system timers: {str(e)}")
+            raise
     
     def setup_pacman_hook(self, enable: bool = True) -> Tuple[bool, str]:
         """Setup or remove pacman hook to create ZFS snapshots before package operations."""
@@ -29,7 +374,7 @@ class SystemIntegration:
             if enable:
                 log_info("Setting up pacman hook for ZFS snapshots")
                 
-                # Create hook content
+                # Create hook content - use system-wide script path
                 hook_content = """[Trigger]
 Operation = Install
 Operation = Upgrade
@@ -40,23 +385,23 @@ Target = *
 [Action]
 Description = Creating ZFS snapshot before pacman transaction...
 When = PreTransaction
-Exec = ~/.local/bin/zfs-assistant-pacman-hook.py
+Exec = /usr/local/bin/zfs-assistant-pacman-hook.py
 Depends = python
 """
                 # Create the hook script content
                 script_content = self._get_pacman_hook_script_content()
                 
-                # Create script in user's home directory
-                local_bin_dir = os.path.expanduser("~/.local/bin")
-                os.makedirs(local_bin_dir, exist_ok=True)
-                
-                with open(PACMAN_SCRIPT_PATH, 'w') as f:
-                    f.write(script_content)
-                os.chmod(PACMAN_SCRIPT_PATH, 0o755)
+                # Create script in system location with elevated privileges
+                system_script_path = "/usr/local/bin/zfs-assistant-pacman-hook.py"
+                success, result = self.privilege_manager.create_script_privileged(
+                    system_script_path, script_content, executable=True
+                )
+                if not success:
+                    return False, f"Error creating system pacman hook script: {result}"
                 
                 # Install the hook with elevated privileges
                 success, result = self.privilege_manager.create_script_privileged(
-                    self.pacman_hook_path, hook_content, executable=False
+                    PACMAN_HOOK_PATH, hook_content, executable=False
                 )
                 if not success:
                     return False, f"Error installing pacman hook: {result}"
@@ -67,12 +412,11 @@ Depends = python
             else:
                 log_info("Removing pacman hook")
                 
-                # Remove user script
-                if os.path.exists(PACMAN_SCRIPT_PATH):
-                    os.remove(PACMAN_SCRIPT_PATH)
+                # Remove system script and hook with elevated privileges
+                system_script_path = "/usr/local/bin/zfs-assistant-pacman-hook.py"
+                files_to_remove = [PACMAN_HOOK_PATH, system_script_path]
                 
-                # Remove pacman hook with elevated privileges
-                success, result = self.privilege_manager.remove_files_privileged([self.pacman_hook_path])
+                success, result = self.privilege_manager.remove_files_privileged(files_to_remove)
                 
                 if not success:
                     return False, f"Error removing pacman hook: {result}"
@@ -119,7 +463,7 @@ def create_pre_pacman_snapshot():
             log_operation_start("PACMAN_INTEGRATION", "Pre-package transaction snapshot creation")
             operation_started = True
         
-        config_file = os.path.expanduser("~/.config/zfs-assistant/config.json")
+                config_file = "/etc/zfs-assistant/config.json"
         
         if not os.path.exists(config_file):
             error_msg = f"Configuration file not found: {config_file}"
@@ -211,266 +555,6 @@ if __name__ == "__main__":
     create_pre_pacman_snapshot()
 """
     
-    def setup_systemd_timers(self, schedules: Dict[str, bool]) -> Tuple[bool, str]:
-        """Setup systemd timers for automated snapshots."""
-        try:
-            log_info("Setting up systemd timers for automated snapshots", {
-                'schedules': schedules
-            })
-            
-            # Create the snapshot script
-            script_content = self._get_systemd_script_content()
-            
-            # Create script in user's home directory
-            local_bin_dir = os.path.expanduser("~/.local/bin")
-            os.makedirs(local_bin_dir, exist_ok=True)
-            
-            with open(SYSTEMD_SCRIPT_PATH, 'w') as f:
-                f.write(script_content)
-            os.chmod(SYSTEMD_SCRIPT_PATH, 0o755)
-            
-            # Create systemd service directory
-            user_systemd_dir = os.path.expanduser("~/.config/systemd/user")
-            os.makedirs(user_systemd_dir, exist_ok=True)
-            
-            # Create the service file
-            script_absolute_path = os.path.expanduser("~/.local/bin/zfs-assistant-systemd.py")
-            service_content = f"""[Unit]
-Description=ZFS Snapshot %i Job
-After=zfs.target
-
-[Service]
-Type=oneshot
-ExecStart={script_absolute_path} %i
-"""
-            service_path = os.path.join(user_systemd_dir, "zfs-snapshot@.service")
-            with open(service_path, 'w') as f:
-                f.write(service_content)
-            
-            # Clean up existing timer files
-            self._cleanup_existing_timers(user_systemd_dir)
-            
-            # Create new timer files based on schedules
-            self._create_optimized_timers(user_systemd_dir, schedules)
-            
-            # Reload systemd daemon
-            subprocess.run(['systemctl', '--user', 'daemon-reload'], check=True, timeout=30)
-            
-            log_success("Systemd timers set up successfully")
-            return True, "Systemd timers set up successfully"
-            
-        except subprocess.TimeoutExpired as e:
-            error_msg = f"Error setting up systemd timers (timeout): {str(e)}"
-            log_error(error_msg)
-            return False, error_msg
-        except Exception as e:
-            error_msg = f"Error setting up systemd timers: {str(e)}"
-            log_error(error_msg)
-            return False, error_msg
-    
-    def _cleanup_existing_timers(self, user_systemd_dir: str):
-        """Clean up existing timer files."""
-        timer_patterns = [
-            "zfs-snapshot-hourly*.timer",
-            "zfs-snapshot-daily*.timer", 
-            "zfs-snapshot-weekly.timer",
-            "zfs-snapshot-monthly.timer"
-        ]
-        
-        for pattern in timer_patterns:
-            import glob
-            for timer_file in glob.glob(os.path.join(user_systemd_dir, pattern)):
-                try:
-                    # systemctl --user commands don't need pkexec
-                    timer_name = os.path.basename(timer_file)
-                    subprocess.run(['systemctl', '--user', 'stop', timer_name], 
-                                  check=False, timeout=30)
-                    subprocess.run(['systemctl', '--user', 'disable', timer_name], 
-                                  check=False, timeout=30)
-                    
-                    # Remove file
-                    os.remove(timer_file)
-                except:
-                    pass
-    
-    def _create_optimized_timers(self, user_systemd_dir: str, schedules: Dict[str, bool]):
-        """Create optimized timer files that group multiple times into single timers."""
-        
-        # Handle hourly schedule with custom hours
-        if schedules.get("hourly", False):
-            self._create_hourly_timers(user_systemd_dir)
-        
-        # Handle daily schedule with custom days
-        if schedules.get("daily", False):
-            self._create_daily_timers(user_systemd_dir)
-        
-        # Handle weekly schedule
-        if schedules.get("weekly", False):
-            self._create_weekly_timer(user_systemd_dir)
-        
-        # Handle monthly schedule
-        if schedules.get("monthly", False):
-            self._create_monthly_timer(user_systemd_dir)
-    
-    def _create_hourly_timers(self, user_systemd_dir: str):
-        """Create hourly timers."""
-        hourly_schedule = self.config.get("hourly_schedule", list(range(24)))
-        
-        if not hourly_schedule:
-            hourly_schedule = list(range(24))  # Default to all hours
-        
-        # Group hours for efficiency (e.g., every 4 hours, every 6 hours, etc.)
-        if len(hourly_schedule) == 24:
-            # All hours selected - use simple hourly timer
-            timer_content = """[Unit]
-Description=Take hourly ZFS snapshots
-
-[Timer]
-OnCalendar=*-*-* *:00:00
-Persistent=true
-Unit=zfs-snapshot@hourly.service
-
-[Install]
-WantedBy=timers.target
-"""
-            timer_path = os.path.join(user_systemd_dir, "zfs-snapshot-hourly.timer")
-            with open(timer_path, 'w') as f:
-                f.write(timer_content)
-            
-            # systemctl --user commands don't need pkexec
-            subprocess.run(['systemctl', '--user', 'enable', 'zfs-snapshot-hourly.timer'], 
-                          check=True, timeout=30)
-            subprocess.run(['systemctl', '--user', 'start', 'zfs-snapshot-hourly.timer'], 
-                          check=True, timeout=30)
-        else:
-            # Create timer for specific hours
-            hour_list = ','.join(f"{hour:02d}" for hour in sorted(hourly_schedule))
-            timer_content = f"""[Unit]
-Description=Take hourly ZFS snapshots at selected hours
-
-[Timer]
-OnCalendar=*-*-* {hour_list}:00:00
-Persistent=true
-Unit=zfs-snapshot@hourly.service
-
-[Install]
-WantedBy=timers.target
-"""
-            timer_path = os.path.join(user_systemd_dir, "zfs-snapshot-hourly-custom.timer")
-            with open(timer_path, 'w') as f:
-                f.write(timer_content)
-            
-            # systemctl --user commands don't need pkexec
-            subprocess.run(['systemctl', '--user', 'enable', 'zfs-snapshot-hourly-custom.timer'], 
-                          check=True, timeout=30)
-            subprocess.run(['systemctl', '--user', 'start', 'zfs-snapshot-hourly-custom.timer'], 
-                          check=True, timeout=30)
-    
-    def _create_daily_timers(self, user_systemd_dir: str):
-        """Create daily timers."""
-        daily_schedule = self.config.get("daily_schedule", list(range(7)))
-        daily_hour = self.config.get("daily_hour", 0)
-        
-        if not daily_schedule:
-            daily_schedule = list(range(7))  # Default to all days
-        
-        days_of_week = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
-        
-        if len(daily_schedule) == 7:
-            # All days selected - use simple daily timer
-            timer_content = f"""[Unit]
-Description=Take daily ZFS snapshots
-
-[Timer]
-OnCalendar=*-*-* {daily_hour:02d}:00:00
-Persistent=true
-Unit=zfs-snapshot@daily.service
-
-[Install]
-WantedBy=timers.target
-"""
-            timer_path = os.path.join(user_systemd_dir, "zfs-snapshot-daily.timer")
-            with open(timer_path, 'w') as f:
-                f.write(timer_content)
-            
-            # systemctl --user commands don't need pkexec
-            subprocess.run(['systemctl', '--user', 'enable', 'zfs-snapshot-daily.timer'], 
-                          check=True, timeout=30)
-            subprocess.run(['systemctl', '--user', 'start', 'zfs-snapshot-daily.timer'], 
-                          check=True, timeout=30)
-        
-        else:
-            # Create timer for specific days
-            selected_days = [days_of_week[day] for day in sorted(daily_schedule)]
-            day_list = ','.join(selected_days)
-            
-            timer_content = f"""[Unit]
-Description=Take daily ZFS snapshots on selected days
-
-[Timer]
-OnCalendar={day_list} *-*-* {daily_hour:02d}:00:00
-Persistent=true
-Unit=zfs-snapshot@daily.service
-
-[Install]
-WantedBy=timers.target
-"""
-            timer_path = os.path.join(user_systemd_dir, "zfs-snapshot-daily-custom.timer")
-            with open(timer_path, 'w') as f:
-                f.write(timer_content)
-            
-            # systemctl --user commands don't need pkexec
-            subprocess.run(['systemctl', '--user', 'enable', 'zfs-snapshot-daily-custom.timer'], 
-                          check=True, timeout=30)
-            subprocess.run(['systemctl', '--user', 'start', 'zfs-snapshot-daily-custom.timer'], 
-                          check=True, timeout=30)
-    
-    def _create_weekly_timer(self, user_systemd_dir: str):
-        """Create weekly timer."""
-        timer_content = """[Unit]
-Description=Take weekly ZFS snapshots
-
-[Timer]
-OnCalendar=Mon *-*-* 00:00:00
-Persistent=true
-Unit=zfs-snapshot@weekly.service
-
-[Install]
-WantedBy=timers.target
-"""
-        timer_path = os.path.join(user_systemd_dir, "zfs-snapshot-weekly.timer")
-        with open(timer_path, 'w') as f:
-            f.write(timer_content)
-        
-        # systemctl --user commands don't need pkexec
-        subprocess.run(['systemctl', '--user', 'enable', 'zfs-snapshot-weekly.timer'], 
-                      check=True, timeout=30)
-        subprocess.run(['systemctl', '--user', 'start', 'zfs-snapshot-weekly.timer'], 
-                      check=True, timeout=30)
-    
-    def _create_monthly_timer(self, user_systemd_dir: str):
-        """Create monthly timer."""
-        timer_content = """[Unit]
-Description=Take monthly ZFS snapshots
-
-[Timer]
-OnCalendar=*-*-01 00:00:00
-Persistent=true
-Unit=zfs-snapshot@monthly.service
-
-[Install]
-WantedBy=timers.target
-"""
-        timer_path = os.path.join(user_systemd_dir, "zfs-snapshot-monthly.timer")
-        with open(timer_path, 'w') as f:
-            f.write(timer_content)
-        
-        # systemctl --user commands don't need pkexec
-        subprocess.run(['systemctl', '--user', 'enable', 'zfs-snapshot-monthly.timer'], 
-                      check=True, timeout=30)
-        subprocess.run(['systemctl', '--user', 'start', 'zfs-snapshot-monthly.timer'], 
-                      check=True, timeout=30)
-    
     def _get_systemd_script_content(self) -> str:
         """Get the content for the systemd timer script."""
         return """#!/usr/bin/env python3
@@ -479,168 +563,68 @@ import datetime
 import json
 import os
 import sys
-from pathlib import Path
 
-# Import logging system
-sys.path.insert(0, '/usr/lib/python3/site-packages')
+# Try to import the logging system, fallback if not available
 try:
-    from zfs_assistant.logger import (
-        ZFSLogger, OperationType, LogLevel, get_logger,
-        log_info, log_error, log_success, log_warning
-    )
+    from logger import ZFSLogger, OperationType, LogLevel
+    HAS_LOGGING = True
 except ImportError:
-    # Fallback if package import fails
-    class MockLogger:
-        def start_operation(self, op_type, details): return "mock_id"
-        def end_operation(self, op_id, success, details): pass
-        def log_snapshot_operation(self, action, dataset, snapshot, success, details=None): pass
-        def log_system_command(self, command, success, error=None): pass
-    
-    def log_info(msg, details=None): print(f"[INFO] {msg}")
-    def log_error(msg, details=None): print(f"[ERROR] {msg}")
-    def log_success(msg, details=None): print(f"[SUCCESS] {msg}")
-    def log_warning(msg, details=None): print(f"[WARNING] {msg}")
-    
-    logger = MockLogger()
-
-def run_system_updates(config, logger):
-    # Run system updates if enabled in configuration
-    update_setting = config.get("update_snapshots", "disabled")
-    
-    if update_setting == "disabled":
-        log_info("System updates disabled, skipping")
-        return True
-    
-    log_info("Starting system updates")
-    
-    # Determine update commands based on setting
-    update_commands = []
-    
-    # Step 1: Always include pacman system update
-    if update_setting in ["enabled", "pacman_only"]:
-        update_commands.append((['pacman', '-Syu', '--noconfirm'], "Pacman system update"))
-    
-    # Step 2: Include Flatpak updates if enabled and flatpak is available
-    if update_setting == "enabled":
-        # Check if flatpak is available
-        try:
-            result = subprocess.run(['which', 'flatpak'], 
-                                  capture_output=True, text=True, check=False, timeout=10)
-            if result.returncode == 0:
-                update_commands.append((['flatpak', 'update', '-y'], "Flatpak applications update"))
-            else:
-                log_info("Flatpak not found, skipping Flatpak updates")
-        except Exception as e:
-            log_warning(f"Error checking for Flatpak: {str(e)}")
-    
-    # Step 3: Add cache cleanup commands if enabled
-    if config.get("clean_cache_after_updates", False):
-        update_commands.append((['pacman', '-Scc', '--noconfirm'], "Pacman cache cleanup"))
-        
-        # Also clean Flatpak cache if Flatpak is available
-        if update_setting == "enabled":
-            try:
-                result = subprocess.run(['which', 'flatpak'], 
-                                      capture_output=True, text=True, check=False, timeout=10)
-                if result.returncode == 0:
-                    update_commands.append((['flatpak', 'uninstall', '--unused', '-y'], "Flatpak unused runtimes cleanup"))
-            except Exception as e:
-                log_warning(f"Error checking for Flatpak cache cleanup: {str(e)}")
-    
-    if not update_commands:
-        log_warning(f"Unknown update_snapshots setting: {update_setting}")
-        return True
-    
-    # Execute update commands sequentially
-    all_success = True
-    for cmd_info in update_commands:
-        cmd, description = cmd_info
-        try:
-            log_info(f"Running {description}: {' '.join(cmd)}")
-            
-            # Use different privilege escalation for different commands
-            if cmd[0] == 'pacman':
-                # Pacman requires root privileges
-                full_cmd = ['pkexec'] + cmd
-            elif cmd[0] == 'flatpak':
-                # Flatpak can run as user for system updates
-                full_cmd = cmd
-            else:
-                # Default to pkexec for other commands
-                full_cmd = ['pkexec'] + cmd
-            
-            result = subprocess.run(full_cmd, 
-                                  check=True, capture_output=True, text=True, timeout=1800)
-            log_success(f"Successfully completed {description}")
-            logger.log_system_command(cmd, True)
-            
-        except subprocess.CalledProcessError as e:
-            error_msg = f"Failed to execute {description}: {e.stderr if e.stderr else str(e)}"
-            log_error(error_msg)
-            logger.log_system_command(cmd, False, error=error_msg)
-            all_success = False
-            
-        except subprocess.TimeoutExpired:
-            error_msg = f"Timeout executing {description}"
-            log_error(error_msg)
-            logger.log_system_command(cmd, False, error=error_msg)
-            all_success = False
-            
-        except Exception as e:
-            error_msg = f"Error executing {description}: {str(e)}"
-            log_error(error_msg)
-            logger.log_system_command(cmd, False, error=error_msg)
-            all_success = False
-    
-    return all_success
+    HAS_LOGGING = False
+    def log_operation_start(op_type, details): print(f"Starting operation: {details}")
+    def log_message(level, message, details=None): print(f"[{level}] {message}")
+    def log_operation_end(op_type, success, details=None, error_message=None):
+        status = "SUCCESS" if success else "FAILED"
+        print(f"Operation completed: {status}")
 
 def create_scheduled_snapshot(interval):
+    logger = None
+    operation_started = False
+    
     try:
-        config_file = os.path.expanduser("~/.config/zfs-assistant/config.json")
+        if HAS_LOGGING:
+            logger = ZFSLogger()
+            logger.log_operation_start(OperationType.SCHEDULED_SNAPSHOT, f"Scheduled {interval} snapshot creation")
+            operation_started = True
+        else:
+            log_operation_start("SCHEDULED_SNAPSHOT", f"Scheduled {interval} snapshot creation")
+            operation_started = True
+        
+        config_file = "/etc/zfs-assistant/config.json"
+        
+        if not os.path.exists(config_file):
+            error_msg = f"Configuration file not found: {config_file}"
+            if logger:
+                logger.log_error("Configuration file not found", {'config_file': config_file})
+                logger.log_operation_end(OperationType.SCHEDULED_SNAPSHOT, False, error_message=error_msg)
+            else:
+                log_message("ERROR", error_msg)
+                log_operation_end("SCHEDULED_SNAPSHOT", False, error_message=error_msg)
+            return
         
         with open(config_file, 'r') as f:
             config = json.load(f)
         
-        try:
-            logger = get_logger()
-        except:
-            logger = MockLogger()
-        
-        log_info(f"Starting scheduled {interval} snapshot operation")
-        
-        operation_id = logger.start_operation(OperationType.SNAPSHOT_SCHEDULED, {
-            'interval': interval,
-            'datasets': config.get("datasets", []),
-            'prefix': config.get("prefix", "zfs-assistant"),
-            'update_snapshots': config.get("update_snapshots", "disabled")
-        })
+        datasets = config.get("datasets", [])
+        if not datasets:
+            if logger:
+                logger.log_warning("No datasets configured for snapshots")
+                logger.log_operation_end(OperationType.SCHEDULED_SNAPSHOT, True, "No datasets configured")
+            else:
+                log_message("WARNING", "No datasets configured for snapshots")
+                log_operation_end("SCHEDULED_SNAPSHOT", True, "No datasets configured")
+            return
         
         timestamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
         prefix = config.get("prefix", "zfs-assistant")
-        datasets = config.get("datasets", [])
         
-        if not datasets:
-            error_msg = "No datasets configured for snapshots"
-            log_error(error_msg)
-            logger.end_operation(operation_id, False, {'error': error_msg})
-            return
-        
-        overall_success = True
-        
-        # Step 1: Run system updates before creating snapshots (if enabled)
-        update_success = run_system_updates(config, logger)
-        if not update_success:
-            log_warning("System updates completed with errors, continuing with snapshots")
-            overall_success = False
-        
-        # Step 2: Create snapshots using batch execution
-        log_info(f"Creating {len(datasets)} snapshots")
+        # Create batch script for all snapshots
         batch_commands = []
         for dataset in datasets:
             snapshot_name = f"{dataset}@{prefix}-{interval}-{timestamp}"
             batch_commands.append(['zfs', 'snapshot', snapshot_name])
         
         if batch_commands:
+            # Execute all snapshots
             script_lines = ["#!/bin/bash", "set -e"]
             for dataset in datasets:
                 snapshot_name = f"{dataset}@{prefix}-{interval}-{timestamp}"
@@ -649,146 +633,48 @@ def create_scheduled_snapshot(interval):
             script_content = '\\n'.join(script_lines)
             
             try:
-                # Execute with privileges (necessary for zfs commands)
-                result = subprocess.run(['pkexec', 'bash', '-c', script_content], 
+                # Execute with elevated privileges (necessary for zfs commands)
+                result = subprocess.run(['bash', '-c', script_content], 
                                       check=True, capture_output=True, text=True)
                 
-                log_success(f"Created {len(datasets)} {interval} snapshots")
-                for dataset in datasets:
-                    logger.log_snapshot_operation('create', dataset, f"{prefix}-{interval}-{timestamp}", True)
+                success_count = len(datasets)
+                if logger:
+                    for dataset in datasets:
+                        snapshot_name = f"{prefix}-{interval}-{timestamp}"
+                        logger.log_snapshot_operation("create", dataset, snapshot_name, True)
+                    logger.log_success(f"All {interval} snapshots created successfully")
+                    logger.log_operation_end(OperationType.SCHEDULED_SNAPSHOT, True)
+                else:
+                    log_message("SUCCESS", f"Created {success_count} {interval} snapshots")
+                    log_operation_end("SCHEDULED_SNAPSHOT", True)
                 
             except subprocess.CalledProcessError as e:
-                error_msg = f"Failed to create snapshots: {e.stderr if e.stderr else str(e)}"
-                log_error(error_msg)
-                logger.end_operation(operation_id, False, {'error': error_msg})
-                overall_success = False
-        
-        # End operation
-        if overall_success:
-            logger.end_operation(operation_id, True)
-            log_success(f"Scheduled {interval} operation completed successfully")
-        else:
-            logger.end_operation(operation_id, False, {'error': 'Operation completed with errors'})
-            log_warning(f"Scheduled {interval} operation completed with errors")
+                error_msg = f"Failed to create {interval} snapshots: {e.stderr if e.stderr else str(e)}"
+                if logger:
+                    logger.log_error(f"{interval.capitalize()} snapshot creation failed", {'error': error_msg})
+                    logger.log_operation_end(OperationType.SCHEDULED_SNAPSHOT, False, error_message=error_msg)
+                else:
+                    log_message("ERROR", error_msg)
+                    log_operation_end("SCHEDULED_SNAPSHOT", False, error_message=error_msg)
+                sys.exit(1)
     
     except Exception as e:
-        error_msg = f"Error in scheduled {interval} operation: {str(e)}"
-        log_error(error_msg)
-        if 'operation_id' in locals():
-            logger.end_operation(operation_id, False, {'error': error_msg})
+        error_msg = f"Error in {interval} snapshot script: {str(e)}"
+        if logger and operation_started:
+            logger.log_error(f"Critical error in {interval} snapshot execution", {'error': error_msg})
+            logger.log_operation_end(OperationType.SCHEDULED_SNAPSHOT, False, error_message=error_msg)
+        else:
+            log_message("ERROR", error_msg)
+            if operation_started:
+                log_operation_end("SCHEDULED_SNAPSHOT", False, error_message=error_msg)
+        sys.exit(1)
 
 if __name__ == "__main__":
-    if len(sys.argv) < 2:
+    import sys
+    if len(sys.argv) > 1:
+        interval = sys.argv[1]
+        create_scheduled_snapshot(interval)
+    else:
         print("Usage: zfs-assistant-systemd.py <interval>")
         sys.exit(1)
-    
-    interval = sys.argv[1]
-    create_scheduled_snapshot(interval)
 """
-    
-    def disable_schedule(self, schedule_type: str) -> Tuple[bool, str]:
-        """Disable and remove timers for a specific schedule type."""
-        try:
-            log_info(f"Disabling {schedule_type} schedule")
-            
-            user_systemd_dir = os.path.expanduser("~/.config/systemd/user")
-            
-            # Define timer file patterns for each schedule type
-            timer_patterns = {
-                "hourly": ["zfs-snapshot-hourly*.timer"],
-                "daily": ["zfs-snapshot-daily*.timer"],
-                "weekly": ["zfs-snapshot-weekly.timer"],
-                "monthly": ["zfs-snapshot-monthly.timer"]
-            }
-            
-            if schedule_type not in timer_patterns:
-                return False, f"Unknown schedule type: {schedule_type}"
-            
-            # Stop, disable, and remove timer files
-            import glob
-            removed_timers = []
-            
-            for pattern in timer_patterns[schedule_type]:
-                for timer_file in glob.glob(os.path.join(user_systemd_dir, pattern)):
-                    timer_name = os.path.basename(timer_file)
-                    
-                    try:
-                        # systemctl --user commands don't need pkexec
-                        subprocess.run(['systemctl', '--user', 'stop', timer_name], 
-                                      check=False, timeout=30)
-                        subprocess.run(['systemctl', '--user', 'disable', timer_name], 
-                                      check=False, timeout=30)
-                        
-                        # Remove file
-                        os.remove(timer_file)
-                        removed_timers.append(timer_name)
-                        
-                    except Exception as e:
-                        log_warning(f"Error removing timer {timer_name}: {str(e)}")
-            
-            # Reload systemd daemon (user service doesn't need pkexec)
-            subprocess.run(['systemctl', '--user', 'daemon-reload'], check=True, timeout=30)
-            
-            if removed_timers:
-                success_msg = f"Disabled {schedule_type} schedule, removed timers: {', '.join(removed_timers)}"
-                log_success(success_msg)
-                return True, success_msg
-            else:
-                return True, f"No {schedule_type} timers found to remove"
-                
-        except Exception as e:
-            error_msg = f"Error disabling {schedule_type} schedule: {str(e)}"
-            log_error(error_msg)
-            return False, error_msg
-    
-    def get_schedule_status(self) -> Dict[str, bool]:
-        """Check actual systemd timer status to determine if schedules are really active."""
-        try:
-            user_systemd_dir = os.path.expanduser("~/.config/systemd/user")
-            
-            status = {
-                "hourly": False,
-                "daily": False,
-                "weekly": False,
-                "monthly": False
-            }
-            
-            # Check if timer files exist and are active
-            timer_patterns = {
-                "hourly": ["zfs-snapshot-hourly*.timer"],
-                "daily": ["zfs-snapshot-daily*.timer"],
-                "weekly": ["zfs-snapshot-weekly.timer"],
-                "monthly": ["zfs-snapshot-monthly.timer"]
-            }
-            
-            import glob
-            for schedule_type, patterns in timer_patterns.items():
-                for pattern in patterns:
-                    timer_files = glob.glob(os.path.join(user_systemd_dir, pattern))
-                    for timer_file in timer_files:
-                        timer_name = os.path.basename(timer_file)
-                        
-                        try:
-                            # Check if timer is active
-                            result = subprocess.run(
-                                ['systemctl', '--user', 'is-active', timer_name],
-                                capture_output=True, text=True, check=False, timeout=10
-                            )
-                            
-                            if result.returncode == 0 and result.stdout.strip() == "active":
-                                status[schedule_type] = True
-                                break  # At least one timer of this type is active
-                        except:
-                            continue
-            
-            return status
-            
-        except Exception as e:
-            log_warning(f"Error checking schedule status: {str(e)}")
-            # Fallback to config-based status if systemctl check fails
-            return {
-                "hourly": bool(self.config.get("hourly_schedule", [])),
-                "daily": bool(self.config.get("daily_schedule", [])),
-                "weekly": bool(self.config.get("weekly_schedule", False)),
-                "monthly": bool(self.config.get("monthly_schedule", False))
-            }

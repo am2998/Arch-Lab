@@ -43,52 +43,13 @@ DEFAULT_CONFIG = {
     "notifications_enabled": True
 }
 
-# File paths
-def get_config_dir():
-    """Get the configuration directory, handling elevated privileges properly"""
-    # Check if we're running with elevated privileges
-    if os.geteuid() == 0:
-        # We're running as root - try to get the original user's config dir
-        
-        # First, check if SUDO_USER is set (when using sudo)
-        if 'SUDO_USER' in os.environ:
-            original_user = os.environ['SUDO_USER']
-            # Get the original user's home directory
-            import pwd
-            try:
-                user_info = pwd.getpwnam(original_user)
-                user_home = user_info.pw_dir
-                return os.path.join(user_home, ".config", "zfs-assistant")
-            except KeyError:
-                pass
-        
-        # Check for PKEXEC_UID (when using pkexec)
-        if 'PKEXEC_UID' in os.environ:
-            try:
-                import pwd
-                original_uid = int(os.environ['PKEXEC_UID'])
-                user_info = pwd.getpwuid(original_uid)
-                user_home = user_info.pw_dir
-                return os.path.join(user_home, ".config", "zfs-assistant")
-            except (KeyError, ValueError):
-                pass
-        
-        # Fallback: try to detect the user who owns the current session
-        # Look for common user directories that might indicate the original user
-        for potential_user in os.listdir('/home'):
-            user_config_dir = f"/home/{potential_user}/.config/zfs-assistant"
-            if os.path.exists(user_config_dir):
-                return user_config_dir
-    
-    # Default: use the current user's home directory
-    return os.path.expanduser("~/.config/zfs-assistant")
-
-CONFIG_DIR = get_config_dir()
-CONFIG_FILE = os.path.join(CONFIG_DIR, "config.json")
-LOG_FILE = os.path.join(CONFIG_DIR, "zfs-assistant.log")
+# File paths - System-wide configuration since application runs with elevated privileges
+CONFIG_DIR = "/etc/zfs-assistant"
+CONFIG_FILE = "/etc/zfs-assistant/config.json"
+LOG_FILE = "/var/log/zfs-assistant.log"
 PACMAN_HOOK_PATH = "/etc/pacman.d/hooks/00-zfs-snapshot.hook"
-SYSTEMD_SCRIPT_PATH = os.path.expanduser("~/.local/bin/zfs-assistant-systemd.py")
-PACMAN_SCRIPT_PATH = os.path.expanduser("~/.local/bin/zfs-assistant-pacman-hook.py")
+SYSTEMD_SCRIPT_PATH = "/usr/local/bin/zfs-assistant-systemd.py"
+PACMAN_SCRIPT_PATH = "/usr/local/bin/zfs-assistant-pacman-hook.py"
 
 # Utility functions
 def run_command(cmd, capture_output=True, check=True):

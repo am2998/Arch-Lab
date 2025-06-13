@@ -267,7 +267,6 @@ class SystemMaintenance:
             
             optimization_commands = [
                 (['pacman', '-Sc', '--noconfirm'], "Clean package cache (partial)"),
-                (['systemctl', '--user', 'daemon-reload'], "Reload user systemd daemon"),
                 (['sync'], "Sync filesystem buffers")
             ]
             

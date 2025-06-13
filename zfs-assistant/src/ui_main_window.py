@@ -1046,41 +1046,7 @@ class MainWindow(Gtk.ApplicationWindow):
             # Get the snapshot object from the selected row
             snapshot = selected.get_child().snapshot
             
-            # Create confirmation dialog
-            dialog = Gtk.MessageDialog(
-                transient_for=self,
-                modal=True,
-                message_type=Gtk.MessageType.WARNING,
-                buttons=Gtk.ButtonsType.YES_NO,
-                text="Delete Snapshot",
-                secondary_text=f"Are you sure you want to delete snapshot '{snapshot.name}'?\n\n"
-                             "This operation cannot be undone."
-            )
-            
-            # Set the dialog size and styling
-            dialog.set_default_size(400, 200)
-            
-            # Make the "No" button primary and "Yes" button destructive
-            no_button = dialog.get_widget_for_response(Gtk.ResponseType.NO)
-            yes_button = dialog.get_widget_for_response(Gtk.ResponseType.YES)
-            
-            if no_button:
-                no_button.add_css_class("suggested-action")
-                no_button.set_label("No")
-            
-            if yes_button:
-                yes_button.add_css_class("destructive-action")
-                yes_button.set_label("Yes")
-            
-            dialog.connect("response", self._on_delete_dialog_response, snapshot)
-            dialog.present()
-            
-    def _on_delete_dialog_response(self, dialog, response, snapshot):
-        """Handle delete dialog response"""
-        dialog.destroy()
-        
-        if response == Gtk.ResponseType.YES:
-            # Perform delete
+            # Directly delete without confirmation
             snapshot_full_name = f"{snapshot.dataset}@{snapshot.name}"
             success, message = self.zfs_assistant.delete_snapshot(snapshot_full_name)
             
@@ -1102,7 +1068,7 @@ class MainWindow(Gtk.ApplicationWindow):
                 self.refresh_snapshots()
                 # Send notification
                 self.app.send_app_notification("Snapshot Deleted", f"Snapshot {snapshot.name} has been deleted.")
-    
+            
     def on_quick_create_activate(self, entry):
         """Handle Enter key press in quick create entry"""
         self.create_quick_snapshot()
