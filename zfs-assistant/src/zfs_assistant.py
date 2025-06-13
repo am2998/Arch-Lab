@@ -9,63 +9,61 @@ from pathlib import Path
 
 # Try relative imports first, fall back to absolute imports if run as a script
 try:
-    from .common import (
+    from .utils.common import (
         CONFIG_DIR, CONFIG_FILE, LOG_FILE, PACMAN_HOOK_PATH, 
         SYSTEMD_SCRIPT_PATH, PACMAN_SCRIPT_PATH,
         DEFAULT_CONFIG, get_timestamp
     )
-    from .models import ZFSSnapshot
-    from .logger import (
+    from .utils.models import ZFSSnapshot
+    from .utils.logger import (
         ZFSLogger, OperationType, LogLevel, get_logger,
         log_info, log_error, log_success, log_warning
     )
-    from .privilege_manager import PrivilegeManager
-    from .zfs_core import ZFSCore
-    from .zfs_backup import ZFSBackup
-    from .system_integration import SystemIntegration
-    from .system_maintenance import SystemMaintenance
+    from .utils.privilege_manager import PrivilegeManager
+    from .core.zfs_core import ZFSCore
+    from .backup.zfs_backup import ZFSBackup
+    from .system.system_integration import SystemIntegration
+    from .system.system_maintenance import SystemMaintenance
 except ImportError:
     # For direct script execution
     import sys
     parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     if parent_dir not in sys.path:
         sys.path.insert(0, parent_dir)
-    try:
-        # Try with src as a direct submodule
-        from src.common import (
+    try:        # Try with src as a direct submodule
+        from src.utils.common import (
             CONFIG_DIR, CONFIG_FILE, LOG_FILE, PACMAN_HOOK_PATH, 
             SYSTEMD_SCRIPT_PATH, PACMAN_SCRIPT_PATH,
             DEFAULT_CONFIG, get_timestamp
         )
-        from src.models import ZFSSnapshot
-        from src.logger import (
+        from src.utils.models import ZFSSnapshot
+        from src.utils.logger import (
             ZFSLogger, OperationType, LogLevel, get_logger,
             log_info, log_error, log_success, log_warning
         )
-        from src.privilege_manager import PrivilegeManager
-        from src.zfs_core import ZFSCore
-        from src.zfs_backup import ZFSBackup
-        from src.system_integration import SystemIntegration
-        from src.system_maintenance import SystemMaintenance
+        from src.utils.privilege_manager import PrivilegeManager
+        from src.core.zfs_core import ZFSCore
+        from src.backup.zfs_backup import ZFSBackup
+        from src.system.system_integration import SystemIntegration
+        from src.system.system_maintenance import SystemMaintenance
     except ImportError:
         # Last resort, use direct file paths
         current_dir = os.path.dirname(os.path.abspath(__file__))
-        sys.path.insert(0, current_dir)
-        from common import (
+        sys.path.insert(0, current_dir)        from utils.common import (
             CONFIG_DIR, CONFIG_FILE, LOG_FILE, PACMAN_HOOK_PATH, 
             SYSTEMD_SCRIPT_PATH, PACMAN_SCRIPT_PATH,
             DEFAULT_CONFIG, get_timestamp
         )
-        from models import ZFSSnapshot
-        from logger import (
+        from utils.models import ZFSSnapshot
+        from utils.logger import (
             ZFSLogger, OperationType, LogLevel, get_logger,
             log_info, log_error, log_success, log_warning
         )
-        from privilege_manager import PrivilegeManager
-        from zfs_core import ZFSCore
-        from zfs_backup import ZFSBackup
-        from system_integration import SystemIntegration
-        from system_maintenance import SystemMaintenance
+        from utils.privilege_manager import PrivilegeManager
+        from core.zfs_core import ZFSCore
+        from backup.zfs_backup import ZFSBackup
+        from system.system_integration import SystemIntegration
+        from system.system_maintenance import SystemMaintenance
 
 
 class ZFSAssistant:
@@ -336,10 +334,9 @@ class ZFSAssistant:
 
 def create_pre_pacman_snapshot():
     """Legacy function for pacman hook compatibility"""
-    try:
-        # Use the system integration module for pacman hook operations
-        from .system_integration import SystemIntegration
-        from .privilege_manager import PrivilegeManager
+    try:        # Use the system integration module for pacman hook operations
+        from .system.system_integration import SystemIntegration
+        from .utils.privilege_manager import PrivilegeManager
         
         # Load config
         config_file = "/etc/zfs-assistant/config.json"
@@ -353,7 +350,7 @@ def create_pre_pacman_snapshot():
         privilege_manager = PrivilegeManager()
         
         # Create snapshots using the ZFS core module
-        from .zfs_core import ZFSCore
+        from .core.zfs_core import ZFSCore
         zfs_core = ZFSCore(privilege_manager, config)
         
         datasets = config.get("datasets", [])

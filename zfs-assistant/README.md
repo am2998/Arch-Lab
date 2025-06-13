@@ -16,9 +16,15 @@ zfs-assistant/
     ├── __main__.py            # Entry point for module execution
     ├── application.py         # Main application class
     ├── zfs_assistant.py       # Core ZFS operations
-    ├── models.py              # Data models
-    ├── ui_*.py                # UI components
-    └── requirements.txt       # Python dependencies
+    ├── core/                  # Core ZFS operations
+    ├── backup/                # Backup and restore functionality
+    ├── system/                # System integration and maintenance
+    ├── ui/                    # User interface components
+    │   ├── windows/           # Main application windows
+    │   ├── dialogs/           # Modal dialog windows
+    │   ├── settings/          # Settings-related UI components
+    │   └── components/        # Reusable UI components
+    └── utils/                 # Common utilities, models, logging
 ```
 
 ## Features

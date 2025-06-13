@@ -4,7 +4,7 @@
 
 import subprocess
 from typing import Tuple, List, Dict, Any
-from .logger import (
+from ..utils.logger import (
     OperationType, get_logger,
     log_info, log_error, log_success, log_warning
 )

@@ -6,8 +6,8 @@ import subprocess
 import datetime
 import os
 from typing import List, Optional, Tuple
-from .models import ZFSSnapshot
-from .logger import (
+from ..utils.models import ZFSSnapshot
+from ..utils.logger import (
     OperationType, get_logger,
     log_info, log_error, log_success, log_warning
 )

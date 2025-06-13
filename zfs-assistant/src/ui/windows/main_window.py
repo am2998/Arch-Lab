@@ -9,8 +9,14 @@ gi.require_version('Gtk', '4.0')
 gi.require_version('Adw', '1')
 from gi.repository import Gtk, Adw, GObject, Gio, GLib, Gdk
 
-from .models import ZFSSnapshot
-from .ui_settings_dialog import SettingsDialog
+try:
+    # Try relative imports first
+    from ...models import ZFSSnapshot
+    from ..settings.settings_dialog import SettingsDialog
+except ImportError:
+    # Fall back for direct execution
+    from models import ZFSSnapshot
+    from ui.settings.settings_dialog import SettingsDialog
 
 class SnapshotListModel(GObject.GObject):
     __gtype_name__ = 'SnapshotListModel'

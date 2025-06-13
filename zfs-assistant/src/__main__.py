@@ -126,9 +126,12 @@ def main():
     # Try importing the application
     try:
         # Try direct import first
-        from application import Application
+        from .application import Application
     except ImportError as e:
-        print(f"Direct import failed: {e}")
+        print(f"Relative import failed: {e}")
+        try:
+            # Try direct import 
+            from application import Application
         try:
             # Try with src prefix
             from src.application import Application

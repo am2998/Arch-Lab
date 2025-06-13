@@ -51,13 +51,13 @@ if current_dir not in sys.path:
 try:
     # First try relative imports (when running as a package)
     from .zfs_assistant import ZFSAssistant
-    from .ui_main_window import MainWindow
-    from .common import APP_ID
+    from .ui.windows.main_window import MainWindow
+    from .utils.common import APP_ID
 except ImportError:
     # Fall back to direct imports from current directory
     from zfs_assistant import ZFSAssistant
-    from ui_main_window import MainWindow
-    from common import APP_ID
+    from ui.windows.main_window import MainWindow
+    from utils.common import APP_ID
 
 class Application(Adw.Application):    
     def __init__(self):

@@ -9,11 +9,11 @@ import glob
 import json
 import datetime
 from typing import Dict, List, Tuple
-from .logger import (
+from ..utils.logger import (
     OperationType, get_logger,
     log_info, log_error, log_success, log_warning
 )
-from .common import (
+from ..utils.common import (
     CONFIG_DIR, CONFIG_FILE, SYSTEMD_SCRIPT_PATH, PACMAN_SCRIPT_PATH,
     PACMAN_HOOK_PATH, run_command, get_timestamp
 )
