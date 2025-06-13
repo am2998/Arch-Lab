@@ -17,6 +17,10 @@ class SystemMaintenance:
         self.logger = get_logger()
         self.privilege_manager = privilege_manager
         self.config = config
+
+    def update_config(self, config: dict):
+        """Update configuration reference when settings are saved"""
+        self.config = config
     
     def run_system_update(self) -> Tuple[bool, str]:
         """

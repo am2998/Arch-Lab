@@ -263,7 +263,7 @@ class SettingsDialog(Gtk.Dialog):
         
         # Snapshot schedules frame
         schedule_frame = Gtk.Frame()
-        schedule_frame.set_label("Snapshot Schedules (Choose One)")
+        schedule_frame.set_label("Snapshot Schedules")
         schedule_frame.set_margin_top(10)
         schedule_frame.set_margin_bottom(10)
         schedule_box.append(schedule_frame)
@@ -313,7 +313,7 @@ class SettingsDialog(Gtk.Dialog):
         
         # Create hour checkboxes
         self.hour_checks = {}
-        hourly_schedule = self.config.get("hourly_schedule", list(range(24)))
+        hourly_schedule = self.config.get("hourly_schedule", [])
         
         for hour in range(24):
             row = hour // 12  # 12 hours per row instead of 6 (more horizontal)
@@ -841,9 +841,26 @@ class SettingsDialog(Gtk.Dialog):
         if response == Gtk.ResponseType.OK:
             # Only validate schedules if auto-snapshot is enabled
             if self.schedule_switch.get_active():
-                # Validate schedules - ensure at least one hour/day is selected if the schedule is enabled
+                # First check if any schedule type is selected at all
                 hourly_enabled = self.hourly_check.get_active()
                 daily_enabled = self.daily_check.get_active()
+                weekly_enabled = self.weekly_check.get_active()
+                monthly_enabled = self.monthly_check.get_active()
+                
+                if not (hourly_enabled or daily_enabled or weekly_enabled or monthly_enabled):
+                    error_dialog = Gtk.MessageDialog(
+                        transient_for=self,
+                        modal=True,
+                        message_type=Gtk.MessageType.ERROR,
+                        buttons=Gtk.ButtonsType.OK,
+                        text="No Schedule Type Selected",
+                        secondary_text="Scheduled snapshots are enabled, but no schedule type is selected. Please choose at least one schedule type (hourly, daily, weekly, or monthly) or disable scheduled snapshots."
+                    )
+                    error_dialog.connect("response", lambda d, r: d.destroy())
+                    error_dialog.present()
+                    return
+                
+                # Validate schedules - ensure at least one hour/day is selected if the schedule is enabled
                 
                 # Check if any hours are selected for hourly schedule
                 if hourly_enabled:
@@ -1013,6 +1030,35 @@ class SettingsDialog(Gtk.Dialog):
                         "weekly": self.weekly_check.get_active(),
                         "monthly": self.monthly_check.get_active()
                     }
+                    
+                    # Additional validation for schedule configuration before timer setup
+                    schedule_validation_errors = []
+                    if schedules["hourly"]:
+                        selected_hours = [hour for hour, check in self.hour_checks.items() if check.get_active()]
+                        if not selected_hours:
+                            schedule_validation_errors.append("Hourly snapshots enabled but no hours selected.")
+                    
+                    if schedules["daily"]:
+                        selected_days = [day for day, check in self.day_checks.items() if check.get_active()]
+                        if not selected_days:
+                            schedule_validation_errors.append("Daily snapshots enabled but no days selected.")
+                    
+                    if schedule_validation_errors:
+                        def show_schedule_validation_error():
+                            if not self.is_destroyed():  # Check if dialog still exists
+                                error_text = "Schedule Configuration Error:\n\n" + "\n".join(schedule_validation_errors)
+                                error_dialog = Gtk.MessageDialog(
+                                    transient_for=self,
+                                    modal=True,
+                                    message_type=Gtk.MessageType.ERROR,
+                                    buttons=Gtk.ButtonsType.OK,
+                                    text="Invalid Schedule Configuration",
+                                    secondary_text=error_text
+                                )
+                                error_dialog.connect("response", lambda d, r: d.destroy())
+                                error_dialog.present()
+                        GLib.idle_add(show_schedule_validation_error)
+                        return  # Stop processing, don't save config or setup timers
                     
                     # Save the weekly and monthly state in config
                     self.config["weekly_schedule"] = self.weekly_check.get_active()

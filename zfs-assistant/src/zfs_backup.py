@@ -22,6 +22,10 @@ class ZFSBackup:
         self.logger = get_logger()
         self.privilege_manager = privilege_manager
         self.config = config
+
+    def update_config(self, config: dict):
+        """Update configuration reference when settings are saved"""
+        self.config = config
     
     def send_snapshot(self, snapshot_full_name: str, target_pool: str, 
                      incremental_snapshot: Optional[str] = None) -> Tuple[bool, str]:

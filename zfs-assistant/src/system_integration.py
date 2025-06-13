@@ -27,11 +27,19 @@ class SystemIntegration:
         self.config = config
         self.logger = get_logger()
 
+    def update_config(self, config: dict):
+        """Update configuration reference when settings are saved"""
+        self.config = config
+
     def setup_systemd_timers(self, schedules: Dict[str, bool]) -> Tuple[bool, str]:
         """Setup systemd timers for automated snapshots."""
         try:
             log_info("Setting up systemd timers for automated snapshots", {
-                'schedules': schedules
+                'schedules': schedules,
+                'config_hourly': self.config.get("hourly_schedule", []),
+                'config_daily': self.config.get("daily_schedule", []),
+                'config_weekly': self.config.get("weekly_schedule", False),
+                'config_monthly': self.config.get("monthly_schedule", False)
             })
             
             # Application runs with elevated privileges, use system-wide services
@@ -49,6 +57,17 @@ class SystemIntegration:
     
     def _setup_system_timers(self, schedules: Dict[str, bool]) -> Tuple[bool, str]:
         """Setup system-level systemd timers when running with elevated privileges."""
+        # Validate configuration before creating timers
+        hourly_schedule = self.config.get("hourly_schedule", [])
+        daily_schedule = self.config.get("daily_schedule", [])
+        
+        # Check if schedules are enabled but have no hours/days selected
+        if schedules.get("hourly", False) and not hourly_schedule:
+            return False, "Hourly snapshots enabled but no hours selected. Please select at least one hour."
+        
+        if schedules.get("daily", False) and not daily_schedule:
+            return False, "Daily snapshots enabled but no days selected. Please select at least one day."
+        
         # Create the snapshot script in system location
         script_content = self._get_systemd_script_content()
         system_script_path = "/usr/local/bin/zfs-assistant-systemd.py"
@@ -83,7 +102,10 @@ User=root
         self._cleanup_existing_system_timers()
         
         # Create new system timer files based on schedules
-        self._create_optimized_system_timers(schedules)
+        try:
+            self._create_optimized_system_timers(schedules)
+        except Exception as e:
+            return False, f"Error creating timer files: {str(e)}"
         
         # Reload systemd daemon
         success, result = self.privilege_manager.run_privileged_command(['systemctl', 'daemon-reload'])
@@ -224,26 +246,22 @@ User=root
         try:
             # Hourly snapshots
             if schedules.get("hourly", False):
-                hourly_schedule = self.config.get("hourly_schedule", [8, 12, 16, 20])
+                hourly_schedule = self.config.get("hourly_schedule", [])
                 log_info(f"Creating hourly timer for hours: {hourly_schedule}")
                 
+                # Validate that at least one hour is selected
+                if not hourly_schedule:
+                    log_error("Hourly schedule enabled but no hours selected")
+                    return
+                
                 # Create a single timer file with multiple OnCalendar entries
-                timer_content = """[Unit]
-Description=ZFS Hourly Snapshot
-
-[Timer]
-"""
+                timer_content = "[Unit]\nDescription=ZFS Hourly Snapshot\n\n[Timer]\n"
                 
                 # Add one OnCalendar line for each selected hour
                 for hour in sorted(hourly_schedule):
                     timer_content += f"OnCalendar=*-*-* {hour:02d}:00:00\n"
                 
-                timer_content += """Persistent=true
-Unit=zfs-snapshot@hourly.service
-
-[Install]
-WantedBy=timers.target
-"""
+                timer_content += "Persistent=true\nUnit=zfs-snapshot@hourly.service\n\n[Install]\nWantedBy=timers.target\n"
                 timer_path = "/etc/systemd/system/zfs-snapshot-hourly.timer"
                 success, result = self.privilege_manager.create_script_privileged(
                     timer_path, timer_content, executable=False
@@ -269,11 +287,20 @@ WantedBy=timers.target
                 
                 log_info(f"Creating daily timer for days: {daily_schedule} at hour {daily_hour}")
                 
+                # Validate that at least one day is selected
+                if not daily_schedule:
+                    log_error("Daily schedule enabled but no days selected")
+                    return
+                
                 # Create a single timer file with multiple OnCalendar entries
                 selected_days = []
                 for day in daily_schedule:
                     if 0 <= day <= 6:
                         selected_days.append(weekdays[day])
+                
+                if not selected_days:
+                    log_error("Daily schedule has invalid day indices")
+                    return
                 
                 # Join day names with commas for the OnCalendar specification
                 days_spec = ",".join(selected_days)
