@@ -98,19 +98,30 @@ class SystemIntegration:
         if not success:
             return False, f"Error creating system script: {result}"
         
+        # Ensure configuration is available in system location for systemd script
+        success, result = self._ensure_system_config()
+        if not success:
+            log_warning(f"Could not copy config to system location: {result}")
+        
         # Create system service file
         service_content = f"""[Unit]
 Description=ZFS Snapshot %i Job
 After=zfs.target
 Wants=zfs.target
+After=multi-user.target
+Requires=zfs.target
 
 [Service]
 Type=oneshot
-ExecStart={system_script_path} %i
+ExecStart=/usr/bin/python3 {system_script_path} %i
 User=root
+Group=root
 Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+Environment=PYTHONPATH=/usr/local/lib/python3/dist-packages:/usr/lib/python3/dist-packages
 StandardOutput=journal
 StandardError=journal
+TimeoutStartSec=600
+KillMode=process
 """
         
         # Create service file with elevated privileges
@@ -613,6 +624,7 @@ Depends = python
     def _get_pacman_hook_script_content(self) -> str:
         """Get the content for the pacman hook script."""
         return """#!/usr/bin/env python3
+
 import subprocess
 import datetime
 import json
@@ -743,33 +755,64 @@ if __name__ == "__main__":
     
     def _get_systemd_script_content(self) -> str:
         """Get the content for the systemd timer script."""
-        return """#!/usr/bin/env python3
+        return '''#!/usr/bin/env python3
+
 import subprocess
 import datetime
 import json
 import os
 import sys
 
-# Add the src directory to Python path to find our modules
-sys.path.insert(0, '/etc/zfs-assistant/src')
+# Add the project root to Python path - use multiple potential locations
+project_locations = [
+    '/etc/zfs-assistant',
+    '/usr/local/share/zfs-assistant', 
+    '/opt/zfs-assistant',
+    os.path.expanduser('~/.local/share/zfs-assistant')
+]
+
+# Find the actual project location
+project_root = None
+for location in project_locations:
+    if os.path.exists(os.path.join(location, 'src')):
+        project_root = location
+        break
+
+if project_root:
+    src_path = os.path.join(project_root, 'src')
+    if src_path not in sys.path:
+        sys.path.insert(0, src_path)
 
 # Try to import the logging system, fallback if not available
+HAS_LOGGING = False
 try:
-    from logger import ZFSLogger, OperationType, LogLevel
+    from utils.logger import ZFSLogger, OperationType, LogLevel
     HAS_LOGGING = True
 except ImportError:
-    HAS_LOGGING = False
-    def log_operation_start(op_type, details): 
-        print(f"Starting operation: {details}", flush=True)
-    def log_message(level, message, details=None): 
-        print(f"[{level}] {message}", flush=True)
-    def log_operation_end(success, details=None, error_message=None):
-        status = "SUCCESS" if success else "FAILED"
-        print(f"Operation completed: {status}", flush=True)
+    try:
+        from logger import ZFSLogger, OperationType, LogLevel
+        HAS_LOGGING = True
+    except ImportError:
+        HAS_LOGGING = False
+        def log_operation_start(op_type, details): 
+            print(f"Starting operation: {details}", flush=True)
+        def log_message(level, message, details=None): 
+            print(f"[{level}] {message}", flush=True)
+        def log_operation_end(success, details=None, error_message=None):
+            status = "SUCCESS" if success else "FAILED"
+            print(f"Operation completed: {status}", flush=True)
 
 def create_scheduled_snapshot(interval):
     logger = None
     operation_started = False
+
+
+    # Log to main zfs-assistant log file for verification
+    try:
+        with open("/var/log/zfs-assistant.log", 'a') as f:
+            f.write(f"[{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] - INFO - ZFS Systemd script started for {interval} snapshots\n")
+    except:
+        pass
     
     try:
         if HAS_LOGGING:
@@ -792,37 +835,57 @@ def create_scheduled_snapshot(interval):
             log_operation_start("SCHEDULED_SNAPSHOT", f"{interval} snapshot creation")
             operation_started = True
         
-        # Debug logging to file for troubleshooting
+        # Debug logging to file for troubleshooting - try /var/log first, fallback to /tmp
         debug_log = f"/var/log/zfs-assistant-{interval}.log"
         try:
             os.makedirs(os.path.dirname(debug_log), exist_ok=True)
             with open(debug_log, 'a') as f:
-                f.write(f"\\n=== {datetime.datetime.now()} ===\\n")
-                f.write(f"Script started for interval: {interval}\\n")
-                f.write(f"HAS_LOGGING: {HAS_LOGGING}\\n")
-                f.write(f"Running as user: {os.getuid()}\\n")
+                f.write(f"\n=== {datetime.datetime.now()} ===\n")
+                f.write(f"Script started for interval: {interval}\n")
+                f.write(f"HAS_LOGGING: {HAS_LOGGING}\n")
+                f.write(f"Running as user: {os.getuid()}\n")
         except Exception as e:
             # Fallback to /tmp if /var/log is not writable
             debug_log = f"/tmp/zfs-assistant-{interval}-debug.log"
-            with open(debug_log, 'a') as f:
-                f.write(f"\\n=== {datetime.datetime.now()} ===\\n")
-                f.write(f"Script started for interval: {interval}\\n")
-                f.write(f"HAS_LOGGING: {HAS_LOGGING}\\n")
-                f.write(f"Running as user: {os.getuid()}\\n")
-                f.write(f"Log fallback reason: {str(e)}\\n")
+            try:
+                with open(debug_log, 'a') as f:
+                    f.write(f"\n=== {datetime.datetime.now()} ===\n")
+                    f.write(f"Script started for interval: {interval}\n")
+                    f.write(f"HAS_LOGGING: {HAS_LOGGING}\n")
+                    f.write(f"Running as user: {os.getuid()}\n")
+                    f.write(f"Log fallback reason: {str(e)}\n")
+            except:
+                # If we can't even write to /tmp, continue without debug logging
+                debug_log = None
         
-        # Load configuration
-        config_file = "/etc/zfs-assistant/config.json"
+        # Load configuration from multiple potential locations
+        config_file = None
+        config_locations = [
+            "/etc/zfs-assistant/config.json",
+            "/usr/local/share/zfs-assistant/config.json",
+            "/opt/zfs-assistant/config.json",
+            os.path.expanduser("~/.config/zfs-assistant/config.json"),
+            os.path.expanduser("~/.local/share/zfs-assistant/config.json")
+        ]
+        
+        # Find the actual config file
+        for location in config_locations:
+            if os.path.exists(location):
+                config_file = location
+                break
         
         # Debug: Check if config file exists
-        with open(debug_log, 'a') as f:
-            f.write(f"Checking config file: {config_file}\\n")
-            f.write(f"Config file exists: {os.path.exists(config_file)}\\n")
-        
-        if not os.path.exists(config_file):
-            error_msg = f"Configuration file not found: {config_file}"
+        if debug_log:
             with open(debug_log, 'a') as f:
-                f.write(f"ERROR: {error_msg}\\n")
+                f.write(f"Searching for config file in locations: {config_locations}\n")
+                f.write(f"Found config file: {config_file}\n")
+                f.write(f"Config file exists: {config_file and os.path.exists(config_file)}\n")
+        
+        if not config_file:
+            error_msg = f"Configuration file not found in any of these locations: {config_locations}"
+            if debug_log:
+                with open(debug_log, 'a') as f:
+                    f.write(f"ERROR: {error_msg}\n")
             if logger:
                 logger.log_essential_message(LogLevel.ERROR, error_msg)
                 logger.end_scheduled_operation(False, "Configuration file missing")
@@ -835,13 +898,15 @@ def create_scheduled_snapshot(interval):
             with open(config_file, 'r') as f:
                 config = json.load(f)
             
-            with open(debug_log, 'a') as f:
-                f.write(f"Config loaded successfully\\n")
-                f.write(f"Datasets in config: {config.get('datasets', [])}\\n")
+            if debug_log:
+                with open(debug_log, 'a') as f:
+                    f.write(f"Config loaded successfully\n")
+                    f.write(f"Datasets in config: {config.get('datasets', [])}\n")
         except Exception as e:
             error_msg = f"Error reading config file: {str(e)}"
-            with open(debug_log, 'a') as f:
-                f.write(f"ERROR reading config: {error_msg}\\n")
+            if debug_log:
+                with open(debug_log, 'a') as f:
+                    f.write(f"ERROR reading config: {error_msg}\n")
             if logger:
                 logger.log_essential_message(LogLevel.ERROR, error_msg)
                 logger.end_scheduled_operation(False, "Config read error")
@@ -852,8 +917,9 @@ def create_scheduled_snapshot(interval):
         
         datasets = config.get("datasets", [])
         if not datasets:
-            with open(debug_log, 'a') as f:
-                f.write("No datasets configured\\n")
+            if debug_log:
+                with open(debug_log, 'a') as f:
+                    f.write("No datasets configured\n")
             if logger:
                 logger.log_essential_message(LogLevel.INFO, "No datasets configured for snapshots")
                 logger.end_scheduled_operation(True, "No datasets to snapshot")
@@ -866,10 +932,12 @@ def create_scheduled_snapshot(interval):
         prefix = config.get("prefix", "zfs-assistant")
         
         # Debug logging
-        with open(debug_log, 'a') as f:
-            f.write(f"Creating snapshots with prefix: {prefix}\\n")
-            f.write(f"Timestamp: {timestamp}\\n")
-            f.write(f"Datasets to snapshot: {datasets}\\n")
+        if debug_log:
+            with open(debug_log, 'a') as f:
+                f.write(f"Creating snapshots with prefix: {prefix}\n")
+                f.write(f"Timestamp: {timestamp}\n")
+                f.write(f"Datasets to snapshot: {datasets}\n")
+        
         
         # Log essential details
         if logger:
@@ -878,89 +946,119 @@ def create_scheduled_snapshot(interval):
             log_message("INFO", f"Creating {interval} snapshots for {len(datasets)} datasets")
         
         # Create batch script for all snapshots
-        batch_commands = []
-        for dataset in datasets:
-            snapshot_name = f"{dataset}@{prefix}-{interval}-{timestamp}"
-            batch_commands.append(['zfs', 'snapshot', snapshot_name])
-        
-        if batch_commands:
-            # Execute all snapshots
-            script_lines = ["#!/bin/bash", "set -e"]
+        if datasets:
+            # Execute all snapshots - use a simpler approach
+            success_count = 0
+            errors = []
+            
             for dataset in datasets:
                 snapshot_name = f"{dataset}@{prefix}-{interval}-{timestamp}"
-                script_lines.append(f"zfs snapshot '{snapshot_name}'")
-            
-            script_content = '\\n'.join(script_lines)
-            
-            # Debug: Log the script content
-            with open(debug_log, 'a') as f:
-                f.write(f"Script content:\\n{script_content}\\n")
-            
-            try:
-                # Execute with elevated privileges (necessary for zfs commands)
-                with open(debug_log, 'a') as f:
-                    f.write("Executing zfs snapshot commands...\\n")
-                    f.write(f"Current UID: {os.getuid()}\\n")
                 
-                # Check if we're already running as root (systemd service)
-                if os.getuid() == 0:
-                    # Already running as root, execute directly
-                    result = subprocess.run(['bash', '-c', script_content], 
-                                          check=True, capture_output=True, text=True)
-                else:
-                    # Use pkexec to run with elevated privileges
-                    result = subprocess.run(['pkexec', 'bash', '-c', script_content], 
-                                          check=True, capture_output=True, text=True)
+                if debug_log:
+                    with open(debug_log, 'a') as f:
+                        f.write(f"Creating snapshot: {snapshot_name}\n")
                 
-                with open(debug_log, 'a') as f:
-                    f.write(f"Command output: {result.stdout}\\n")
-                    if result.stderr:
-                        f.write(f"Command stderr: {result.stderr}\\n")
+                try:
+                    # Check if we're already running as root (systemd service)
+                    if os.getuid() == 0:
+                        # Already running as root, execute directly using full path
+                        result = subprocess.run([zfs_command, 'snapshot', snapshot_name], 
+                                              check=True, capture_output=True, text=True, timeout=120)
+                    else:
+                        # Use pkexec to run with elevated privileges
+                        result = subprocess.run(['pkexec', zfs_command, 'snapshot', snapshot_name], 
+                                              check=True, capture_output=True, text=True, timeout=120)
+                    
+                    success_count += 1
+                    
+                    if debug_log:
+                        with open(debug_log, 'a') as f:
+                            f.write(f"Successfully created snapshot: {snapshot_name}\n")
+                            if result.stdout:
+                                f.write(f"Output: {result.stdout}\n")
+                    
+                except subprocess.CalledProcessError as e:
+                    error_msg = f"Failed to create snapshot {snapshot_name}: {e.stderr if e.stderr else str(e)}"
+                    errors.append(error_msg)
+                    
+                    if debug_log:
+                        with open(debug_log, 'a') as f:
+                            f.write(f"ERROR creating {snapshot_name}: {error_msg}\n")
+                            f.write(f"Return code: {e.returncode}\n")
+                            if e.stdout:
+                                f.write(f"Stdout: {e.stdout}\n")
+                            if e.stderr:
+                                f.write(f"Stderr: {e.stderr}\n")
                 
-                success_count = len(datasets)
-                with open(debug_log, 'a') as f:
-                    f.write(f"Successfully created {success_count} snapshots\\n")
+                except subprocess.TimeoutExpired as e:
+                    error_msg = f"Timeout creating snapshot {snapshot_name}: {str(e)}"
+                    errors.append(error_msg)
+                    
+                    if debug_log:
+                        with open(debug_log, 'a') as f:
+                            f.write(f"TIMEOUT creating {snapshot_name}: {error_msg}\n")
+                
+                except Exception as e:
+                    error_msg = f"Unexpected error creating snapshot {snapshot_name}: {str(e)}"
+                    errors.append(error_msg)
+                    
+                    if debug_log:
+                        with open(debug_log, 'a') as f:
+                            f.write(f"UNEXPECTED ERROR creating {snapshot_name}: {error_msg}\n")
+            
+            # Report results
+            if errors:
+                combined_error = f"Created {success_count}/{len(datasets)} snapshots. Errors: {'; '.join(errors)}"
+                if debug_log:
+                    with open(debug_log, 'a') as f:
+                        f.write(f"PARTIAL SUCCESS: {combined_error}\n")
                 
                 if logger:
-                    logger.log_essential_message(LogLevel.SUCCESS, f"Successfully created {success_count} {interval} snapshots")
-                    logger.end_scheduled_operation(True, f"Created {success_count} snapshots successfully")
+                    logger.log_essential_message(LogLevel.ERROR, combined_error)
+                    logger.end_scheduled_operation(False, combined_error)
                 else:
-                    log_message("SUCCESS", f"Created {success_count} {interval} snapshots")
-                    log_operation_end(True, f"Created {success_count} snapshots")
+                    log_message("ERROR", combined_error)
+                    log_operation_end(False, combined_error)
                 
-            except subprocess.CalledProcessError as e:
-                error_msg = f"Failed to create {interval} snapshots: {e.stderr if e.stderr else str(e)}"
-                with open(debug_log, 'a') as f:
-                    f.write(f"ERROR: {error_msg}\\n")
-                    f.write(f"Return code: {e.returncode}\\n")
-                    if e.stdout:
-                        f.write(f"Stdout: {e.stdout}\\n")
-                    if e.stderr:
-                        f.write(f"Stderr: {e.stderr}\\n")
+                # Also log error to main zfs-assistant log file
+                try:
+                    with open("/var/log/zfs-assistant.log", 'a') as f:
+                        f.write(f"[{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] - ERROR - {combined_error}\n")
+                except:
+                    try:
+                        with open("/tmp/zfs-assistant-execution.log", 'a') as f:
+                            f.write(f"[{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] - ERROR - {combined_error}\n")
+                    except:
+                        pass
                 
-                if logger:
-                    logger.log_essential_message(LogLevel.ERROR, error_msg)
-                    logger.end_scheduled_operation(False, error_msg)
-                else:
-                    log_message("ERROR", error_msg)
-                    log_operation_end(False, error_msg)
                 sys.exit(1)
-            
-            except Exception as e:
-                error_msg = f"Unexpected error creating {interval} snapshots: {str(e)}"
-                with open(debug_log, 'a') as f:
-                    f.write(f"UNEXPECTED ERROR: {error_msg}\\n")
+            else:
+                success_msg = f"Successfully created {success_count} {interval} snapshots"
+                if debug_log:
+                    with open(debug_log, 'a') as f:
+                        f.write(f"SUCCESS: {success_msg}\n")
                 
                 if logger:
-                    logger.log_essential_message(LogLevel.ERROR, error_msg)
-                    logger.end_scheduled_operation(False, error_msg)
+                    logger.log_essential_message(LogLevel.SUCCESS, success_msg)
+                    logger.end_scheduled_operation(True, success_msg)
                 else:
-                    log_message("ERROR", error_msg)
-                    log_operation_end(False, error_msg)
-                sys.exit(1)
+                    log_message("SUCCESS", success_msg)
+                    log_operation_end(True, success_msg)
+                
+                # Also log completion to main zfs-assistant log file
+                try:
+                    with open("/var/log/zfs-assistant.log", 'a') as f:
+                        f.write(f"[{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] - SUCCESS - {success_msg}\n")
+                except:
+                    try:
+                        with open("/tmp/zfs-assistant-execution.log", 'a') as f:
+                            f.write(f"[{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] - SUCCESS - {success_msg}\n")
+                    except:
+                        pass
         else:
-            with open(debug_log, 'a') as f:
-                f.write("No snapshots to create\\n")
+            if debug_log:
+                with open(debug_log, 'a') as f:
+                    f.write("No snapshots to create\n")
             if logger:
                 logger.log_essential_message(LogLevel.INFO, "No snapshots to create")
                 logger.end_scheduled_operation(True, "No snapshots needed")
@@ -971,16 +1069,15 @@ def create_scheduled_snapshot(interval):
     except Exception as e:
         error_msg = f"Error in {interval} snapshot script: {str(e)}"
         try:
-            debug_log = f"/var/log/zfs-assistant-{interval}.log"
-            with open(debug_log, 'a') as f:
-                f.write(f"CRITICAL ERROR: {error_msg}\\n")
-        except:
-            try:
-                debug_log = f"/tmp/zfs-assistant-{interval}-debug.log"
+            if debug_log:
                 with open(debug_log, 'a') as f:
-                    f.write(f"CRITICAL ERROR: {error_msg}\\n")
-            except:
-                pass  # If we can't write to any log, continue anyway
+                    f.write(f"CRITICAL ERROR: {error_msg}\n")
+            else:
+                # Try to write to /tmp as last resort
+                with open(f"/tmp/zfs-assistant-{interval}-critical.log", 'a') as f:
+                    f.write(f"CRITICAL ERROR: {error_msg}\n")
+        except:
+            pass  # If we can't write to any log, continue anyway
         
         if logger and operation_started:
             logger.log_essential_message(LogLevel.ERROR, error_msg)
@@ -999,4 +1096,4 @@ if __name__ == "__main__":
     else:
         print("Usage: zfs-assistant-systemd.py <interval>")
         sys.exit(1)
-"""
+'''
