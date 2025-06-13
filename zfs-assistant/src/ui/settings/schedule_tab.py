@@ -36,14 +36,17 @@ class ScheduleSettingsTab:
         # Enable scheduled snapshots
         self._create_schedule_enable_section()
         
+        # Schedule types configuration (create before naming to avoid AttributeError)
+        self._create_schedule_types_section()
+        
         # Snapshot naming configuration
         self._create_naming_section()
         
-        # Schedule types configuration
-        self._create_schedule_types_section()
-        
         # Retention policy configuration
         self._create_retention_section()
+        
+        # Update initial snapshot preview after all UI components are created
+        self.update_snapshot_preview()
     
     def _create_schedule_enable_section(self):
         """Create the schedule enable/disable section"""
@@ -151,8 +154,7 @@ class ScheduleSettingsTab:
         self.prefix_entry.connect("changed", self.update_snapshot_preview)
         self.format_combo.connect("notify::selected", self.update_snapshot_preview)
         
-        # Update initial snapshot preview
-        self.update_snapshot_preview()
+        # Note: Initial preview will be updated after all UI components are created
     
     def _create_schedule_types_section(self):
         """Create the schedule types configuration section"""
@@ -508,6 +510,10 @@ class ScheduleSettingsTab:
     def update_snapshot_preview(self, widget=None):
         """Update the snapshot preview based on current settings"""
         import datetime
+        
+        # Safety check: ensure all required widgets exist
+        if not hasattr(self, 'preview_container') or not hasattr(self, 'hourly_check'):
+            return
         
         # Clear existing previews
         child = self.preview_container.get_first_child()

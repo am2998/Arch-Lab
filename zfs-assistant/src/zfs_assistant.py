@@ -27,29 +27,18 @@ try:
 except ImportError:
     # For direct script execution
     import sys
-    parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    parent_dir = os.path.dirname(current_dir)
+    
+    # Add current directory first for direct imports
+    if current_dir not in sys.path:
+        sys.path.insert(0, current_dir)
     if parent_dir not in sys.path:
         sys.path.insert(0, parent_dir)
-    try:        # Try with src as a direct submodule
-        from src.utils.common import (
-            CONFIG_DIR, CONFIG_FILE, LOG_FILE, PACMAN_HOOK_PATH, 
-            SYSTEMD_SCRIPT_PATH, PACMAN_SCRIPT_PATH,
-            DEFAULT_CONFIG, get_timestamp
-        )
-        from src.utils.models import ZFSSnapshot
-        from src.utils.logger import (
-            ZFSLogger, OperationType, LogLevel, get_logger,
-            log_info, log_error, log_success, log_warning
-        )
-        from src.utils.privilege_manager import PrivilegeManager
-        from src.core.zfs_core import ZFSCore
-        from src.backup.zfs_backup import ZFSBackup
-        from src.system.system_integration import SystemIntegration
-        from src.system.system_maintenance import SystemMaintenance
-    except ImportError:
-        # Last resort, use direct file paths
-        current_dir = os.path.dirname(os.path.abspath(__file__))
-        sys.path.insert(0, current_dir)        from utils.common import (
+    
+    try:
+        # Try direct imports from current directory (for elevated execution)
+        from utils.common import (
             CONFIG_DIR, CONFIG_FILE, LOG_FILE, PACMAN_HOOK_PATH, 
             SYSTEMD_SCRIPT_PATH, PACMAN_SCRIPT_PATH,
             DEFAULT_CONFIG, get_timestamp
@@ -64,6 +53,29 @@ except ImportError:
         from backup.zfs_backup import ZFSBackup
         from system.system_integration import SystemIntegration
         from system.system_maintenance import SystemMaintenance
+    except ImportError as e2:
+        # Try with src prefix
+        try:
+            from src.utils.common import (
+                CONFIG_DIR, CONFIG_FILE, LOG_FILE, PACMAN_HOOK_PATH, 
+                SYSTEMD_SCRIPT_PATH, PACMAN_SCRIPT_PATH,
+                DEFAULT_CONFIG, get_timestamp
+            )
+            from src.utils.models import ZFSSnapshot
+            from src.utils.logger import (
+                ZFSLogger, OperationType, LogLevel, get_logger,
+                log_info, log_error, log_success, log_warning
+            )
+            from src.utils.privilege_manager import PrivilegeManager
+            from src.core.zfs_core import ZFSCore
+            from src.backup.zfs_backup import ZFSBackup
+            from src.system.system_integration import SystemIntegration
+            from src.system.system_maintenance import SystemMaintenance
+        except ImportError as e3:
+            print(f"Failed to import modules: {e2}, {e3}")
+            print(f"Current directory: {current_dir}")
+            print(f"Python path: {sys.path[:3]}")
+            raise ImportError("Could not import required modules")
 
 
 class ZFSAssistant:

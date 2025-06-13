@@ -6,11 +6,26 @@ import subprocess
 import datetime
 import os
 from typing import List, Optional, Tuple
-from ..utils.models import ZFSSnapshot
-from ..utils.logger import (
-    OperationType, get_logger,
-    log_info, log_error, log_success, log_warning
-)
+
+# Handle imports for both relative and direct execution
+try:
+    from ..utils.models import ZFSSnapshot
+    from ..utils.logger import (
+        OperationType, get_logger,
+        log_info, log_error, log_success, log_warning
+    )
+except ImportError:
+    import sys
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    parent_dir = os.path.dirname(current_dir)
+    if parent_dir not in sys.path:
+        sys.path.insert(0, parent_dir)
+    
+    from utils.models import ZFSSnapshot
+    from utils.logger import (
+        OperationType, get_logger,
+        log_info, log_error, log_success, log_warning
+    )
 
 
 class ZFSBackup:
@@ -55,7 +70,7 @@ class ZFSBackup:
             })
             
             # Start operation tracking
-            operation_id = self.logger.start_operation(OperationType.ZFS_BACKUP, {
+            operation_id = self.logger.start_operation(OperationType.SYSTEM_UPDATE, {
                 'source_snapshot': snapshot_full_name,
                 'target_pool': target_pool,
                 'backup_type': backup_type,

@@ -4,10 +4,25 @@
 
 import subprocess
 from typing import Tuple, List, Dict, Any
-from ..utils.logger import (
-    OperationType, get_logger,
-    log_info, log_error, log_success, log_warning
-)
+
+# Handle imports for both relative and direct execution
+try:
+    from ..utils.logger import (
+        OperationType, get_logger,
+        log_info, log_error, log_success, log_warning
+    )
+except ImportError:
+    import sys
+    import os
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    parent_dir = os.path.dirname(current_dir)
+    if parent_dir not in sys.path:
+        sys.path.insert(0, parent_dir)
+    
+    from utils.logger import (
+        OperationType, get_logger,
+        log_info, log_error, log_success, log_warning
+    )
 
 
 class SystemMaintenance:

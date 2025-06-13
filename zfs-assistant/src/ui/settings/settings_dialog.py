@@ -164,12 +164,18 @@ class SettingsDialog(Gtk.Dialog):
                     
                     # Clean up old timer files if needed
                     try:
-                        cleanup_success, cleanup_message = self.zfs_assistant.system_integration.cleanup_old_timer_files()
+                        cleanup_success, cleanup_message = self.zfs_assistant.system_integration.cleanup_timer_files()
                         if not cleanup_success:
                             # Log warning but don't show error dialog for cleanup failures
                             def show_cleanup_warning():
                                 print(f"Warning: Timer cleanup issues: {cleanup_message}")
                             GLib.idle_add(show_cleanup_warning)
+                    except Exception as e:
+                        # Handle cleanup errors gracefully
+                        error_message = str(e)  # Capture error message in a variable
+                        def show_cleanup_error():
+                            print(f"Warning: Timer cleanup failed: {error_message}")
+                        GLib.idle_add(show_cleanup_error)
                         
                 except Exception as e:
                     # Handle any unexpected errors in background thread

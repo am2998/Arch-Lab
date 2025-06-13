@@ -9,14 +9,33 @@ import glob
 import json
 import datetime
 from typing import Dict, List, Tuple
-from ..utils.logger import (
-    OperationType, get_logger,
-    log_info, log_error, log_success, log_warning
-)
-from ..utils.common import (
-    CONFIG_DIR, CONFIG_FILE, SYSTEMD_SCRIPT_PATH, PACMAN_SCRIPT_PATH,
-    PACMAN_HOOK_PATH, run_command, get_timestamp
-)
+
+# Handle imports for both relative and direct execution
+try:
+    from ..utils.logger import (
+        OperationType, get_logger,
+        log_info, log_error, log_success, log_warning
+    )
+    from ..utils.common import (
+        CONFIG_DIR, CONFIG_FILE, SYSTEMD_SCRIPT_PATH, PACMAN_SCRIPT_PATH,
+        PACMAN_HOOK_PATH, run_command, get_timestamp
+    )
+except ImportError:
+    import sys
+    import os
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    parent_dir = os.path.dirname(current_dir)
+    if parent_dir not in sys.path:
+        sys.path.insert(0, parent_dir)
+    
+    from utils.logger import (
+        OperationType, get_logger,
+        log_info, log_error, log_success, log_warning
+    )
+    from utils.common import (
+        CONFIG_DIR, CONFIG_FILE, SYSTEMD_SCRIPT_PATH, PACMAN_SCRIPT_PATH,
+        PACMAN_HOOK_PATH, run_command, get_timestamp
+    )
 
 
 class SystemIntegration:
@@ -83,11 +102,15 @@ class SystemIntegration:
         service_content = f"""[Unit]
 Description=ZFS Snapshot %i Job
 After=zfs.target
+Wants=zfs.target
 
 [Service]
 Type=oneshot
 ExecStart={system_script_path} %i
 User=root
+Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+StandardOutput=journal
+StandardError=journal
 """
         
         # Create service file with elevated privileges
@@ -98,8 +121,8 @@ User=root
         if not success:
             return False, f"Error creating system service: {result}"
         
-        # Clean up existing system timer files
-        self._cleanup_existing_system_timers()
+        # Clean up existing system timer files using the unified method
+        self.cleanup_timer_files(include_current_timers=True)
         
         # Create new system timer files based on schedules
         try:
@@ -220,7 +243,10 @@ User=root
             }
     
     def _cleanup_existing_system_timers(self):
-        """Clean up existing system timer files."""
+        """
+        Clean up existing system timer files.
+        Internal method called during timer setup.
+        """
         timer_patterns = [
             "/etc/systemd/system/zfs-snapshot-hourly.timer",  # Single hourly timer file
             "/etc/systemd/system/zfs-snapshot-daily.timer",  # Single daily timer file
@@ -240,6 +266,132 @@ User=root
                     self.privilege_manager.remove_files_privileged([timer_file])
                 except:
                     pass
+
+    def cleanup_timer_files(self, include_current_timers: bool = False) -> Tuple[bool, str]:
+        """
+        Clean up timer files that might be left from previous installations or 
+        after changing schedule configurations.
+        
+        Args:
+            include_current_timers: If True, also clean up current active timers
+                                    (hourly, daily, weekly, monthly)
+                                    
+        Returns:
+            (success, message) tuple
+        """
+        try:
+            log_info("Cleaning up timer files")
+            
+            cleaned_files = []
+            errors = []
+            
+            # Clean up current timer files if requested
+            if include_current_timers:
+                log_info("Cleaning up current timer files")
+                current_timer_patterns = [
+                    "/etc/systemd/system/zfs-snapshot-hourly.timer",
+                    "/etc/systemd/system/zfs-snapshot-daily.timer",
+                    "/etc/systemd/system/zfs-snapshot-weekly.timer",
+                    "/etc/systemd/system/zfs-snapshot-monthly.timer"
+                ]
+                
+                for pattern in current_timer_patterns:
+                    for timer_file in glob.glob(pattern):
+                        try:
+                            timer_name = os.path.basename(timer_file)
+                            # Stop and disable system timer
+                            self.privilege_manager.run_privileged_command(
+                                ['systemctl', 'stop', timer_name], ignore_errors=True)
+                            self.privilege_manager.run_privileged_command(
+                                ['systemctl', 'disable', timer_name], ignore_errors=True)
+                            
+                            # Remove file
+                            success, result = self.privilege_manager.remove_files_privileged([timer_file])
+                            if success:
+                                cleaned_files.append(timer_file)
+                            else:
+                                errors.append(f"Failed to remove {timer_file}: {result}")
+                        except Exception as e:
+                            errors.append(f"Error processing {timer_file}: {str(e)}")
+            
+            # Patterns for older versions or leftover files
+            old_timer_patterns = [
+                "/etc/systemd/system/zfs-assistant-*.timer",
+                "/etc/systemd/system/zfs-snapshot-*.timer", 
+                "/etc/systemd/system/zfs-snapshot_*.timer",
+                "/usr/lib/systemd/system/zfs-snapshot-*.timer",
+                "/usr/local/bin/zfs-snapshot-*.sh"
+            ]
+            
+            for pattern in old_timer_patterns:
+                for file_path in glob.glob(pattern):
+                    # Skip active timer files that match the current naming convention
+                    # unless include_current_timers is True
+                    if not include_current_timers and any(file_path.endswith(x) for x in 
+                              ["hourly.timer", "daily.timer", "weekly.timer", "monthly.timer"]):
+                        continue
+                        
+                    try:
+                        # If it's a timer, try to stop and disable it first
+                        if file_path.endswith(".timer"):
+                            timer_name = os.path.basename(file_path)
+                            self.privilege_manager.run_privileged_command(
+                                ['systemctl', 'stop', timer_name], ignore_errors=True)
+                            self.privilege_manager.run_privileged_command(
+                                ['systemctl', 'disable', timer_name], ignore_errors=True)
+                        
+                        # Remove the file
+                        success, result = self.privilege_manager.remove_files_privileged([file_path])
+                        if success:
+                            cleaned_files.append(file_path)
+                        else:
+                            errors.append(f"Failed to remove {file_path}: {result}")
+                    except Exception as e:
+                        errors.append(f"Error processing {file_path}: {str(e)}")
+            
+            # Also clean up old service files
+            service_patterns = [
+                "/etc/systemd/system/zfs-snapshot-*.service",
+                "/usr/lib/systemd/system/zfs-snapshot-*.service"
+            ]
+            
+            for pattern in service_patterns:
+                for file_path in glob.glob(pattern):
+                    # Skip the current main service file
+                    if file_path == "/etc/systemd/system/zfs-snapshot@.service" and not include_current_timers:
+                        continue
+                        
+                    try:
+                        service_name = os.path.basename(file_path)
+                        self.privilege_manager.run_privileged_command(
+                            ['systemctl', 'stop', service_name], ignore_errors=True)
+                        self.privilege_manager.run_privileged_command(
+                            ['systemctl', 'disable', service_name], ignore_errors=True)
+                        
+                        success, result = self.privilege_manager.remove_files_privileged([file_path])
+                        if success:
+                            cleaned_files.append(file_path)
+                        else:
+                            errors.append(f"Failed to remove {file_path}: {result}")
+                    except Exception as e:
+                        errors.append(f"Error processing {file_path}: {str(e)}")
+            
+            # Reload systemd to reflect changes
+            self.privilege_manager.run_privileged_command(['systemctl', 'daemon-reload'], ignore_errors=True)
+            
+            if errors:
+                return False, f"Cleaned {len(cleaned_files)} files with {len(errors)} errors: {'; '.join(errors)}"
+            
+            return True, f"Successfully cleaned up {len(cleaned_files)} timer files"
+            
+        except Exception as e:
+            log_error(f"Error cleaning up timer files: {str(e)}")
+            return False, f"Error cleaning up timer files: {str(e)}"
+    
+    # Alias for backward compatibility
+    def cleanup_old_timer_files(self) -> Tuple[bool, str]:
+        """Alias for cleanup_timer_files for backward compatibility"""
+        return self.cleanup_timer_files(include_current_timers=False)
 
     def _create_optimized_system_timers(self, schedules: Dict[str, bool]):
         """Create optimized system timer files based on enabled schedules."""
@@ -546,7 +698,7 @@ def create_pre_pacman_snapshot():
                 snapshot_name = f"{dataset}@{prefix}-pkgop-{timestamp}"
                 script_lines.append(f"zfs snapshot '{snapshot_name}'")
             
-            script_content = '\n'.join(script_lines)
+            script_content = '\\n'.join(script_lines)
             
             try:
                 # Esegui con privilegi (necessario per i comandi zfs)
@@ -641,11 +793,23 @@ def create_scheduled_snapshot(interval):
             operation_started = True
         
         # Debug logging to file for troubleshooting
-        debug_log = f"/tmp/zfs-assistant-{interval}-debug.log"
-        with open(debug_log, 'a') as f:
-            f.write(f"\\n=== {datetime.datetime.now()} ===\\n")
-            f.write(f"Script started for interval: {interval}\\n")
-            f.write(f"HAS_LOGGING: {HAS_LOGGING}\\n")
+        debug_log = f"/var/log/zfs-assistant-{interval}.log"
+        try:
+            os.makedirs(os.path.dirname(debug_log), exist_ok=True)
+            with open(debug_log, 'a') as f:
+                f.write(f"\\n=== {datetime.datetime.now()} ===\\n")
+                f.write(f"Script started for interval: {interval}\\n")
+                f.write(f"HAS_LOGGING: {HAS_LOGGING}\\n")
+                f.write(f"Running as user: {os.getuid()}\\n")
+        except Exception as e:
+            # Fallback to /tmp if /var/log is not writable
+            debug_log = f"/tmp/zfs-assistant-{interval}-debug.log"
+            with open(debug_log, 'a') as f:
+                f.write(f"\\n=== {datetime.datetime.now()} ===\\n")
+                f.write(f"Script started for interval: {interval}\\n")
+                f.write(f"HAS_LOGGING: {HAS_LOGGING}\\n")
+                f.write(f"Running as user: {os.getuid()}\\n")
+                f.write(f"Log fallback reason: {str(e)}\\n")
         
         # Load configuration
         config_file = "/etc/zfs-assistant/config.json"
@@ -726,7 +890,7 @@ def create_scheduled_snapshot(interval):
                 snapshot_name = f"{dataset}@{prefix}-{interval}-{timestamp}"
                 script_lines.append(f"zfs snapshot '{snapshot_name}'")
             
-            script_content = '\n'.join(script_lines)
+            script_content = '\\n'.join(script_lines)
             
             # Debug: Log the script content
             with open(debug_log, 'a') as f:
@@ -736,9 +900,17 @@ def create_scheduled_snapshot(interval):
                 # Execute with elevated privileges (necessary for zfs commands)
                 with open(debug_log, 'a') as f:
                     f.write("Executing zfs snapshot commands...\\n")
+                    f.write(f"Current UID: {os.getuid()}\\n")
                 
-                result = subprocess.run(['bash', '-c', script_content], 
-                                      check=True, capture_output=True, text=True)
+                # Check if we're already running as root (systemd service)
+                if os.getuid() == 0:
+                    # Already running as root, execute directly
+                    result = subprocess.run(['bash', '-c', script_content], 
+                                          check=True, capture_output=True, text=True)
+                else:
+                    # Use pkexec to run with elevated privileges
+                    result = subprocess.run(['pkexec', 'bash', '-c', script_content], 
+                                          check=True, capture_output=True, text=True)
                 
                 with open(debug_log, 'a') as f:
                     f.write(f"Command output: {result.stdout}\\n")
@@ -799,10 +971,16 @@ def create_scheduled_snapshot(interval):
     except Exception as e:
         error_msg = f"Error in {interval} snapshot script: {str(e)}"
         try:
+            debug_log = f"/var/log/zfs-assistant-{interval}.log"
             with open(debug_log, 'a') as f:
                 f.write(f"CRITICAL ERROR: {error_msg}\\n")
         except:
-            pass  # If we can't write to debug log, continue anyway
+            try:
+                debug_log = f"/tmp/zfs-assistant-{interval}-debug.log"
+                with open(debug_log, 'a') as f:
+                    f.write(f"CRITICAL ERROR: {error_msg}\\n")
+            except:
+                pass  # If we can't write to any log, continue anyway
         
         if logger and operation_started:
             logger.log_essential_message(LogLevel.ERROR, error_msg)

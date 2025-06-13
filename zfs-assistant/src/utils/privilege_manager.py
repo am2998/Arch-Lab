@@ -7,7 +7,12 @@ import tempfile
 import os
 import time
 from typing import List, Tuple, Optional
-from .logger import log_info, log_error, log_warning, log_success
+
+# Handle imports for both relative and direct execution
+try:
+    from .logger import log_info, log_error, log_warning, log_success
+except ImportError:
+    from logger import log_info, log_error, log_warning, log_success
 
 
 class PrivilegeManager:
@@ -50,12 +55,13 @@ class PrivilegeManager:
             self._session_active = False
             return False
     
-    def run_privileged_command(self, command: List[str]) -> Tuple[bool, str]:
+    def run_privileged_command(self, command: List[str], ignore_errors: bool = False) -> Tuple[bool, str]:
         """
         Run a single privileged command.
         
         Args:
             command: Command to run as list of strings
+            ignore_errors: If True, don't log failures as errors
             
         Returns:
             (success, output_or_error) tuple
@@ -86,20 +92,23 @@ class PrivilegeManager:
             
         except subprocess.CalledProcessError as e:
             error_msg = f"Command failed: {e.stderr.strip() if e.stderr else str(e)}"
-            log_error(f"Privileged command failed: {' '.join(command)}", {
-                'error': error_msg,
-                'return_code': e.returncode
-            })
+            if not ignore_errors:
+                log_error(f"Privileged command failed: {' '.join(command)}", {
+                    'error': error_msg,
+                    'return_code': e.returncode
+                })
             return False, error_msg
         except subprocess.TimeoutExpired:
             error_msg = "Command timed out"
-            log_error(f"Privileged command timed out: {' '.join(command)}")
+            if not ignore_errors:
+                log_error(f"Privileged command timed out: {' '.join(command)}")
             return False, error_msg
         except Exception as e:
             error_msg = f"Unexpected error: {str(e)}"
-            log_error(f"Unexpected error in privileged command: {' '.join(command)}", {
-                'error': error_msg
-            })
+            if not ignore_errors:
+                log_error(f"Unexpected error in privileged command: {' '.join(command)}", {
+                    'error': error_msg
+                })
             return False, error_msg
 
     def run_batch_privileged_commands(self, commands: List[List[str]]) -> Tuple[bool, str]:

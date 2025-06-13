@@ -11,11 +11,18 @@ from gi.repository import Gtk, Adw, GObject, Gio, GLib, Gdk
 
 try:
     # Try relative imports first
-    from ...models import ZFSSnapshot
+    from ...utils.models import ZFSSnapshot
     from ..settings.settings_dialog import SettingsDialog
 except ImportError:
     # Fall back for direct execution
-    from models import ZFSSnapshot
+    import sys
+    import os
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    parent_dir = os.path.dirname(os.path.dirname(current_dir))
+    if parent_dir not in sys.path:
+        sys.path.insert(0, parent_dir)
+    
+    from utils.models import ZFSSnapshot
     from ui.settings.settings_dialog import SettingsDialog
 
 class SnapshotListModel(GObject.GObject):

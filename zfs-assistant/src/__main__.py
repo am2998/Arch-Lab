@@ -10,6 +10,7 @@ This file enables running the application with 'python -m src'.
 import os
 import sys
 import subprocess
+import importlib.util
 
 def is_running_as_appimage():
     """Check if we're running inside an AppImage"""
@@ -51,9 +52,12 @@ def restart_with_privileges():
             'env',  # Use env to preserve environment variables
         ]
         
-        # Add environment variables
+        # Add environment variables  
         for key, value in env_vars.items():
             cmd.extend([f'{key}={value}'])
+        
+        # Add working directory
+        cmd.extend([f'PWD={os.path.dirname(script_path)}'])
         
         # Add the python command
         cmd.extend([
@@ -110,12 +114,22 @@ def main():
     # Get absolute path to the current directory and its parent
     current_dir = os.path.dirname(os.path.abspath(__file__))
     parent_dir = os.path.dirname(current_dir)
-
-    # Add both to the Python path to ensure imports work
+    
+    # Change to the src directory to ensure relative imports work
+    original_cwd = os.getcwd()
+    os.chdir(current_dir)
+    
+    # For elevated execution, we need to ensure proper module path setup
+    # Add the src directory and its parent to Python path
     if current_dir not in sys.path:
         sys.path.insert(0, current_dir)
     if parent_dir not in sys.path:
         sys.path.insert(0, parent_dir)
+    
+    # Also add the project root for elevated execution
+    project_root = os.path.dirname(parent_dir)
+    if project_root not in sys.path:
+        sys.path.insert(0, project_root)
 
     # Print debug info only in development
     if not is_running_as_appimage() and os.environ.get('DEBUG'):
@@ -125,25 +139,53 @@ def main():
 
     # Try importing the application
     try:
-        # Try direct import first
-        from .application import Application
+        # For elevated execution, try direct import first
+        from application import Application
+        print("Successfully imported Application directly")
     except ImportError as e:
-        print(f"Relative import failed: {e}")
+        print(f"Direct import failed: {e}")
         try:
-            # Try direct import 
-            from application import Application
-        try:
-            # Try with src prefix
-            from src.application import Application
-        except ImportError as e:
-            print(f"Import from src failed: {e}")
-            sys.exit(1)
+            # Try relative import
+            from .application import Application
+            print("Successfully imported Application with relative import")
+        except ImportError as e2:
+            print(f"Relative import failed: {e2}")
+            try:
+                # Try with full path approach
+                import importlib.util
+                app_path = os.path.join(current_dir, 'application.py')
+                spec = importlib.util.spec_from_file_location("application", app_path)
+                if spec and spec.loader:
+                    application_module = importlib.util.module_from_spec(spec)
+                    spec.loader.exec_module(application_module)
+                    Application = application_module.Application
+                    print("Successfully imported Application using importlib")
+                else:
+                    raise ImportError("Could not create module spec")
+            except Exception as e3:
+                print(f"Importlib approach failed: {e3}")
+                print(f"Current working directory: {os.getcwd()}")
+                print(f"Current file directory: {current_dir}")
+                print(f"Python path: {sys.path[:3]}...")  # Show first 3 entries
+                print("Available files in current directory:")
+                try:
+                    for f in os.listdir(current_dir):
+                        if f.endswith('.py'):
+                            print(f"  {f}")
+                except Exception:
+                    print("  Could not list files")
+                sys.exit(1)
 
     print("Starting ZFS Assistant...")
     try:
         app = Application()
-        return app.run()
+        result = app.run()
+        # Restore original working directory
+        os.chdir(original_cwd)
+        return result
     except Exception as e:
+        # Restore original working directory even on error
+        os.chdir(original_cwd)
         print(f"Failed to start ZFS Assistant: {e}")
         
         # If this is a GUI-related error and we're running with elevated privileges,

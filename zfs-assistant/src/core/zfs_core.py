@@ -5,12 +5,29 @@
 import subprocess
 import datetime
 from typing import List, Optional, Tuple
-from ..utils.models import ZFSSnapshot
-from ..utils.logger import (
-    OperationType, LogLevel, get_logger,
-    log_info, log_error, log_success, log_warning
-)
-from ..utils.common import get_timestamp
+
+# Handle imports for both relative and direct execution
+try:
+    from ..utils.models import ZFSSnapshot
+    from ..utils.logger import (
+        OperationType, LogLevel, get_logger,
+        log_info, log_error, log_success, log_warning
+    )
+    from ..utils.common import get_timestamp
+except ImportError:
+    import sys
+    import os
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    parent_dir = os.path.dirname(current_dir)
+    if parent_dir not in sys.path:
+        sys.path.insert(0, parent_dir)
+    
+    from utils.models import ZFSSnapshot
+    from utils.logger import (
+        OperationType, LogLevel, get_logger,
+        log_info, log_error, log_success, log_warning
+    )
+    from utils.common import get_timestamp
 
 
 class ZFSCore:
@@ -266,7 +283,7 @@ class ZFSCore:
             })
             
             # Start operation tracking
-            operation_id = self.logger.start_operation(OperationType.SNAPSHOT_CREATE, {
+            operation_id = self.logger.start_operation(OperationType.SCHEDULED_SNAPSHOT, {
                 'dataset': dataset,
                 'snapshot_name': name,
                 'snapshot_full_name': snapshot_full_name
@@ -325,7 +342,7 @@ class ZFSCore:
             })
             
             # Start operation tracking
-            operation_id = self.logger.start_operation(OperationType.SNAPSHOT_DELETE, {
+            operation_id = self.logger.start_operation(OperationType.SCHEDULED_SNAPSHOT, {
                 'dataset': dataset,
                 'snapshot_name': snapshot_name,
                 'snapshot_full_name': snapshot_full_name
@@ -385,7 +402,7 @@ class ZFSCore:
             })
             
             # Start operation tracking
-            operation_id = self.logger.start_operation(OperationType.SNAPSHOT_ROLLBACK, {
+            operation_id = self.logger.start_operation(OperationType.SCHEDULED_SNAPSHOT, {
                 'dataset': dataset,
                 'snapshot_name': snapshot_name,
                 'snapshot_full_name': snapshot_full_name,
@@ -453,7 +470,7 @@ class ZFSCore:
             })
             
             # Start operation tracking
-            operation_id = self.logger.start_operation(OperationType.SNAPSHOT_CLONE, {
+            operation_id = self.logger.start_operation(OperationType.SCHEDULED_SNAPSHOT, {
                 'source_dataset': dataset,
                 'snapshot_name': snapshot_name,
                 'snapshot_full_name': snapshot_full_name,
@@ -618,7 +635,7 @@ class ZFSCore:
             })
             
             # Start operation tracking
-            operation_id = self.logger.start_operation(OperationType.SNAPSHOT_CREATE, {
+            operation_id = self.logger.start_operation(OperationType.SCHEDULED_SNAPSHOT, {
                 'datasets': datasets,
                 'snapshot_name': snapshot_name,
                 'batch_operation': True,
