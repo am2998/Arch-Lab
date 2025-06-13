@@ -10,28 +10,47 @@ from typing import List, Tuple, Optional
 from .logger import log_info, log_error, log_warning, log_success
 
 
-class PrivilegeManager:    """Manages elevated privileges for ZFS operations with minimal user prompts."""
+class PrivilegeManager:
+    """Manages elevated privileges for ZFS operations with minimal user prompts."""
     
     def __init__(self):
         self._auth_cache_time = 0
-        self._auth_cache_duration = 300  # 5 minutes
+        self._auth_cache_duration = 900  # 15 minutes (increased for better UX)
         self._session_active = False
+        self._initial_auth_completed = False
     
     def _is_auth_cached(self) -> bool:
         """Check if we have recent authentication cache."""
         return (time.time() - self._auth_cache_time) < self._auth_cache_duration
-      def _refresh_auth_cache(self) -> bool:
+    
+    def _refresh_auth_cache(self) -> bool:
         """Refresh authentication cache."""
         try:
+            log_info("Requesting administrative privileges...")
             result = subprocess.run(['pkexec', 'true'], 
                                   check=True, capture_output=True, timeout=30)
             self._auth_cache_time = time.time()
             self._session_active = True
+            self._initial_auth_completed = True
+            log_success("Administrative privileges obtained successfully")
             return True
-        except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
+        except subprocess.CalledProcessError as e:
+            log_error("Failed to obtain administrative privileges", {
+                'error': str(e),
+                'return_code': e.returncode if hasattr(e, 'returncode') else None
+            })
             self._session_active = False
             return False
-      def run_privileged_command(self, command: List[str]) -> Tuple[bool, str]:
+        except subprocess.TimeoutExpired:
+            log_error("Authentication timeout - user may have cancelled")
+            self._session_active = False
+            return False
+        except Exception as e:
+            log_error(f"Unexpected error during authentication: {str(e)}")
+            self._session_active = False
+            return False
+    
+    def run_privileged_command(self, command: List[str]) -> Tuple[bool, str]:
         """
         Run a single privileged command.
         
@@ -42,6 +61,14 @@ class PrivilegeManager:    """Manages elevated privileges for ZFS operations wit
             (success, output_or_error) tuple
         """
         try:
+            # If we're already running as root, execute directly
+            if os.geteuid() == 0:
+                log_info(f"Running command as root: {' '.join(command)}")
+                result = subprocess.run(command, 
+                                      check=True, capture_output=True, text=True, timeout=60)
+                log_success(f"Command completed successfully: {' '.join(command)}")
+                return True, result.stdout.strip()
+            
             # Refresh auth cache if needed
             if not self._is_auth_cached():
                 if not self._refresh_auth_cache():
@@ -74,7 +101,7 @@ class PrivilegeManager:    """Manages elevated privileges for ZFS operations wit
                 'error': error_msg
             })
             return False, error_msg
-    
+
     def run_batch_privileged_commands(self, commands: List[List[str]]) -> Tuple[bool, str]:
         """
         Run multiple privileged commands in a single pkexec session using a bash script.
@@ -88,8 +115,26 @@ class PrivilegeManager:    """Manages elevated privileges for ZFS operations wit
         """
         if not commands:
             return True, "No commands to execute"
-        
+
         try:
+            # If we're already running as root, execute directly
+            if os.geteuid() == 0:
+                log_info(f"Running batch of {len(commands)} commands as root")
+                results = []
+                for command in commands:
+                    try:
+                        result = subprocess.run(command, 
+                                              check=True, capture_output=True, text=True, timeout=60)
+                        results.append(result.stdout.strip())
+                    except subprocess.CalledProcessError as e:
+                        error_msg = f"Command failed: {' '.join(command)} - {e.stderr.strip() if e.stderr else str(e)}"
+                        log_error(error_msg)
+                        return False, error_msg
+                
+                log_success(f"Batch execution completed successfully ({len(commands)} commands)")
+                return True, '\n'.join(results)
+            
+            # Continue with pkexec for non-root execution
             # Refresh auth cache if needed
             if not self._is_auth_cached():
                 if not self._refresh_auth_cache():
@@ -254,6 +299,29 @@ class PrivilegeManager:    """Manages elevated privileges for ZFS operations wit
         """Clean up the privilege session."""
         self._session_active = False
         self._auth_cache_time = 0
+    
+    def is_authenticated(self) -> bool:
+        """
+        Check if we currently have a valid authentication session.
+        
+        Returns:
+            True if authenticated and session is still valid
+        """
+        return self._session_active and self._is_auth_cached()
+    
+    def get_session_remaining_time(self) -> int:
+        """
+        Get remaining time in seconds for current authentication session.
+        
+        Returns:
+            Remaining seconds, or 0 if no valid session
+        """
+        if not self._session_active:
+            return 0
+        
+        elapsed = time.time() - self._auth_cache_time
+        remaining = max(0, self._auth_cache_duration - elapsed)
+        return int(remaining)
 
 
 # Global instance for easy access

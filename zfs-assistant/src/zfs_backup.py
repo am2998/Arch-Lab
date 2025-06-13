@@ -17,7 +17,8 @@ class ZFSBackup:
     """
     ZFS backup operations including send/receive and incremental backups.
     """
-      def __init__(self, privilege_manager, config):
+    
+    def __init__(self, privilege_manager, config):
         self.logger = get_logger()
         self.privilege_manager = privilege_manager
         self.config = config

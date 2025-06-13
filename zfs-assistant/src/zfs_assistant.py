@@ -124,8 +124,49 @@ class ZFSAssistant:
     def save_config(self):
         """Save current configuration to file"""
         try:
+            # Ensure config directory exists
+            os.makedirs(os.path.dirname(self.config_file), exist_ok=True)
+            
+            # Save the configuration
             with open(self.config_file, 'w') as f:
                 json.dump(self.config, f, indent=2)
+            
+            # Handle file ownership when running with elevated privileges
+            if os.geteuid() == 0:  # Running as root
+                # Try to set proper ownership back to the original user
+                original_uid = None
+                original_gid = None
+                
+                # Check SUDO_USER first
+                if 'SUDO_USER' in os.environ:
+                    try:
+                        import pwd, grp
+                        user_info = pwd.getpwnam(os.environ['SUDO_USER'])
+                        original_uid = user_info.pw_uid
+                        original_gid = user_info.pw_gid
+                    except (KeyError, ImportError):
+                        pass
+                
+                # Check PKEXEC_UID
+                if original_uid is None and 'PKEXEC_UID' in os.environ:
+                    try:
+                        import pwd
+                        original_uid = int(os.environ['PKEXEC_UID'])
+                        user_info = pwd.getpwuid(original_uid)
+                        original_gid = user_info.pw_gid
+                    except (KeyError, ValueError, ImportError):
+                        pass
+                
+                # Set ownership if we found the original user
+                if original_uid is not None and original_gid is not None:
+                    try:
+                        # Set ownership of the config file
+                        os.chown(self.config_file, original_uid, original_gid)
+                        # Set ownership of the config directory
+                        os.chown(os.path.dirname(self.config_file), original_uid, original_gid)
+                        print(f"Set config file ownership to UID {original_uid}, GID {original_gid}")
+                    except OSError as e:
+                        print(f"Warning: Could not set file ownership: {e}")
             
             # Update config in all modules
             self.zfs_core.update_config(self.config)
@@ -179,12 +220,16 @@ class ZFSAssistant:
         """Get available ZFS datasets with their properties"""
         return self.zfs_core.get_datasets()
     
+    def get_filtered_datasets(self):
+        """Get ZFS datasets filtered to exclude root pool datasets"""
+        return self.zfs_core.get_filtered_datasets()
+    
     def get_dataset_properties(self, dataset_name):
         """Get properties for a specific dataset"""
         return self.zfs_core.get_dataset_properties(dataset_name)
     
-    def get_snapshots(self, dataset):
-        """Get all snapshots for a dataset"""
+    def get_snapshots(self, dataset=None):
+        """Get all snapshots for a dataset (or all datasets if dataset is None)"""
         return self.zfs_core.get_snapshots(dataset)
     
     # ==================== Snapshot Operations ====================
@@ -237,6 +282,10 @@ class ZFSAssistant:
         """Setup systemd timers for automated snapshots"""
         return self.system_integration.setup_systemd_timers(schedules)
     
+    def get_schedule_status(self):
+        """Check actual systemd timer status to determine if schedules are really active"""
+        return self.system_integration.get_schedule_status()
+
     # ==================== System Maintenance ====================
     
     def run_system_update(self):

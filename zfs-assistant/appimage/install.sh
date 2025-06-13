@@ -67,6 +67,32 @@ echo -e "${YELLOW}Installing AppImage...${NC}"
 cp "$APPIMAGE_PATH" "$INSTALL_DIR/zfs-assistant"
 chmod +x "$INSTALL_DIR/zfs-assistant"
 
+# Install polkit policy if running as root
+if [ "$SYSTEM_INSTALL" = true ]; then
+    echo -e "${YELLOW}Installing polkit policy...${NC}"
+    POLICY_DIR="/usr/share/polkit-1/actions"
+    mkdir -p "$POLICY_DIR"
+    
+    # Try to extract policy from AppImage or use project file
+    POLICY_SOURCE=""
+    if [ -f "$PROJECT_ROOT/src/org.zfs-assistant.policy" ]; then
+        POLICY_SOURCE="$PROJECT_ROOT/src/org.zfs-assistant.policy"
+    elif [ -f "$PROJECT_ROOT/build/ZFS-Assistant.AppDir/usr/share/polkit-1/actions/org.zfs-assistant.policy" ]; then
+        POLICY_SOURCE="$PROJECT_ROOT/build/ZFS-Assistant.AppDir/usr/share/polkit-1/actions/org.zfs-assistant.policy"
+    fi
+    
+    if [ -n "$POLICY_SOURCE" ]; then
+        cp "$POLICY_SOURCE" "$POLICY_DIR/"
+        echo -e "${GREEN}✅ Polkit policy installed${NC}"
+        echo -e "${BLUE}Note: ZFS Assistant will now request authentication when needed${NC}"
+    else
+        echo -e "${YELLOW}⚠️ Polkit policy not found - you may need to run as root${NC}"
+    fi
+else
+    echo -e "${YELLOW}⚠️ Running as user - polkit policy not installed${NC}"
+    echo -e "${YELLOW}   For full functionality, run installer as root: sudo ./install.sh${NC}"
+fi
+
 # Copy desktop file
 echo -e "${YELLOW}Installing desktop file...${NC}"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"

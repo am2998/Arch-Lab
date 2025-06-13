@@ -57,15 +57,28 @@ make release
 # Install to user directory (~/.local/bin)
 make install
 
-# Or install system-wide (/usr/local/bin)
+# Or install system-wide (/usr/local/bin) with polkit integration
 sudo make install-system
 ```
+
+When installing system-wide, the installer will automatically:
+- Install the polkit policy for seamless authentication
+- Set up the application to request admin privileges when needed
+- Configure proper desktop integration
 
 The release build creates:
 - `release/ZFS-Assistant-0.1.0-x86_64.AppImage` - The main AppImage
 - `release/ZFS-Assistant-0.1.0-x86_64.AppImage.sha256` - SHA256 checksum
 - `release/ZFS-Assistant-0.1.0-x86_64.AppImage.md5` - MD5 checksum  
 - `release/RELEASE_INFO.txt` - Release information and instructions
+
+### Authentication
+
+ZFS Assistant automatically handles authentication for ZFS operations:
+
+- **AppImage**: Prompts for authentication once when starting elevated operations
+- **System Install**: Uses polkit for seamless authentication (like Timeshift)
+- **Manual Install**: May require running with sudo for ZFS operations
 
 ### Manual Installation
 
@@ -110,6 +123,38 @@ zfs-assistant
 ./ZFS-Assistant-0.1.0-x86_64.AppImage
 ```
 
+### From Development Environment
+
+For local development and testing:
+
+```bash
+# Clone and enter the repository
+git clone https://github.com/am2998/Arch-Lab.git
+cd Arch-Lab/zfs-assistant
+
+# Set up virtual environment (recommended)
+python -m venv venv
+source venv/bin/activate  # or `venv\Scripts\activate` on Windows
+
+# Install dependencies
+pip install -r src/requirements.txt
+
+# Run with automatic privilege escalation
+python -m src
+
+# Or run with explicit sudo (alternative)
+sudo python -m src
+
+# For debugging without privilege prompts
+DEBUG=1 python -m src --no-elevated
+```
+
+The application will automatically:
+- Detect if it needs elevated privileges
+- Prompt for authentication using pkexec (if available)
+- Fall back to sudo instructions if pkexec is not available
+- Handle both development and production environments seamlessly
+
 ### From Desktop Entry
 
 After installation, you can launch "ZFS Assistant" from your application menu.
@@ -131,6 +176,37 @@ Running directly from source:
 cd /path/to/zfs-assistant/src
 python __main__.py
 ```
+
+## Development Setup
+
+For developers who want to contribute or test locally:
+
+```bash
+# Clone the repository
+git clone https://github.com/am2998/Arch-Lab.git
+cd Arch-Lab/zfs-assistant
+
+# Create and activate virtual environment
+python -m venv venv
+source venv/bin/activate
+
+# Install development dependencies
+pip install -r src/requirements.txt
+
+# Test the privilege system (optional)
+python test_privileges.py
+
+# Run the application in development mode
+python -m src
+```
+
+### Development Notes
+
+- The application automatically detects development vs. production environments
+- In development, it will use `pkexec` for privilege escalation when needed
+- If `pkexec` is not available, it will provide instructions to run with `sudo`
+- Use `DEBUG=1` environment variable for verbose logging
+- Use `--no-elevated` flag to skip privilege escalation for UI testing
 
 ## Building AppImage
 

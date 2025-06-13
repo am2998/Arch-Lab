@@ -96,6 +96,16 @@ if [[ ! -f "$APPDIR/usr/src/__main__.py" ]]; then
 fi
 echo -e "${GREEN}✅ Source files copied${NC}"
 
+# Copy polkit policy for system installation
+echo -e "${YELLOW}Copying polkit policy...${NC}"
+mkdir -p "$APPDIR/usr/share/polkit-1/actions"
+if [[ -f "$PROJECT_ROOT/src/org.zfs-assistant.policy" ]]; then
+    cp "$PROJECT_ROOT/src/org.zfs-assistant.policy" "$APPDIR/usr/share/polkit-1/actions/"
+    echo -e "${GREEN}✅ Polkit policy copied${NC}"
+else
+    echo -e "${YELLOW}⚠️ Polkit policy not found, skipping${NC}"
+fi
+
 # Create desktop file
 echo -e "${YELLOW}Creating desktop entry...${NC}"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"

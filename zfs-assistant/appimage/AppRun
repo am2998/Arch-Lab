@@ -5,6 +5,7 @@
 """
 Entry point for the ZFS Assistant AppImage.
 This script is used when the application is run from the AppImage.
+For elevated privileges, use: pkexec --action-id org.zfs-assistant.pkexec.run /path/to/AppImage
 """
 
 import os
@@ -26,8 +27,53 @@ def main():
         if src_path not in sys.path:
             sys.path.insert(0, src_path)
         
+        # Check if we need to use pkexec (if not already elevated)
+        if os.geteuid() != 0 and '--no-elevated' not in sys.argv:
+            print("Note: ZFS Assistant requires administrative privileges.")
+            print("Starting with elevated privileges...")
+            
+            # Get the AppImage path
+            appimage_path = os.environ.get('APPIMAGE', sys.argv[0])
+            
+            # Preserve essential environment variables for GUI
+            env_vars = {}
+            important_vars = [
+                'DISPLAY', 'WAYLAND_DISPLAY', 'XDG_RUNTIME_DIR', 'XDG_SESSION_TYPE',
+                'XAUTHORITY', 'HOME', 'USER', 'PULSE_RUNTIME_PATH', 'PULSE_SOCKET',
+                'XDG_DATA_DIRS', 'XDG_CONFIG_DIRS', 'XDG_CACHE_HOME', 'XDG_CONFIG_HOME',
+                'XDG_DATA_HOME', 'LANG', 'LC_ALL', 'PATH'
+            ]
+            
+            for var in important_vars:
+                if var in os.environ:
+                    env_vars[var] = os.environ[var]
+            
+            # Re-exec with pkexec and preserved environment
+            import subprocess
+            try:
+                cmd = [
+                    'pkexec',
+                    'env'
+                ]
+                
+                # Add environment variables
+                for key, value in env_vars.items():
+                    cmd.append(f'{key}={value}')
+                
+                # Add the AppImage command
+                cmd.extend([
+                    appimage_path,
+                    '--no-elevated'  # Prevent infinite recursion
+                ])
+                
+                subprocess.execvp('pkexec', cmd)
+            except OSError as e:
+                print(f"Failed to start with elevated privileges: {e}")
+                print("Please install polkit and ensure the policy is installed.")
+                return 1
+        
         # Import and run the application
-        from zfs_assistant import main as app_main
+        from __main__ import main as app_main
         return app_main()
         
     except ImportError as e:

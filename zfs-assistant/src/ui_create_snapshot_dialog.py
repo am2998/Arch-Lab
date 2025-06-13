@@ -43,9 +43,9 @@ class CreateSnapshotDialog(Gtk.Dialog):
         model = Gtk.StringList.new([])
         
         # Add available datasets
-        datasets = self.zfs_assistant.get_datasets()
+        datasets = self.zfs_assistant.get_filtered_datasets()
         for dataset in datasets:
-            model.append(dataset['name'])
+            model.append(dataset)
         
         self.dataset_combo.set_model(model)
         if model.get_n_items() > 0:

@@ -40,7 +40,8 @@ class ZFSSnapshot:
     def full_name(self):
         """Get the full snapshot name (dataset@snapshot)"""
         return f"{self.dataset}@{self.name}"
-          @property
+        
+    @property
     def formatted_creation_date(self):
         """Get formatted creation date"""
         if isinstance(self.creation_date, datetime.datetime):

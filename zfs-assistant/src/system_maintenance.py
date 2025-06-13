@@ -27,7 +27,8 @@ class SystemMaintenance:
         """
         try:
             log_info("Starting system update", {'command': 'pacman -Syu --noconfirm'})
-              success, result = self.privilege_manager.run_privileged_command([
+            
+            success, result = self.privilege_manager.run_privileged_command([
                 'pacman', '-Syu', '--noconfirm'
             ])
             
@@ -56,7 +57,8 @@ class SystemMaintenance:
         """
         try:
             log_info("Starting package cache cleanup", {'command': 'pacman -Scc --noconfirm'})
-              success, result = self.privilege_manager.run_privileged_command([
+            
+            success, result = self.privilege_manager.run_privileged_command([
                 'pacman', '-Scc', '--noconfirm'
             ])
             
@@ -105,7 +107,8 @@ class SystemMaintenance:
                 'orphaned_packages': orphaned_packages
             })
             
-            # Remove orphaned packages            cmd = ['pacman', '-Rns', '--noconfirm'] + orphaned_packages
+            # Remove orphaned packages
+            cmd = ['pacman', '-Rns', '--noconfirm'] + orphaned_packages
             success, result = self.privilege_manager.run_privileged_command(cmd)
             
             if not success:
@@ -151,7 +154,8 @@ class SystemMaintenance:
                 'datasets': datasets
             })
             
-            # Start operation tracking            operation_id = self.logger.start_operation(OperationType.SYSTEM_MAINTENANCE, {
+            # Start operation tracking
+            operation_id = self.logger.start_operation(OperationType.SYSTEM_MAINTENANCE, {
                 'create_snapshot_before': create_snapshot_before,
                 'run_update': run_update,
                 'clean_cache': clean_cache,
@@ -162,7 +166,8 @@ class SystemMaintenance:
             results = []
             overall_success = True
             
-            # Step 1: Create snapshots before maintenance using batch operation            if create_snapshot_before and datasets:
+            # Step 1: Create snapshots before maintenance using batch operation
+            if create_snapshot_before and datasets:
                 log_info("Creating pre-maintenance snapshots in batch")
                 snapshot_name = f"pre-maintenance-{self._get_timestamp()}"
                 
@@ -221,7 +226,8 @@ class SystemMaintenance:
                         if description == "System update":
                             self.logger.log_system_command(['pacman', '-Syu', '--noconfirm'], True)
                         elif description == "Cache cleanup":
-                            self.logger.log_system_command(['pacman', '-Scc', '--noconfirm'], True)                        elif "orphaned packages" in description:
+                            self.logger.log_system_command(['pacman', '-Scc', '--noconfirm'], True)
+                        elif "orphaned packages" in description:
                             self.logger.log_system_command(['pacman', '-Rns', '--noconfirm'], True)
                 else:
                     # If batch fails, mark all operations as failed
@@ -260,7 +266,8 @@ class SystemMaintenance:
             log_info("Starting system optimization")
             
             optimization_commands = [
-                (['pacman', '-Sc', '--noconfirm'], "Clean package cache (partial)"),                (['systemctl', '--user', 'daemon-reload'], "Reload user systemd daemon"),
+                (['pacman', '-Sc', '--noconfirm'], "Clean package cache (partial)"),
+                (['systemctl', '--user', 'daemon-reload'], "Reload user systemd daemon"),
                 (['sync'], "Sync filesystem buffers")
             ]
             
@@ -334,7 +341,8 @@ class SystemMaintenance:
         """
         try:
             log_info("Checking system health")
-              health_info = {
+            
+            health_info = {
                 'zfs_pools': [],
                 'disk_usage': {},
                 'package_updates': 0,

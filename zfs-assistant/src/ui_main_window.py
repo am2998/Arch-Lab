@@ -7,7 +7,7 @@ import datetime
 
 gi.require_version('Gtk', '4.0')
 gi.require_version('Adw', '1')
-from gi.repository import Gtk, Adw, GObject
+from gi.repository import Gtk, Adw, GObject, Gio, GLib, Gdk
 
 from .models import ZFSSnapshot
 from .ui_settings_dialog import SettingsDialog
@@ -349,8 +349,11 @@ class MainWindow(Gtk.ApplicationWindow):
         # Use GLib.timeout_add to ensure the window is fully rendered before initializing
         GLib.timeout_add(100, self._deferred_init)
         
-        # Update settings status periodically (every 60 seconds)
-        GLib.timeout_add_seconds(60, self._update_settings_status)
+        # Update settings status periodically (every 15 seconds for more responsive updates)
+        GLib.timeout_add_seconds(15, self._update_settings_status)
+        
+        # Add real-time status update triggers
+        self._setup_real_time_updates()
     
     def setup_keyboard_shortcuts(self):
         """Setup keyboard shortcuts for common actions"""
@@ -412,10 +415,10 @@ class MainWindow(Gtk.ApplicationWindow):
         # Add "All Datasets" option
         model.append("All Datasets")
         
-        # Add available datasets
-        datasets = self.zfs_assistant.get_datasets()
+        # Add available datasets (exclude root pool datasets)
+        datasets = self.zfs_assistant.get_filtered_datasets()
         for dataset in datasets:
-            model.append(dataset['name'])
+            model.append(dataset)
         
         self.dataset_combo.set_model(model)
         
@@ -423,10 +426,10 @@ class MainWindow(Gtk.ApplicationWindow):
         # Get all dataset names and find the first top-level one (the most parent dataset)
         if datasets:
             # Sort datasets by name length to find parent datasets first
-            sorted_datasets = sorted(datasets, key=lambda d: len(d['name'].split('/')))
+            sorted_datasets = sorted(datasets, key=lambda d: len(d.split('/')))
             if sorted_datasets:
                 # Find the index of the first dataset in the model
-                first_dataset_name = sorted_datasets[0]['name']
+                first_dataset_name = sorted_datasets[0]
                 for i in range(model.get_n_items()):
                     if model.get_string(i) == first_dataset_name:
                         self.dataset_combo.set_selected(i)
@@ -631,15 +634,10 @@ class MainWindow(Gtk.ApplicationWindow):
                 return
             
             dataset_name = model.get_string(selected)
-            # Get dataset properties
-            datasets = self.zfs_assistant.get_datasets()
-            dataset_info = None
-            for dataset in datasets:
-                if dataset['name'] == dataset_name:
-                    dataset_info = dataset
-                    break
-                    
-            if not dataset_info:
+            # Get dataset properties directly
+            dataset_properties = self.zfs_assistant.get_dataset_properties(dataset_name)
+            
+            if not dataset_properties:
                 info_label = Gtk.Label(label=f"No properties found for dataset: {dataset_name}")
                 info_label.set_margin_top(20)
                 info_label.set_margin_bottom(20)
@@ -679,9 +677,8 @@ class MainWindow(Gtk.ApplicationWindow):
             info_box.append(header_label)
             
             # Add quick summary of type and mountpoint below the name
-            properties = dataset_info['properties']
-            type_value = properties.get("type", "N/A")
-            mountpoint_value = properties.get("mountpoint", "N/A")
+            type_value = dataset_properties.get("type", "N/A")
+            mountpoint_value = dataset_properties.get("mountpoint", "N/A")
             
             summary_label = Gtk.Label()
             summary_label.set_markup(f"<span size='small' alpha='80%'>{type_value} • {mountpoint_value}</span>")
@@ -746,7 +743,7 @@ class MainWindow(Gtk.ApplicationWindow):
                 
                 # Add properties in this category
                 for label, prop_key in props_list:
-                    value = properties.get(prop_key, "N/A")
+                    value = dataset_properties.get(prop_key, "N/A")
                     if value == "-" or not value or value == "none":
                         value = "N/A"
                     
@@ -1060,6 +1057,21 @@ class MainWindow(Gtk.ApplicationWindow):
                              "This operation cannot be undone."
             )
             
+            # Set the dialog size and styling
+            dialog.set_default_size(400, 200)
+            
+            # Make the "No" button primary and "Yes" button destructive
+            no_button = dialog.get_widget_for_response(Gtk.ResponseType.NO)
+            yes_button = dialog.get_widget_for_response(Gtk.ResponseType.YES)
+            
+            if no_button:
+                no_button.add_css_class("suggested-action")
+                no_button.set_label("No")
+            
+            if yes_button:
+                yes_button.add_css_class("destructive-action")
+                yes_button.set_label("Yes")
+            
             dialog.connect("response", self._on_delete_dialog_response, snapshot)
             dialog.present()
             
@@ -1168,6 +1180,7 @@ class MainWindow(Gtk.ApplicationWindow):
         }
         
         icon_name = icon_map.get(status_type, "dialog-information-symbolic")
+        self.status_icon.set_visible(True)  # Ensure icon is visible
         self.status_icon.set_from_icon_name(icon_name)
         self.status_label.set_text(message)
         
@@ -1177,7 +1190,7 @@ class MainWindow(Gtk.ApplicationWindow):
     
     def _clear_status(self):
         """Clear the status bar"""
-        self.status_icon.clear()
+        self.status_icon.set_visible(False)
         self.status_label.set_text("Ready")
         return False  # Don't repeat the timeout
     
@@ -1203,25 +1216,34 @@ class MainWindow(Gtk.ApplicationWindow):
         """Update the settings status display with information about enabled features and next snapshot"""
         config = self.zfs_assistant.config
         
-        # Get settings status
-        schedule_status = "on" if (config.get("hourly_schedule", []) or 
-                                 config.get("daily_schedule", []) or
-                                 config.get("weekly_schedule", False) or 
-                                 config.get("monthly_schedule", False)) else "off"
+        # Get actual timer status from system integration instead of config values
+        try:
+            actual_schedule_status = self.zfs_assistant.system_integration.get_schedule_status()
+            schedule_status = "on" if any(actual_schedule_status.values()) else "off"
+        except Exception as e:
+            # Fallback to config-based status if timer status check fails
+            schedule_status = "on" if (config.get("hourly_schedule", []) or 
+                                     config.get("daily_schedule", []) or
+                                     config.get("weekly_schedule", False) or 
+                                     config.get("monthly_schedule", False)) else "off"
                                  
         pacman_status = "on" if config.get("pacman_integration", False) else "off"
         
-        update_status = "on" if config.get("update_snapshots", "disabled") != "disabled" else "off"
+        # System update status depends on both the config setting AND the schedule being enabled
+        # because system updates require the schedule to function
+        update_config_enabled = config.get("update_snapshots", "disabled") != "disabled"
+        schedule_enabled = schedule_status == "on"
+        update_status = "on" if (update_config_enabled and schedule_enabled) else "off"
         
         clean_status = "on" if config.get("clean_cache_after_updates", False) else "off"
         
-        # Calculate time until next snapshot
-        next_snapshot_info = self._calculate_next_snapshot_time(config)
+        # Calculate time until next snapshot - only show if schedule is enabled
+        next_snapshot_info = self._calculate_next_snapshot_time(config) if schedule_enabled else None
         
         # Build status text
         status_text = f"schedule: {schedule_status}    pacman-int: {pacman_status}    sys-update: {update_status}    clean: {clean_status}"
         
-        if next_snapshot_info:
+        if next_snapshot_info and schedule_enabled:
             status_text += f"    next snapshot in: {next_snapshot_info}"
         
         self.settings_status_label.set_text(status_text)
@@ -1339,3 +1361,54 @@ class MainWindow(Gtk.ApplicationWindow):
             return f"{minutes}m"
         
         return None
+    def _setup_real_time_updates(self):
+        """Setup real-time updates for status bar and UI elements"""
+        # Store previous settings hash to detect changes
+        self._previous_settings_hash = None
+        
+        # Start frequent status checks (every 5 seconds for immediate response)
+        GLib.timeout_add_seconds(5, self._check_for_settings_changes)
+    
+    def _check_for_settings_changes(self):
+        """Check if settings have changed and update status immediately"""
+        try:
+            # Create a hash of current settings to detect changes
+            config = self.zfs_assistant.config
+            settings_data = {
+                'auto_snapshot': config.get('auto_snapshot', False),
+                'hourly_schedule': config.get('hourly_schedule', []),
+                'daily_schedule': config.get('daily_schedule', []),
+                'weekly_schedule': config.get('weekly_schedule', False),
+                'monthly_schedule': config.get('monthly_schedule', False),
+                'pacman_integration': config.get('pacman_integration', False),
+                'update_snapshots': config.get('update_snapshots', 'disabled'),
+                'clean_cache_after_updates': config.get('clean_cache_after_updates', False)
+            }
+            
+            # Get actual timer states for comparison
+            try:
+                actual_schedule_status = self.zfs_assistant.system_integration.get_schedule_status()
+                settings_data['actual_timers'] = actual_schedule_status
+            except:
+                settings_data['actual_timers'] = {}
+            
+            current_hash = hash(str(sorted(settings_data.items())))
+            
+            # If settings changed, update status immediately
+            if self._previous_settings_hash != current_hash:
+                self._previous_settings_hash = current_hash
+                self._update_settings_status()
+                
+        except Exception as e:
+            print(f"Error checking for settings changes: {e}")
+        
+        # Continue checking
+        return True
+
+    def trigger_status_update(self):
+        """Trigger an immediate status update - can be called externally"""
+        self._previous_settings_hash = None  # Force update
+        self._update_settings_status()
+        
+        # Also trigger snapshot count update for consistency
+        GLib.idle_add(self.update_snapshot_count)

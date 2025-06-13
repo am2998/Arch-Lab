@@ -33,6 +33,7 @@ class SettingsDialog(Gtk.Dialog):
         self.parent = parent
         self.zfs_assistant = parent.zfs_assistant
         self.config = self.zfs_assistant.config.copy()
+        self._dialog_alive = True
         
         self.add_button("Cancel", Gtk.ResponseType.CANCEL)
         self.add_button("Save", Gtk.ResponseType.OK)
@@ -78,14 +79,14 @@ class SettingsDialog(Gtk.Dialog):
         self.datasets_list.set_selection_mode(Gtk.SelectionMode.NONE)
         datasets_scroll.set_child(self.datasets_list)
         
-        # Get available datasets
-        datasets = self.zfs_assistant.get_datasets()
+        # Get available datasets (exclude root pool datasets)
+        datasets = self.zfs_assistant.get_filtered_datasets()
         managed_datasets = self.config.get("datasets", [])
         
         # Add datasets to the list
         if datasets:
             for dataset in datasets:
-                dataset_name = dataset['name']
+                dataset_name = dataset
                 row = Gtk.ListBoxRow()
                 box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
                 box.set_margin_top(5)
@@ -216,19 +217,14 @@ class SettingsDialog(Gtk.Dialog):
             "prefix-type-timestamp",
             "prefix-timestamp-type", 
             "type-prefix-timestamp",
-            "timestamp-prefix-type",
-            "prefix-type-timestamp-short",
-            "prefix-timestamp-short-type",
-            "type-prefix-timestamp-short", 
-            "timestamp-short-prefix-type"
+            "timestamp-prefix-type"
         ])
         self.format_combo.set_model(format_model)
         
         # Set current format
         current_format = self.config.get("snapshot_name_format", "prefix-type-timestamp")
         format_options = [
-            "prefix-type-timestamp", "prefix-timestamp-type", "type-prefix-timestamp", "timestamp-prefix-type",
-            "prefix-type-timestamp-short", "prefix-timestamp-short-type", "type-prefix-timestamp-short", "timestamp-short-prefix-type"
+            "prefix-type-timestamp", "prefix-timestamp-type", "type-prefix-timestamp", "timestamp-prefix-type"
         ]
         try:
             current_index = format_options.index(current_format)
@@ -557,7 +553,7 @@ class SettingsDialog(Gtk.Dialog):
         updates_frame.set_child(updates_box)
         
         # Update options
-        updates_info = Gtk.Label(label="System updates (pacman -Syu) can be executed automatically during scheduled snapshots.\nChoose when to create snapshots relative to the update:")
+        updates_info = Gtk.Label(label="System updates (pacman -Syu + flatpak update) can be executed automatically during scheduled snapshots.\nChoose when to create snapshots relative to the update:")
         updates_info.set_halign(Gtk.Align.START)
         updates_info.set_margin_bottom(15)  # Better spacing before radio buttons
         updates_info.set_margin_start(0)   # Align with frame content
@@ -569,16 +565,21 @@ class SettingsDialog(Gtk.Dialog):
         self.update_disabled_radio.connect("toggled", self.on_update_option_toggled)
         updates_box.append(self.update_disabled_radio)
         
-        # Radio button for system update after snapshot (renamed from "before")
-        self.update_before_radio = Gtk.CheckButton(label="Make system update after snapshot (Scheduling needs to be enabled)")
+        # Radio button for full system update (pacman + flatpak)
+        self.update_before_radio = Gtk.CheckButton(label="Enable full system updates (pacman + flatpak) during snapshots")
         self.update_before_radio.connect("toggled", self.on_update_option_toggled)
         updates_box.append(self.update_before_radio)
+        
+        # Radio button for pacman-only updates
+        self.update_pacman_only_radio = Gtk.CheckButton(label="Enable pacman-only updates (no flatpak) during snapshots")
+        self.update_pacman_only_radio.connect("toggled", self.on_update_option_toggled)
+        updates_box.append(self.update_pacman_only_radio)
         
         # Clean cache option
         clean_cache_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
         clean_cache_box.set_margin_start(0)  # Align with frame content
         clean_cache_box.set_margin_top(10)    # Better spacing from radio buttons
-        self.clean_cache_check = Gtk.CheckButton(label="Clean package cache after updates")
+        self.clean_cache_check = Gtk.CheckButton(label="Clean package caches after updates (pacman + flatpak)")
         self.clean_cache_check.set_active(self.config.get("clean_cache_after_updates", False))
         clean_cache_box.append(self.clean_cache_check)
         updates_box.append(clean_cache_box)
@@ -588,8 +589,11 @@ class SettingsDialog(Gtk.Dialog):
         if update_option == "disabled":
             self.update_disabled_radio.set_active(True)
             self.clean_cache_check.set_sensitive(False)
-        elif update_option == "before":
+        elif update_option == "enabled":
             self.update_before_radio.set_active(True)
+            self.clean_cache_check.set_sensitive(True)
+        elif update_option == "pacman_only":
+            self.update_pacman_only_radio.set_active(True)
             self.clean_cache_check.set_sensitive(True)
         else:
             # Default to disabled if invalid value
@@ -687,6 +691,7 @@ class SettingsDialog(Gtk.Dialog):
             # If both are enabled in config, prioritize pacman and disable updates
             self.update_disabled_radio.set_active(True)
             self.update_before_radio.set_active(False)
+            self.update_pacman_only_radio.set_active(False)
             self.clean_cache_check.set_sensitive(False)
             update_option = "disabled"
         
@@ -694,6 +699,7 @@ class SettingsDialog(Gtk.Dialog):
         if pacman_enabled:
             self.update_disabled_radio.set_sensitive(False)
             self.update_before_radio.set_sensitive(False)
+            self.update_pacman_only_radio.set_sensitive(False)
         elif update_option != "disabled":
             self.pacman_switch.set_sensitive(False)
         
@@ -751,9 +757,18 @@ class SettingsDialog(Gtk.Dialog):
             # Disable system update options when scheduling is disabled
             self.update_disabled_radio.set_sensitive(False)
             self.update_before_radio.set_sensitive(False)
+            self.update_pacman_only_radio.set_sensitive(False)
             self.clean_cache_check.set_sensitive(False)
         
         self.show()
+    
+    def is_destroyed(self):
+        """Check if the dialog has been destroyed"""
+        try:
+            # Try to access a property - if the dialog is destroyed, this will fail
+            return not self.get_visible() and not hasattr(self, '_dialog_alive')
+        except:
+            return True
 
     def on_select_all_clicked(self, button):
         """Handle select all button click"""
@@ -820,8 +835,7 @@ class SettingsDialog(Gtk.Dialog):
             # Update snapshot name format
             selected = self.format_combo.get_selected()
             format_options = [
-                "prefix-type-timestamp", "prefix-timestamp-type", "type-prefix-timestamp", "timestamp-prefix-type",
-                "prefix-type-timestamp-short", "prefix-timestamp-short-type", "type-prefix-timestamp-short", "timestamp-short-prefix-type"
+                "prefix-type-timestamp", "prefix-timestamp-type", "type-prefix-timestamp", "timestamp-prefix-type"
             ]
             if selected < len(format_options):
                 self.config["snapshot_name_format"] = format_options[selected]
@@ -879,7 +893,9 @@ class SettingsDialog(Gtk.Dialog):
             if self.update_disabled_radio.get_active():
                 self.config["update_snapshots"] = "disabled"
             elif self.update_before_radio.get_active():
-                self.config["update_snapshots"] = "before"
+                self.config["update_snapshots"] = "enabled"
+            elif self.update_pacman_only_radio.get_active():
+                self.config["update_snapshots"] = "pacman_only"
             else:
                 # Default to "disabled" if none is selected
                 self.config["update_snapshots"] = "disabled"
@@ -902,45 +918,103 @@ class SettingsDialog(Gtk.Dialog):
             # Save config
             self.zfs_assistant.config = self.config
             self.zfs_assistant.save_config()
-              # Setup pacman hook
-            pacman_success, pacman_message = self.zfs_assistant.setup_pacman_hook(self.config["pacman_integration"])
-            if not pacman_success:
-                error_dialog = Gtk.MessageDialog(
-                    transient_for=self,
-                    modal=True,
-                    message_type=Gtk.MessageType.ERROR,
-                    buttons=Gtk.ButtonsType.OK,
-                    text="Pacman Hook Setup Failed",
-                    secondary_text=f"Failed to setup pacman hook: {pacman_message}"
-                )
-                error_dialog.connect("response", lambda d, r: d.destroy())
-                error_dialog.present()
+            
+            # Setup system integration in a background thread to avoid UI freezing
+            import threading
+            
+            def setup_system_integration():
+                """Run system integration setup in background thread"""
+                # Import GLib at the beginning of the function
+                from gi.repository import GLib
                 
-            # Setup systemd timers
-            schedules = {
-                "hourly": self.hourly_check.get_active(),
-                "daily": self.daily_check.get_active(),
-                "weekly": self.weekly_check.get_active(),
-                "monthly": self.monthly_check.get_active()
-            }
+                try:
+                    # Setup pacman hook
+                    pacman_success, pacman_message = self.zfs_assistant.setup_pacman_hook(self.config["pacman_integration"])
+                    if not pacman_success:
+                        # Use GLib.idle_add to safely update UI from background thread
+                        def show_pacman_error():
+                            if not self.is_destroyed():  # Check if dialog still exists
+                                error_dialog = Gtk.MessageDialog(
+                                    transient_for=self,
+                                    modal=True,
+                                    message_type=Gtk.MessageType.ERROR,
+                                    buttons=Gtk.ButtonsType.OK,
+                                    text="Pacman Hook Setup Failed",
+                                    secondary_text=f"Failed to setup pacman hook: {pacman_message}"
+                                )
+                                error_dialog.connect("response", lambda d, r: d.destroy())
+                                error_dialog.present()
+                        GLib.idle_add(show_pacman_error)
+                        
+                    # Setup systemd timers
+                    schedules = {
+                        "hourly": self.hourly_check.get_active(),
+                        "daily": self.daily_check.get_active(),
+                        "weekly": self.weekly_check.get_active(),
+                        "monthly": self.monthly_check.get_active()
+                    }
+                    
+                    # Save the weekly and monthly state in config
+                    self.config["weekly_schedule"] = self.weekly_check.get_active()
+                    self.config["monthly_schedule"] = self.monthly_check.get_active()
+                    
+                    if self.config["auto_snapshot"]:
+                        timer_success, timer_message = self.zfs_assistant.setup_systemd_timers(schedules)
+                        if not timer_success:
+                            # Use GLib.idle_add to safely update UI from background thread
+                            def show_timer_error():
+                                if not self.is_destroyed():  # Check if dialog still exists
+                                    error_dialog = Gtk.MessageDialog(
+                                        transient_for=self,
+                                        modal=True,
+                                        message_type=Gtk.MessageType.ERROR,
+                                        buttons=Gtk.ButtonsType.OK,
+                                        text="Systemd Timer Setup Failed",
+                                        secondary_text=f"Failed to setup systemd timers: {timer_message}"
+                                    )
+                                    error_dialog.connect("response", lambda d, r: d.destroy())
+                                    error_dialog.present()
+                            GLib.idle_add(show_timer_error)
+                    else:
+                        # Auto-snapshot is disabled, clean up all existing timers
+                        for schedule_type in ["hourly", "daily", "weekly", "monthly"]:
+                            disable_success, disable_message = self.zfs_assistant.system_integration.disable_schedule(schedule_type)
+                            if not disable_success:
+                                # Log warning but don't show error dialog for cleanup failures
+                                def show_cleanup_warning():
+                                    if not self.is_destroyed():
+                                        error_dialog = Gtk.MessageDialog(
+                                            transient_for=self,
+                                            modal=True,
+                                            message_type=Gtk.MessageType.WARNING,
+                                            buttons=Gtk.ButtonsType.OK,
+                                            text="Timer Cleanup Warning",
+                                            secondary_text=f"Failed to cleanup {schedule_type} timers: {disable_message}"
+                                        )
+                                        error_dialog.connect("response", lambda d, r: d.destroy())
+                                        error_dialog.present()
+                                GLib.idle_add(show_cleanup_warning)
+                            
+                except Exception as e:
+                    # Handle any unexpected errors in background thread
+                    error_message = str(e)  # Capture error message in a variable
+                    def show_general_error():
+                        if not self.is_destroyed():  # Check if dialog still exists
+                            error_dialog = Gtk.MessageDialog(
+                                transient_for=self,
+                                modal=True,
+                                message_type=Gtk.MessageType.ERROR,
+                                buttons=Gtk.ButtonsType.OK,
+                                text="System Integration Error",
+                                secondary_text=f"An error occurred during system integration setup: {error_message}"
+                            )
+                            error_dialog.connect("response", lambda d, r: d.destroy())
+                            error_dialog.present()
+                    GLib.idle_add(show_general_error)
             
-            # Save the weekly and monthly state in config
-            self.config["weekly_schedule"] = self.weekly_check.get_active()
-            self.config["monthly_schedule"] = self.monthly_check.get_active()
-            
-            if self.config["auto_snapshot"]:
-                timer_success, timer_message = self.zfs_assistant.setup_systemd_timers(schedules)
-                if not timer_success:
-                    error_dialog = Gtk.MessageDialog(
-                        transient_for=self,
-                        modal=True,
-                        message_type=Gtk.MessageType.ERROR,
-                        buttons=Gtk.ButtonsType.OK,
-                        text="Systemd Timer Setup Failed",
-                        secondary_text=f"Failed to setup systemd timers: {timer_message}"
-                    )
-                    error_dialog.connect("response", lambda d, r: d.destroy())
-                    error_dialog.present()
+            # Run system integration in background thread
+            thread = threading.Thread(target=setup_system_integration, daemon=True)
+            thread.start()
             
             # Update theme if dark mode changed
             if dark_mode_changed:
@@ -1027,6 +1101,7 @@ class SettingsDialog(Gtk.Dialog):
         # Check if all required attributes exist (handles initialization order)
         if not all(hasattr(self, attr) for attr in ['update_disabled_radio', 
                                                    'update_before_radio', 
+                                                   'update_pacman_only_radio',
                                                    'clean_cache_check']):
             return False
             
@@ -1034,15 +1109,18 @@ class SettingsDialog(Gtk.Dialog):
             # If pacman integration is enabled, disable system updates
             self.update_disabled_radio.set_active(True)
             self.update_before_radio.set_active(False)
+            self.update_pacman_only_radio.set_active(False)
             self.clean_cache_check.set_sensitive(False)
             
             # Disable system update radio buttons
             self.update_disabled_radio.set_sensitive(False)
             self.update_before_radio.set_sensitive(False)
+            self.update_pacman_only_radio.set_sensitive(False)
         else:
             # Re-enable system update radio buttons
             self.update_disabled_radio.set_sensitive(True)
             self.update_before_radio.set_sensitive(True)
+            self.update_pacman_only_radio.set_sensitive(True)
         
         # Update pacman preview
         self.update_pacman_preview()
@@ -1138,16 +1216,14 @@ class SettingsDialog(Gtk.Dialog):
         prefix = self.prefix_entry.get_text().strip() or "zfs-assistant"
         selected = self.format_combo.get_selected()
         format_options = [
-            "prefix-type-timestamp", "prefix-timestamp-type", "type-prefix-timestamp", "timestamp-prefix-type",
-            "prefix-type-timestamp-short", "prefix-timestamp-short-type", "type-prefix-timestamp-short", "timestamp-short-prefix-type"
+            "prefix-type-timestamp", "prefix-timestamp-type", "type-prefix-timestamp", "timestamp-prefix-type"
         ]
         format_type = format_options[selected] if selected < len(format_options) else "prefix-type-timestamp"
         
         sample_time = datetime.datetime.now()
         timestamp = sample_time.strftime("%Y%m%d-%H%M%S")
-        timestamp_short = sample_time.strftime("%Y%m%d-%H%M")
         
-        preview = self._generate_preview_name(prefix, "pacman", timestamp, timestamp_short, format_type)
+        preview = self._generate_preview_name(prefix, "pacman", timestamp, "", format_type)
         self.pacman_preview_label.set_text(preview)
             
     def on_schedule_switch_toggled(self, widget, state):
@@ -1182,8 +1258,10 @@ class SettingsDialog(Gtk.Dialog):
         # Update sensitivity of system update options (only available when scheduling is enabled)
         self.update_disabled_radio.set_sensitive(state)
         self.update_before_radio.set_sensitive(state)
+        self.update_pacman_only_radio.set_sensitive(state)
         # Clean cache option should only be enabled if scheduling is on AND update option is enabled
-        current_update_enabled = self.update_before_radio.get_active()
+        current_update_enabled = (self.update_before_radio.get_active() or 
+                                self.update_pacman_only_radio.get_active())
         self.clean_cache_check.set_sensitive(state and current_update_enabled)
         
         return False  # Allow the state change to proceed
@@ -1202,8 +1280,7 @@ class SettingsDialog(Gtk.Dialog):
         prefix = self.prefix_entry.get_text().strip() or "zfs-assistant"
         selected = self.format_combo.get_selected()
         format_options = [
-            "prefix-type-timestamp", "prefix-timestamp-type", "type-prefix-timestamp", "timestamp-prefix-type",
-            "prefix-type-timestamp-short", "prefix-timestamp-short-type", "type-prefix-timestamp-short", "timestamp-short-prefix-type"
+            "prefix-type-timestamp", "prefix-timestamp-type", "type-prefix-timestamp", "timestamp-prefix-type"
         ]
         format_type = format_options[selected] if selected < len(format_options) else "prefix-type-timestamp"
         
@@ -1224,9 +1301,8 @@ class SettingsDialog(Gtk.Dialog):
                 for hour in example_hours:
                     sample_time = datetime.datetime.now().replace(hour=hour, minute=0, second=0)
                     timestamp = sample_time.strftime("%Y%m%d-%H%M%S")
-                    timestamp_short = sample_time.strftime("%Y%m%d-%H%M")
                     
-                    preview = self._generate_preview_name(prefix, "hourly", timestamp, timestamp_short, format_type)
+                    preview = self._generate_preview_name(prefix, "hourly", timestamp, "", format_type)
                     active_schedules.append(f"Hourly ({hour:02d}:00): {preview}")
                 
                 # If more than 3 hours selected, show count
@@ -1236,8 +1312,7 @@ class SettingsDialog(Gtk.Dialog):
                 # No hours selected but hourly is enabled
                 sample_time = datetime.datetime.now()
                 timestamp = sample_time.strftime("%Y%m%d-%H%M%S")
-                timestamp_short = sample_time.strftime("%Y%m%d-%H%M")
-                preview = self._generate_preview_name(prefix, "hourly", timestamp, timestamp_short, format_type)
+                preview = self._generate_preview_name(prefix, "hourly", timestamp, "", format_type)
                 active_schedules.append(f"Hourly (no hours selected): {preview}")
         
         if hasattr(self, 'daily_check') and self.daily_check.get_active():
@@ -1266,9 +1341,8 @@ class SettingsDialog(Gtk.Dialog):
                     sample_time = datetime.datetime.combine(target_date, datetime.time(daily_hour, 0))
                     
                     timestamp = sample_time.strftime("%Y%m%d-%H%M%S")
-                    timestamp_short = sample_time.strftime("%Y%m%d-%H%M")
                     
-                    preview = self._generate_preview_name(prefix, "daily", timestamp, timestamp_short, format_type)
+                    preview = self._generate_preview_name(prefix, "daily", timestamp, "", format_type)
                     active_schedules.append(f"Daily ({days[day_idx]} {daily_hour:02d}:00): {preview}")
                 
                 # If more than 3 days selected, show count
@@ -1278,8 +1352,7 @@ class SettingsDialog(Gtk.Dialog):
                 # No days selected but daily is enabled
                 sample_time = datetime.datetime.now().replace(hour=daily_hour, minute=0, second=0)
                 timestamp = sample_time.strftime("%Y%m%d-%H%M%S")
-                timestamp_short = sample_time.strftime("%Y%m%d-%H%M")
-                preview = self._generate_preview_name(prefix, "daily", timestamp, timestamp_short, format_type)
+                preview = self._generate_preview_name(prefix, "daily", timestamp, "", format_type)
                 active_schedules.append(f"Daily (no days selected): {preview}")
         
         if hasattr(self, 'weekly_check') and self.weekly_check.get_active():
@@ -1292,9 +1365,8 @@ class SettingsDialog(Gtk.Dialog):
             sample_time = datetime.datetime.combine(next_monday, datetime.time(0, 0))
             
             timestamp = sample_time.strftime("%Y%m%d-%H%M%S")
-            timestamp_short = sample_time.strftime("%Y%m%d-%H%M")
             
-            preview = self._generate_preview_name(prefix, "weekly", timestamp, timestamp_short, format_type)
+            preview = self._generate_preview_name(prefix, "weekly", timestamp, "", format_type)
             active_schedules.append(f"Weekly (Monday 00:00): {preview}")
         
         if hasattr(self, 'monthly_check') and self.monthly_check.get_active():
@@ -1315,17 +1387,15 @@ class SettingsDialog(Gtk.Dialog):
             
             sample_time = datetime.datetime.combine(next_first, datetime.time(0, 0))
             timestamp = sample_time.strftime("%Y%m%d-%H%M%S")
-            timestamp_short = sample_time.strftime("%Y%m%d-%H%M")
             
-            preview = self._generate_preview_name(prefix, "monthly", timestamp, timestamp_short, format_type)
+            preview = self._generate_preview_name(prefix, "monthly", timestamp, "", format_type)
             active_schedules.append(f"Monthly (1st 00:00): {preview}")
         
         # If no schedules are active, show manual snapshot example
         if not active_schedules:
             sample_time = datetime.datetime.now()
             timestamp = sample_time.strftime("%Y%m%d-%H%M%S")
-            timestamp_short = sample_time.strftime("%Y%m%d-%H%M")
-            preview = self._generate_preview_name(prefix, "manual", timestamp, timestamp_short, format_type)
+            preview = self._generate_preview_name(prefix, "manual", timestamp, "", format_type)
             active_schedules.append(f"Manual snapshot: {preview}")
         
         # Create labels for each preview
@@ -1335,32 +1405,43 @@ class SettingsDialog(Gtk.Dialog):
             label.add_css_class("dim-label")
             self.preview_container.append(label)
     
-    def _generate_preview_name(self, prefix, sample_type, timestamp, timestamp_short, format_type):
+    def _generate_preview_name(self, prefix, sample_type, timestamp, _, format_type):
         """Generate a preview name based on format type"""
-        if format_type == "prefix-type-timestamp":
-            return f"{prefix}-{sample_type}-{timestamp}"
-        elif format_type == "prefix-timestamp-type":
-            return f"{prefix}-{timestamp}-{sample_type}"
-        elif format_type == "type-prefix-timestamp":
-            return f"{sample_type}-{prefix}-{timestamp}"
-        elif format_type == "timestamp-prefix-type":
-            return f"{timestamp}-{prefix}-{sample_type}"
-        elif format_type == "prefix-type-timestamp-short":
-            return f"{prefix}-{sample_type}-{timestamp_short}"
-        elif format_type == "prefix-timestamp-short-type":
-            return f"{prefix}-{timestamp_short}-{sample_type}"
-        elif format_type == "type-prefix-timestamp-short":
-            return f"{sample_type}-{prefix}-{timestamp_short}"
-        elif format_type == "timestamp-short-prefix-type":
-            return f"{timestamp_short}-{prefix}-{sample_type}"
+        # For daily and weekly snapshots, remove time component (use date only)
+        date_only = timestamp.split('-')[0]  # Extract YYYYMMDD
+        
+        # For hourly snapshots, use -HHMM format
+        hourly_time = ""
+        if sample_type == "hourly":
+            time_part = timestamp.split('-')[1]  # Extract HHMMSS
+            hourly_time = f"-{time_part[:4]}"  # Get only HHMM
+            
+        # Format the timestamp based on snapshot type
+        if sample_type in ["daily", "weekly", "monthly"]:
+            final_timestamp = date_only
+        elif sample_type == "hourly":
+            final_timestamp = f"{date_only}{hourly_time}"
         else:
-            return f"{prefix}-{sample_type}-{timestamp}"
+            # For other types (manual, pacman), use the full timestamp
+            final_timestamp = timestamp
+            
+        # Apply the format template
+        if format_type == "prefix-type-timestamp":
+            return f"{prefix}-{sample_type}-{final_timestamp}"
+        elif format_type == "prefix-timestamp-type":
+            return f"{prefix}-{final_timestamp}-{sample_type}"
+        elif format_type == "type-prefix-timestamp":
+            return f"{sample_type}-{prefix}-{final_timestamp}"
+        elif format_type == "timestamp-prefix-type":
+            return f"{final_timestamp}-{prefix}-{sample_type}"
+        else:
+            return f"{prefix}-{sample_type}-{final_timestamp}"
 
     def on_update_option_toggled(self, toggled_button):
         """Make the update option checkboxes act as radio buttons and mutually exclusive with pacman"""
         # Check if all required attributes exist (handles initialization order)
         if not all(hasattr(self, attr) for attr in ['pacman_switch', 'update_disabled_radio', 
-                                                   'update_before_radio', 
+                                                   'update_before_radio', 'update_pacman_only_radio',
                                                    'clean_cache_check']):
             return
             
@@ -1376,9 +1457,15 @@ class SettingsDialog(Gtk.Dialog):
             # Determine which button was toggled and deactivate the others
             if toggled_button == self.update_disabled_radio:
                 self.update_before_radio.set_active(False)
+                self.update_pacman_only_radio.set_active(False)
                 self.clean_cache_check.set_sensitive(False)
             elif toggled_button == self.update_before_radio:
                 self.update_disabled_radio.set_active(False)
+                self.update_pacman_only_radio.set_active(False)
+                self.clean_cache_check.set_sensitive(True)
+            elif toggled_button == self.update_pacman_only_radio:
+                self.update_disabled_radio.set_active(False)
+                self.update_before_radio.set_active(False)
                 self.clean_cache_check.set_sensitive(True)
         
         # Update pacman preview since it might have changed

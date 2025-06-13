@@ -52,6 +52,87 @@ class ZFSCore:
             error_msg = f"Error getting ZFS datasets: {str(e)}"
             log_error(error_msg)
             return []
+
+    def get_zfs_pools(self) -> List[str]:
+        """
+        Get list of ZFS pool names.
+        
+        Returns:
+            List of pool names
+        """
+        try:
+            log_info("Retrieving ZFS pools")
+            
+            result = subprocess.run(
+                ['zpool', 'list', '-H', '-o', 'name'],
+                capture_output=True, text=True, check=True
+            )
+            
+            pools = [line.strip() for line in result.stdout.strip().split('\n') 
+                    if line.strip()]
+            
+            log_success(f"Found {len(pools)} ZFS pools")
+            return pools
+            
+        except subprocess.CalledProcessError as e:
+            error_msg = f"Failed to get ZFS pools: {e.stderr}"
+            log_error(error_msg)
+            return []
+        except Exception as e:
+            error_msg = f"Error getting ZFS pools: {str(e)}"
+            log_error(error_msg)
+            return []
+
+    def get_root_pool_datasets(self) -> List[str]:
+        """
+        Get list of root pool datasets that should be filtered out from user selection.
+        
+        A root pool dataset is a dataset that matches the pool name exactly (e.g., "zroot").
+        These are typically not useful for user operations as they represent the pool root.
+        
+        Returns:
+            List of root pool dataset names to filter out
+        """
+        try:
+            pools = self.get_zfs_pools()
+            datasets = self.get_datasets()
+            
+            # Root pool datasets are those that match pool names exactly
+            root_datasets = []
+            for pool in pools:
+                if pool in datasets:
+                    root_datasets.append(pool)
+            
+            log_info(f"Identified {len(root_datasets)} root pool datasets to filter: {root_datasets}")
+            return root_datasets
+            
+        except Exception as e:
+            error_msg = f"Error identifying root pool datasets: {str(e)}"
+            log_error(error_msg)
+            return []
+
+    def get_filtered_datasets(self) -> List[str]:
+        """
+        Get list of ZFS datasets filtered to exclude root pool datasets.
+        
+        Returns:
+            List of dataset names suitable for user operations
+        """
+        try:
+            all_datasets = self.get_datasets()
+            root_datasets = self.get_root_pool_datasets()
+            
+            # Filter out root pool datasets
+            filtered_datasets = [dataset for dataset in all_datasets 
+                               if dataset not in root_datasets]
+            
+            log_info(f"Filtered {len(all_datasets)} datasets to {len(filtered_datasets)} user-selectable datasets")
+            return filtered_datasets
+            
+        except Exception as e:
+            error_msg = f"Error filtering datasets: {str(e)}"
+            log_error(error_msg)
+            return []
     
     def get_dataset_properties(self, dataset_name: str) -> dict:
         """
@@ -67,7 +148,7 @@ class ZFSCore:
             log_info(f"Getting properties for dataset: {dataset_name}")
             
             result = subprocess.run(
-                ['zfs', 'get', '-H', '-p', 'all', dataset_name],
+                ['zfs', 'get', '-H', 'all', dataset_name],
                 capture_output=True, text=True, check=True
             )
             
@@ -103,7 +184,7 @@ class ZFSCore:
             List of ZFSSnapshot objects
         """
         try:
-            cmd = ['zfs', 'list', '-H', '-t', 'snapshot', '-o', 'name,creation,used,refer']
+            cmd = ['zfs', 'list', '-H', '-t', 'snapshot', '-o', 'name,creation,used,referenced']
             if dataset:
                 cmd.append(dataset)
                 log_info(f"Getting snapshots for dataset: {dataset}")
@@ -121,20 +202,26 @@ class ZFSCore:
                         if '@' in full_name:
                             dataset_name, snapshot_name = full_name.split('@', 1)
                             
-                            # Parse creation time
+                            # Parse creation time - ZFS returns human-readable format
+                            creation_str = parts[1]
                             try:
-                                creation_timestamp = int(parts[1])
-                                creation_date = datetime.datetime.fromtimestamp(creation_timestamp)
-                            except (ValueError, TypeError):
-                                creation_date = parts[1]  # Keep as string if parsing fails
+                                # Try parsing various ZFS date formats
+                                # Common format: "Wed Jun 04 10:30 2025"
+                                creation_date = datetime.datetime.strptime(creation_str, "%a %b %d %H:%M %Y")
+                            except ValueError:
+                                try:
+                                    # Alternative format with seconds: "Wed Jun 04 10:30:45 2025"
+                                    creation_date = datetime.datetime.strptime(creation_str, "%a %b %d %H:%M:%S %Y")
+                                except ValueError:
+                                    # Keep as string if parsing fails
+                                    creation_date = creation_str
                             
                             snapshot = ZFSSnapshot(
                                 name=snapshot_name,
-                                dataset=dataset_name,
-                                full_name=full_name,
                                 creation_date=creation_date,
-                                used_space=parts[2],
-                                referenced_space=parts[3]
+                                dataset=dataset_name,
+                                used=parts[2],
+                                referenced=parts[3]
                             )
                             snapshots.append(snapshot)
             
@@ -181,7 +268,7 @@ class ZFSCore:
                 'snapshot_full_name': snapshot_full_name
             })
             
-            success, result = privilege_manager.run_privileged_command([
+            success, result = self.privilege_manager.run_privileged_command([
                 'zfs', 'snapshot', snapshot_full_name
             ])
             
@@ -240,7 +327,7 @@ class ZFSCore:
                 'snapshot_full_name': snapshot_full_name
             })
             
-            success, result = privilege_manager.run_privileged_command([
+            success, result = self.privilege_manager.run_privileged_command([
                 'zfs', 'destroy', snapshot_full_name
             ])
             
@@ -306,7 +393,7 @@ class ZFSCore:
                 cmd.append('-r')
             cmd.append(snapshot_full_name)
             
-            success, result = privilege_manager.run_privileged_command(cmd)
+            success, result = self.privilege_manager.run_privileged_command(cmd)
             
             if not success:
                 log_error(f"Failed to rollback to snapshot: {snapshot_full_name}", {
@@ -369,7 +456,7 @@ class ZFSCore:
                 'target_name': target_name
             })
             
-            success, result = privilege_manager.run_privileged_command([
+            success, result = self.privilege_manager.run_privileged_command([
                 'zfs', 'clone', snapshot_full_name, target_name
             ])
             
@@ -460,7 +547,8 @@ class ZFSCore:
                 
                 if should_delete:
                     snapshots_to_delete.append(snapshot)
-              if not snapshots_to_delete:
+            
+            if not snapshots_to_delete:
                 return True, f"No snapshots to clean up for dataset {dataset}"
             
             # Prepare batch deletion commands to reduce pkexec prompts
@@ -471,7 +559,7 @@ class ZFSCore:
             log_info(f"Deleting {len(snapshots_to_delete)} old snapshots in batch for dataset {dataset}")
             
             # Execute batch deletion
-            success, batch_result = privilege_manager.run_batch_privileged_commands(delete_commands)
+            success, batch_result = self.privilege_manager.run_batch_privileged_commands(delete_commands)
             
             if success:
                 deleted_count = len(snapshots_to_delete)
@@ -547,7 +635,7 @@ class ZFSCore:
                 })
             
             # Execute batch operation
-            success, batch_result = privilege_manager.run_batch_privileged_commands(snapshot_commands)
+            success, batch_result = self.privilege_manager.run_batch_privileged_commands(snapshot_commands)
             
             if success:
                 # Log each successful snapshot creation for tracking
