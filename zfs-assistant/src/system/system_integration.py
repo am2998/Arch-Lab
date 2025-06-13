@@ -55,7 +55,6 @@ class SystemIntegration:
         try:
             log_info("Setting up systemd timers for automated snapshots", {
                 'schedules': schedules,
-                'config_hourly': self.config.get("hourly_schedule", []),
                 'config_daily': self.config.get("daily_schedule", []),
                 'config_weekly': self.config.get("weekly_schedule", False),
                 'config_monthly': self.config.get("monthly_schedule", False)
@@ -77,13 +76,9 @@ class SystemIntegration:
     def _setup_system_timers(self, schedules: Dict[str, bool]) -> Tuple[bool, str]:
         """Setup system-level systemd timers when running with elevated privileges."""
         # Validate configuration before creating timers
-        hourly_schedule = self.config.get("hourly_schedule", [])
         daily_schedule = self.config.get("daily_schedule", [])
         
-        # Check if schedules are enabled but have no hours/days selected
-        if schedules.get("hourly", False) and not hourly_schedule:
-            return False, "Hourly snapshots enabled but no hours selected. Please select at least one hour."
-        
+        # Check if schedules are enabled but have no days selected
         if schedules.get("daily", False) and not daily_schedule:
             return False, "Daily snapshots enabled but no days selected. Please select at least one day."
         
@@ -156,8 +151,7 @@ KillMode=process
             
             # Define timer file patterns for each schedule type (system-wide)
             timer_patterns = {
-                "hourly": ["/etc/systemd/system/zfs-snapshot-hourly.timer"],
-                "daily": ["/etc/systemd/system/zfs-snapshot-daily.timer"],  # Single daily timer file
+                "daily": ["/etc/systemd/system/zfs-snapshot-daily.timer"], 
                 "weekly": ["/etc/systemd/system/zfs-snapshot-weekly.timer"],
                 "monthly": ["/etc/systemd/system/zfs-snapshot-monthly.timer"]
             }
@@ -206,7 +200,6 @@ KillMode=process
         """Check actual systemd timer status to determine if schedules are really active."""
         try:
             status = {
-                "hourly": False,
                 "daily": False,
                 "weekly": False,
                 "monthly": False
@@ -214,7 +207,6 @@ KillMode=process
             
             # Check if system timer files exist and are active
             timer_patterns = {
-                "hourly": ["/etc/systemd/system/zfs-snapshot-hourly.timer"],  # Single hourly timer file
                 "daily": ["/etc/systemd/system/zfs-snapshot-daily.timer"],  # Single daily timer file
                 "weekly": ["/etc/systemd/system/zfs-snapshot-weekly.timer"],
                 "monthly": ["/etc/systemd/system/zfs-snapshot-monthly.timer"]
@@ -247,7 +239,6 @@ KillMode=process
             log_warning(f"Error checking schedule status: {str(e)}")
             # Fallback to config-based status if systemctl check fails
             return {
-                "hourly": bool(self.config.get("hourly_schedule", [])),
                 "daily": bool(self.config.get("daily_schedule", [])),
                 "weekly": bool(self.config.get("weekly_schedule", False)),
                 "monthly": bool(self.config.get("monthly_schedule", False))
@@ -259,7 +250,6 @@ KillMode=process
         Internal method called during timer setup.
         """
         timer_patterns = [
-            "/etc/systemd/system/zfs-snapshot-hourly.timer",  # Single hourly timer file
             "/etc/systemd/system/zfs-snapshot-daily.timer",  # Single daily timer file
             "/etc/systemd/system/zfs-snapshot-weekly.timer",
             "/etc/systemd/system/zfs-snapshot-monthly.timer"
@@ -285,7 +275,7 @@ KillMode=process
         
         Args:
             include_current_timers: If True, also clean up current active timers
-                                    (hourly, daily, weekly, monthly)
+                                    (daily, weekly, monthly)
                                     
         Returns:
             (success, message) tuple
@@ -300,7 +290,6 @@ KillMode=process
             if include_current_timers:
                 log_info("Cleaning up current timer files")
                 current_timer_patterns = [
-                    "/etc/systemd/system/zfs-snapshot-hourly.timer",
                     "/etc/systemd/system/zfs-snapshot-daily.timer",
                     "/etc/systemd/system/zfs-snapshot-weekly.timer",
                     "/etc/systemd/system/zfs-snapshot-monthly.timer"
@@ -339,7 +328,7 @@ KillMode=process
                     # Skip active timer files that match the current naming convention
                     # unless include_current_timers is True
                     if not include_current_timers and any(file_path.endswith(x) for x in 
-                              ["hourly.timer", "daily.timer", "weekly.timer", "monthly.timer"]):
+                              ["daily.timer", "weekly.timer", "monthly.timer"]):
                         continue
                         
                     try:
@@ -407,42 +396,6 @@ KillMode=process
     def _create_optimized_system_timers(self, schedules: Dict[str, bool]):
         """Create optimized system timer files based on enabled schedules."""
         try:
-            # Hourly snapshots
-            if schedules.get("hourly", False):
-                hourly_schedule = self.config.get("hourly_schedule", [])
-                hourly_minute = self.config.get("hourly_minute", 0)
-                log_info(f"Creating hourly timer for hours: {hourly_schedule} at minute {hourly_minute}")
-                
-                # Validate that at least one hour is selected
-                if not hourly_schedule:
-                    log_error("Hourly schedule enabled but no hours selected")
-                    return
-                
-                # Create a single timer file with multiple OnCalendar entries
-                timer_content = "[Unit]\nDescription=ZFS Hourly Snapshot\n\n[Timer]\n"
-                
-                # Add one OnCalendar line for each selected hour
-                for hour in sorted(hourly_schedule):
-                    timer_content += f"OnCalendar=*-*-* {hour:02d}:{hourly_minute:02d}:00\n"
-                
-                timer_content += "Persistent=true\nUnit=zfs-snapshot@hourly.service\n\n[Install]\nWantedBy=timers.target\n"
-                timer_path = "/etc/systemd/system/zfs-snapshot-hourly.timer"
-                success, result = self.privilege_manager.create_script_privileged(
-                    timer_path, timer_content, executable=False
-                )
-                if success:
-                    # Enable and start system timer
-                    timer_name = "zfs-snapshot-hourly.timer"
-                    enable_success, enable_result = self.privilege_manager.run_privileged_command(['systemctl', 'enable', timer_name])
-                    start_success, start_result = self.privilege_manager.run_privileged_command(['systemctl', 'start', timer_name])
-                    
-                    if enable_success and start_success:
-                        log_success(f"Successfully enabled and started {timer_name}")
-                    else:
-                        log_error(f"Failed to enable/start {timer_name}: enable={enable_result}, start={start_result}")
-                else:
-                    log_error(f"Failed to create timer file {timer_path}: {result}")
-
             # Daily snapshots
             if schedules.get("daily", False):
                 daily_schedule = self.config.get("daily_schedule", [0, 1, 2, 3, 4])  # Weekdays
@@ -818,9 +771,7 @@ def create_scheduled_snapshot(interval):
         if HAS_LOGGING:
             logger = ZFSLogger()
             # Start scheduled operation with clear description
-            if interval == "hourly":
-                description = "Hourly Snapshot Creation"
-            elif interval == "daily":
+            if interval == "daily":
                 description = "Daily Snapshot Creation"
             elif interval == "weekly":
                 description = "Weekly Snapshot Creation"
@@ -938,6 +889,20 @@ def create_scheduled_snapshot(interval):
                 f.write(f"Timestamp: {timestamp}\n")
                 f.write(f"Datasets to snapshot: {datasets}\n")
         
+        
+        # Find ZFS command location
+        zfs_command = '/usr/bin/zfs'
+        if not os.path.exists(zfs_command):
+            # Try alternative locations
+            for zfs_path in ['/sbin/zfs', '/usr/sbin/zfs', '/usr/local/bin/zfs']:
+                if os.path.exists(zfs_path):
+                    zfs_command = zfs_path
+                    break
+        
+        if debug_log:
+            with open(debug_log, 'a') as f:
+                f.write(f"Using ZFS command: {zfs_command}\n")
+                f.write(f"ZFS command exists: {os.path.exists(zfs_command)}\n")
         
         # Log essential details
         if logger:
@@ -1097,3 +1062,48 @@ if __name__ == "__main__":
         print("Usage: zfs-assistant-systemd.py <interval>")
         sys.exit(1)
 '''
+    
+    def _ensure_system_config(self) -> Tuple[bool, str]:
+        """Ensure configuration is available in system location for systemd scripts."""
+        try:
+            # Find the current config file location
+            config_locations = [
+                CONFIG_FILE,  # From common.py
+                os.path.expanduser("~/.config/zfs-assistant/config.json"),
+                os.path.expanduser("~/.local/share/zfs-assistant/config.json"),
+                "/etc/zfs-assistant/config.json"
+            ]
+            
+            source_config = None
+            for location in config_locations:
+                if os.path.exists(location):
+                    source_config = location
+                    break
+            
+            if not source_config:
+                return False, "No configuration file found to copy"
+            
+            # Target system location
+            target_config_dir = "/etc/zfs-assistant"
+            target_config_file = os.path.join(target_config_dir, "config.json")
+            
+            # Read the current config
+            try:
+                with open(source_config, 'r') as f:
+                    config_content = f.read()
+            except Exception as e:
+                return False, f"Failed to read config file: {str(e)}"
+            
+            # Create target directory and config file with elevated privileges
+            success, result = self.privilege_manager.create_script_privileged(
+                target_config_file, config_content, executable=False
+            )
+            
+            if not success:
+                return False, f"Failed to create system config: {result}"
+            
+            log_info(f"Successfully copied config from {source_config} to {target_config_file}")
+            return True, f"Config copied to {target_config_file}"
+            
+        except Exception as e:
+            return False, f"Error ensuring system config: {str(e)}"

@@ -1212,8 +1212,7 @@ class MainWindow(Gtk.ApplicationWindow):
             schedule_status = "on" if any(actual_schedule_status.values()) else "off"
         except Exception as e:
             # Fallback to config-based status if timer status check fails
-            schedule_status = "on" if (config.get("hourly_schedule", []) or 
-                                     config.get("daily_schedule", []) or
+            schedule_status = "on" if (config.get("daily_schedule", []) or
                                      config.get("weekly_schedule", False) or 
                                      config.get("monthly_schedule", False)) else "off"
                                  
@@ -1247,30 +1246,6 @@ class MainWindow(Gtk.ApplicationWindow):
         """Calculate the time until the next scheduled snapshot"""
         now = datetime.datetime.now()
         next_times = []
-        
-        # Check hourly schedule
-        hourly_schedule = config.get("hourly_schedule", [])
-        hourly_minute = config.get("hourly_minute", 0)
-        if hourly_schedule:
-            current_hour = now.hour
-            current_minute = now.minute
-            next_hour = None
-            
-            # Find the next scheduled hour
-            for hour in sorted(hourly_schedule):
-                if hour > current_hour or (hour == current_hour and hourly_minute > current_minute):
-                    next_hour = hour
-                    break
-            
-            # If no next hour found today, get the first hour for tomorrow
-            if next_hour is None and hourly_schedule:
-                next_hour = min(hourly_schedule)
-                next_time = now.replace(hour=next_hour, minute=hourly_minute, second=0, microsecond=0) + datetime.timedelta(days=1)
-            else:
-                next_time = now.replace(hour=next_hour, minute=hourly_minute, second=0, microsecond=0)
-            
-            if next_hour is not None:
-                next_times.append(next_time)
         
         # Check daily schedule
         daily_schedule = config.get("daily_schedule", [])
@@ -1373,7 +1348,6 @@ class MainWindow(Gtk.ApplicationWindow):
             config = self.zfs_assistant.config
             settings_data = {
                 'auto_snapshot': config.get('auto_snapshot', False),
-                'hourly_schedule': config.get('hourly_schedule', []),
                 'daily_schedule': config.get('daily_schedule', []),
                 'weekly_schedule': config.get('weekly_schedule', False),
                 'monthly_schedule': config.get('monthly_schedule', False),

@@ -15,7 +15,6 @@ class ScheduleSettingsTab:
         self.config = parent_dialog.config
         
         # Initialize collections for controls
-        self.hour_checks = {}
         self.day_checks = {}
         
         # Build the schedule settings UI
@@ -61,7 +60,7 @@ class ScheduleSettingsTab:
         # Add explanation text
         explanation_label = Gtk.Label(
             label="Choose one schedule type below. Only one schedule type can be active at a time. "
-                  "For hourly and daily snapshots, you can select multiple hours or days within that type. "
+                  "For daily snapshots, you can select multiple days within that type. "
                   "System updates (pacman -Syu) will be executed automatically during scheduled snapshots."
         )
         
@@ -171,9 +170,6 @@ class ScheduleSettingsTab:
         schedule_types_box.set_margin_end(10)
         schedule_frame.set_child(schedule_types_box)
         
-        # Hourly snapshots
-        self._create_hourly_section(schedule_types_box)
-        
         # Daily snapshots
         self._create_daily_section(schedule_types_box)
         
@@ -182,73 +178,6 @@ class ScheduleSettingsTab:
         
         # Monthly snapshots
         self._create_monthly_section(schedule_types_box)
-    
-    def _create_hourly_section(self, parent):
-        """Create hourly snapshots configuration"""
-        hourly_section = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=5)
-        hourly_header = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
-        self.hourly_check = Gtk.CheckButton(label="Hourly Snapshots")
-        self.hourly_check.connect("toggled", self.on_schedule_type_toggled)
-        hourly_header.append(self.hourly_check)
-        
-        # Minutes selection for hourly snapshots
-        hourly_header.append(Gtk.Label(label="at minute:"))
-        self.hourly_minute_spin = Gtk.SpinButton.new_with_range(0, 59, 1)
-        self.hourly_minute_spin.set_value(self.config.get("hourly_minute", 0))
-        self.hourly_minute_spin.connect("value-changed", self.update_snapshot_preview)
-        self.hourly_minute_spin.connect("value-changed", self.update_hourly_labels)
-        hourly_header.append(self.hourly_minute_spin)
-        
-        hourly_section.append(hourly_header)
-        
-        # Add explanation for hourly
-        hourly_explanation = Gtk.Label(label="Select the specific hours when snapshots should be taken")
-        hourly_explanation.set_margin_start(0)  # Align with frame content
-        hourly_explanation.set_halign(Gtk.Align.START)
-        hourly_explanation.add_css_class("dim-label")
-        hourly_section.append(hourly_explanation)
-        
-        # Hours selection grid
-        self.hourly_grid = Gtk.Grid()
-        self.hourly_grid.set_column_homogeneous(True)
-        self.hourly_grid.set_row_spacing(3)  # Reduced row spacing for more compact layout
-        self.hourly_grid.set_column_spacing(8)  # Slightly reduced column spacing
-        self.hourly_grid.set_margin_start(0)  # Align with frame content
-        
-        # Hour selection button box
-        hourly_button_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
-        hourly_button_box.set_margin_bottom(5)
-        hourly_button_box.set_margin_start(0)  # Align with frame content
-        
-        self.hourly_select_all_button = Gtk.Button(label="Select All Hours")
-        self.hourly_select_all_button.connect("clicked", self.on_hourly_select_all_clicked)
-        hourly_button_box.append(self.hourly_select_all_button)
-        
-        self.hourly_select_none_button = Gtk.Button(label="Clear Hours")
-        self.hourly_select_none_button.connect("clicked", self.on_hourly_select_none_clicked)
-        hourly_button_box.append(self.hourly_select_none_button)
-        
-        hourly_section.append(hourly_button_box)
-        
-        # Create hour checkboxes
-        hourly_schedule = self.config.get("hourly_schedule", [])
-        
-        for hour in range(24):
-            row = hour // 12  # 12 hours per row instead of 6 (more horizontal)
-            col = hour % 12
-            minute_value = self.config.get("hourly_minute", 0)
-            hour_label = f"{hour:02d}:{minute_value:02d}"  # Show actual minute value
-            check = Gtk.CheckButton(label=hour_label)
-            check.set_active(hour in hourly_schedule)
-            check.connect("toggled", self.update_snapshot_preview)  # Connect to preview update
-            self.hour_checks[hour] = check
-            self.hourly_grid.attach(check, col, row, 1, 1)
-        
-        hourly_section.append(self.hourly_grid)
-        parent.append(hourly_section)
-        
-        # Add a separator
-        parent.append(Gtk.Separator(orientation=Gtk.Orientation.HORIZONTAL))
     
     def _create_daily_section(self, parent):
         """Create daily snapshots configuration"""
@@ -383,78 +312,58 @@ class ScheduleSettingsTab:
         retention_grid.set_column_homogeneous(True)  # Make columns equal width
         retention_box.append(retention_grid)
         
-        # Hourly retention (row 0, col 0)
-        hourly_label = Gtk.Label(label="Hourly:")
-        hourly_label.set_halign(Gtk.Align.START)
-        retention_grid.attach(hourly_label, 0, 0, 1, 1)
-        self.hourly_spin = Gtk.SpinButton.new_with_range(1, 100, 1)
-        self.hourly_spin.set_value(self.config.get("snapshot_retention", {}).get("hourly", 24))
-        retention_grid.attach(self.hourly_spin, 1, 0, 1, 1)
-        
-        # Daily retention (row 0, col 2)
+        # Daily retention (row 0, col 0)
         daily_label = Gtk.Label(label="Daily:")
         daily_label.set_halign(Gtk.Align.START)
-        retention_grid.attach(daily_label, 2, 0, 1, 1)
+        retention_grid.attach(daily_label, 0, 0, 1, 1)
         self.daily_spin = Gtk.SpinButton.new_with_range(1, 100, 1)
         self.daily_spin.set_value(self.config.get("snapshot_retention", {}).get("daily", 7))
-        retention_grid.attach(self.daily_spin, 3, 0, 1, 1)
+        retention_grid.attach(self.daily_spin, 1, 0, 1, 1)
         
-        # Weekly retention (row 1, col 0)
+        # Weekly retention (row 0, col 2)
         weekly_label = Gtk.Label(label="Weekly:")
         weekly_label.set_halign(Gtk.Align.START)
-        retention_grid.attach(weekly_label, 0, 1, 1, 1)
+        retention_grid.attach(weekly_label, 2, 0, 1, 1)
         self.weekly_spin = Gtk.SpinButton.new_with_range(1, 100, 1)
         self.weekly_spin.set_value(self.config.get("snapshot_retention", {}).get("weekly", 4))
-        retention_grid.attach(self.weekly_spin, 1, 1, 1, 1)
+        retention_grid.attach(self.weekly_spin, 3, 0, 1, 1)
         
-        # Monthly retention (row 1, col 2)
+        # Monthly retention (row 1, col 0)
         monthly_label = Gtk.Label(label="Monthly:")
         monthly_label.set_halign(Gtk.Align.START)
-        retention_grid.attach(monthly_label, 2, 1, 1, 1)
+        retention_grid.attach(monthly_label, 0, 1, 1, 1)
         self.monthly_spin = Gtk.SpinButton.new_with_range(1, 100, 1)
         self.monthly_spin.set_value(self.config.get("snapshot_retention", {}).get("monthly", 12))
-        retention_grid.attach(self.monthly_spin, 3, 1, 1, 1)
+        retention_grid.attach(self.monthly_spin, 1, 1, 1, 1)
     
     def _set_initial_schedule_state(self):
         """Set initial state of schedule sections"""
         # Set initial state of schedule sections - only one can be active
-        hourly_has_hours = bool(self.config.get("hourly_schedule", []))
         daily_has_days = bool(self.config.get("daily_schedule", []))
         weekly_enabled = self.config.get("weekly_schedule", False)
         monthly_enabled = self.config.get("monthly_schedule", False)
         
-        # Determine which schedule type should be active (priority: hourly > daily > weekly > monthly)
-        if hourly_has_hours:
-            self.hourly_check.set_active(True)
-            self.daily_check.set_active(False)
-            self.weekly_check.set_active(False)
-            self.monthly_check.set_active(False)
-        elif daily_has_days:
-            self.hourly_check.set_active(False)
+        # Determine which schedule type should be active (priority: daily > weekly > monthly)
+        if daily_has_days:
             self.daily_check.set_active(True)
             self.weekly_check.set_active(False)
             self.monthly_check.set_active(False)
         elif weekly_enabled:
-            self.hourly_check.set_active(False)
             self.daily_check.set_active(False)
             self.weekly_check.set_active(True)
             self.monthly_check.set_active(False)
         elif monthly_enabled:
-            self.hourly_check.set_active(False)
             self.daily_check.set_active(False)
             self.weekly_check.set_active(False)
             self.monthly_check.set_active(True)
         else:
             # No schedule active
-            self.hourly_check.set_active(False)
             self.daily_check.set_active(False)
             self.weekly_check.set_active(False)
             self.monthly_check.set_active(False)
         
         # Initialize sensitivity based on active schedule type
-        if self.hourly_check.get_active():
-            self.on_schedule_type_toggled(self.hourly_check)
-        elif self.daily_check.get_active():
+        if self.daily_check.get_active():
             self.on_schedule_type_toggled(self.daily_check)
         elif self.weekly_check.get_active():
             self.on_schedule_type_toggled(self.weekly_check)
@@ -462,42 +371,29 @@ class ScheduleSettingsTab:
             self.on_schedule_type_toggled(self.monthly_check)
         else:
             # No schedule active, disable all controls
-            for hour, check in self.hour_checks.items():
-                check.set_sensitive(False)
             for day, check in self.day_checks.items():
                 check.set_sensitive(False)
             self.daily_hour_spin.set_sensitive(False)
             self.daily_minute_spin.set_sensitive(False)
-            self.hourly_minute_spin.set_sensitive(False)
-            self.hourly_select_all_button.set_sensitive(False)
-            self.hourly_select_none_button.set_sensitive(False)
             self.daily_select_all_button.set_sensitive(False)
             self.daily_select_none_button.set_sensitive(False)
         
         # Initialize sensitivity based on auto-snapshot setting
         auto_snapshot_enabled = self.config.get("auto_snapshot", True)
         if not auto_snapshot_enabled:
-            self.hourly_check.set_sensitive(False)
             self.daily_check.set_sensitive(False)
             self.weekly_check.set_sensitive(False)
             self.monthly_check.set_sensitive(False)
             
             # Disable selection buttons when auto-snapshot is disabled
-            self.hourly_select_all_button.set_sensitive(False)
-            self.hourly_select_none_button.set_sensitive(False)
             self.daily_select_all_button.set_sensitive(False)
             self.daily_select_none_button.set_sensitive(False)
-            
-            # Disable all hour checkboxes
-            for check in self.hour_checks.values():
-                check.set_sensitive(False)
                 
             # Disable all day checkboxes and time selector
             for check in self.day_checks.values():
                 check.set_sensitive(False)
             self.daily_hour_spin.set_sensitive(False)
             self.daily_minute_spin.set_sensitive(False)
-            self.hourly_minute_spin.set_sensitive(False)
             
             # Disable snapshot naming fields
             self.prefix_entry.set_sensitive(False)
@@ -512,7 +408,7 @@ class ScheduleSettingsTab:
         import datetime
         
         # Safety check: ensure all required widgets exist
-        if not hasattr(self, 'preview_container') or not hasattr(self, 'hourly_check'):
+        if not hasattr(self, 'preview_container') or not hasattr(self, 'daily_check'):
             return
         
         # Clear existing previews
@@ -535,8 +431,6 @@ class ScheduleSettingsTab:
         # Generate examples for different snapshot types
         examples = []
         
-        if self.hourly_check.get_active():
-            examples.append(("Hourly", "hourly"))
         if self.daily_check.get_active():
             examples.append(("Daily", "daily"))
         if self.weekly_check.get_active():
@@ -564,45 +458,22 @@ class ScheduleSettingsTab:
             preview_label.add_css_class("dim-label")
             self.preview_container.append(preview_label)
     
-    def update_hourly_labels(self, widget=None):
-        """Update the hour checkbox labels when minute value changes"""
-        if not hasattr(self, 'hour_checks') or not hasattr(self, 'hourly_minute_spin'):
-            return
-            
-        minute_value = int(self.hourly_minute_spin.get_value())
-        
-        for hour, check in self.hour_checks.items():
-            new_label = f"{hour:02d}:{minute_value:02d}"
-            check.set_label(new_label)
-    
     def on_schedule_switch_toggled(self, widget, state):
         """Enable or disable all schedule widgets based on auto-snapshot toggle"""
         # Update sensitivity of all schedule-related widgets
-        self.hourly_check.set_sensitive(state)
         self.daily_check.set_sensitive(state)
         self.weekly_check.set_sensitive(state)
         self.monthly_check.set_sensitive(state)
         
-        # Update sensitivity of hourly buttons
-        self.hourly_select_all_button.set_sensitive(state)
-        self.hourly_select_none_button.set_sensitive(state)
-        
         # Update sensitivity of daily buttons
         self.daily_select_all_button.set_sensitive(state)
         self.daily_select_none_button.set_sensitive(state)
-        
-        # Update sensitivity of hourly grid
-        for check in self.hour_checks.values():
-            check.set_sensitive(state and self.hourly_check.get_active())
             
         # Update sensitivity of daily grid and time selector
         for check in self.day_checks.values():
             check.set_sensitive(state and self.daily_check.get_active())
         self.daily_hour_spin.set_sensitive(state and self.daily_check.get_active())
         self.daily_minute_spin.set_sensitive(state and self.daily_check.get_active())
-        
-        # Update sensitivity of hourly minute selector  
-        self.hourly_minute_spin.set_sensitive(state and self.hourly_check.get_active())
         
         # Update sensitivity of snapshot naming fields
         self.prefix_entry.set_sensitive(state)
@@ -616,32 +487,18 @@ class ScheduleSettingsTab:
             return  # Don't process deactivation
         
         # Deactivate all other schedule types
-        if button == self.hourly_check:
-            self.daily_check.set_active(False)
-            self.weekly_check.set_active(False)
-            self.monthly_check.set_active(False)
-        elif button == self.daily_check:
-            self.hourly_check.set_active(False)
+        if button == self.daily_check:
             self.weekly_check.set_active(False)
             self.monthly_check.set_active(False)
         elif button == self.weekly_check:
-            self.hourly_check.set_active(False)
             self.daily_check.set_active(False)
             self.monthly_check.set_active(False)
         elif button == self.monthly_check:
-            self.hourly_check.set_active(False)
             self.daily_check.set_active(False)
             self.weekly_check.set_active(False)
         
         # Update sensitivity based on which type is now active
         schedule_enabled = self.schedule_switch.get_active()
-        
-        # Hourly controls
-        for check in self.hour_checks.values():
-            check.set_sensitive(schedule_enabled and self.hourly_check.get_active())
-        self.hourly_minute_spin.set_sensitive(schedule_enabled and self.hourly_check.get_active())
-        self.hourly_select_all_button.set_sensitive(schedule_enabled and self.hourly_check.get_active())
-        self.hourly_select_none_button.set_sensitive(schedule_enabled and self.hourly_check.get_active())
         
         # Daily controls
         for check in self.day_checks.values():
@@ -653,16 +510,6 @@ class ScheduleSettingsTab:
         
         # Update preview
         self.update_snapshot_preview()
-    
-    def on_hourly_select_all_clicked(self, button):
-        """Select all hours"""
-        for check in self.hour_checks.values():
-            check.set_active(True)
-    
-    def on_hourly_select_none_clicked(self, button):
-        """Deselect all hours"""
-        for check in self.hour_checks.values():
-            check.set_active(False)
     
     def on_daily_select_all_clicked(self, button):
         """Select all days"""
@@ -694,20 +541,12 @@ class ScheduleSettingsTab:
         
         # Update schedule settings (only one type can be active)
         # Clear all schedule types first
-        config["hourly_schedule"] = []
         config["daily_schedule"] = []
         config["weekly_schedule"] = False
         config["monthly_schedule"] = False
         
         # Set the active schedule type
-        if self.hourly_check.get_active():
-            hourly_schedule = []
-            for hour, check in self.hour_checks.items():
-                if check.get_active():
-                    hourly_schedule.append(hour)
-            config["hourly_schedule"] = hourly_schedule
-            config["hourly_minute"] = int(self.hourly_minute_spin.get_value())
-        elif self.daily_check.get_active():
+        if self.daily_check.get_active():
             daily_schedule = []
             for day, check in self.day_checks.items():
                 if check.get_active():
@@ -722,7 +561,6 @@ class ScheduleSettingsTab:
         
         # Update retention policy
         config["snapshot_retention"] = {
-            "hourly": int(self.hourly_spin.get_value()),
             "daily": int(self.daily_spin.get_value()),
             "weekly": int(self.weekly_spin.get_value()),
             "monthly": int(self.monthly_spin.get_value())

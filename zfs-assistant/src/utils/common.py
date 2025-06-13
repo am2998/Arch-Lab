@@ -21,11 +21,10 @@ MIN_WINDOW_HEIGHT = 500
 DEFAULT_CONFIG = {
     "auto_snapshot": True,
     "snapshot_retention": {
-        "hourly": 24,
         "daily": 7,
         "weekly": 4,
         "monthly": 12
-    },    "hourly_schedule": [],  # No default hours - user must select
+    },    
     "daily_schedule": [0, 1, 2, 3, 4],    # Default to weekdays
     "daily_hour": 0,                      # Default hour for daily snapshots
     "weekly_schedule": True,              # Enable weekly by default

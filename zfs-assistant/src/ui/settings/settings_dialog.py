@@ -110,7 +110,6 @@ class SettingsDialog(Gtk.Dialog):
                         
                     # Setup systemd timers
                     schedules = {
-                        "hourly": self.config.get("hourly_schedule", []),
                         "daily": self.config.get("daily_schedule", []),
                         "weekly": self.config.get("weekly_schedule", False),
                         "monthly": self.config.get("monthly_schedule", False)
@@ -118,9 +117,6 @@ class SettingsDialog(Gtk.Dialog):
                     
                     # Additional validation for schedule configuration before timer setup
                     schedule_validation_errors = []
-                    if schedules["hourly"]:
-                        if not schedules["hourly"]:
-                            schedule_validation_errors.append("Hourly snapshots enabled but no hours selected.")
                     
                     if schedules["daily"]:
                         if not schedules["daily"]:
@@ -216,41 +212,24 @@ class SettingsDialog(Gtk.Dialog):
         # Only validate schedules if auto-snapshot is enabled
         if self.schedule_tab.schedule_switch.get_active():
             # First check if any schedule type is selected at all
-            hourly_enabled = self.schedule_tab.hourly_check.get_active()
             daily_enabled = self.schedule_tab.daily_check.get_active()
             weekly_enabled = self.schedule_tab.weekly_check.get_active()
             monthly_enabled = self.schedule_tab.monthly_check.get_active()
             
-            if not (hourly_enabled or daily_enabled or weekly_enabled or monthly_enabled):
+            if not (daily_enabled or weekly_enabled or monthly_enabled):
                 error_dialog = Gtk.MessageDialog(
                     transient_for=self,
                     modal=True,
                     message_type=Gtk.MessageType.ERROR,
                     buttons=Gtk.ButtonsType.OK,
                     text="No Schedule Type Selected",
-                    secondary_text="Scheduled snapshots are enabled, but no schedule type is selected. Please choose at least one schedule type (hourly, daily, weekly, or monthly) or disable scheduled snapshots."
+                    secondary_text="Scheduled snapshots are enabled, but no schedule type is selected. Please choose at least one schedule type (daily, weekly, or monthly) or disable scheduled snapshots."
                 )
                 error_dialog.connect("response", lambda d, r: d.destroy())
                 error_dialog.present()
                 return False
-            
-            # Validate schedules - ensure at least one hour/day is selected if the schedule is enabled
-            
-            # Check if any hours are selected for hourly schedule
-            if hourly_enabled:
-                selected_hours = [hour for hour, check in self.schedule_tab.hour_checks.items() if check.get_active()]
-                if not selected_hours:
-                    error_dialog = Gtk.MessageDialog(
-                        transient_for=self,
-                        modal=True,
-                        message_type=Gtk.MessageType.ERROR,
-                        buttons=Gtk.ButtonsType.OK,
-                        text="Invalid Schedule",
-                        secondary_text="Please select at least one hour for hourly snapshots, or choose a different schedule type."
-                    )
-                    error_dialog.connect("response", lambda d, r: d.destroy())
-                    error_dialog.present()
-                    return False
+                
+            # Validate schedules - ensure at least one day is selected if the schedule is enabled
             
             # Check if any days are selected for daily schedule
             if daily_enabled:

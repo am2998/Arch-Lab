@@ -702,16 +702,14 @@ class ZFSCore:
         This method is called by systemd timers and properly uses the streamlined logging system.
         
         Args:
-            interval: Type of scheduled snapshot (hourly, daily, weekly, monthly)
+            interval: Type of scheduled snapshot (daily, weekly, monthly)
             
         Returns:
             (success, message) tuple
         """
         try:
             # Start scheduled operation with proper logging
-            if interval == "hourly":
-                description = "Hourly Snapshot Creation"
-            elif interval == "daily":
+            if interval == "daily":
                 description = "Daily Snapshot Creation"
             elif interval == "weekly":
                 description = "Weekly Snapshot Creation"

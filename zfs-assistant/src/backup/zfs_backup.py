@@ -275,7 +275,7 @@ class ZFSBackup:
         Args:
             datasets: List of datasets to back up
             target_pool: Target pool for backups
-            schedule_type: Type of schedule (hourly, daily, weekly, monthly)
+            schedule_type: Type of schedule (daily, weekly, monthly)
             
         Returns:
             (success, message) tuple
