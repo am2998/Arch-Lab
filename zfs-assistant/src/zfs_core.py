@@ -7,7 +7,7 @@ import datetime
 from typing import List, Optional, Tuple
 from .models import ZFSSnapshot
 from .logger import (
-    OperationType, get_logger,
+    OperationType, LogLevel, get_logger,
     log_info, log_error, log_success, log_warning
 )
 from .common import get_timestamp
@@ -677,4 +677,83 @@ class ZFSCore:
             })
             if 'operation_id' in locals():
                 self.logger.end_operation(operation_id, False, {'error': error_msg})
+            return False, error_msg
+    
+    def create_scheduled_snapshot(self, interval: str) -> Tuple[bool, str]:
+        """
+        Create scheduled snapshots for all configured datasets with streamlined logging.
+        This method is called by systemd timers and properly uses the streamlined logging system.
+        
+        Args:
+            interval: Type of scheduled snapshot (hourly, daily, weekly, monthly)
+            
+        Returns:
+            (success, message) tuple
+        """
+        try:
+            # Start scheduled operation with proper logging
+            if interval == "hourly":
+                description = "Hourly Snapshot Creation"
+            elif interval == "daily":
+                description = "Daily Snapshot Creation"
+            elif interval == "weekly":
+                description = "Weekly Snapshot Creation"
+            elif interval == "monthly":
+                description = "Monthly Snapshot Creation"
+            else:
+                description = f"{interval.capitalize()} Snapshot Creation"
+            
+            self.logger.start_scheduled_operation(OperationType.SCHEDULED_SNAPSHOT, description)
+            
+            # Get configured datasets
+            datasets = self.config.get("datasets", [])
+            if not datasets:
+                self.logger.log_essential_message(LogLevel.INFO, "No datasets configured for snapshots")
+                self.logger.end_scheduled_operation(True, "No datasets to snapshot")
+                return True, "No datasets configured"
+            
+            # Generate snapshot name
+            timestamp = get_timestamp()
+            prefix = self.config.get("prefix", "zfs-assistant")
+            snapshot_name = f"{prefix}-{interval}-{timestamp}"
+            
+            # Log essential details
+            self.logger.log_essential_message(LogLevel.INFO, f"Creating {interval} snapshots for {len(datasets)} datasets")
+            
+            # Create batch snapshots
+            batch_commands = []
+            for dataset in datasets:
+                snapshot_full_name = f"{dataset}@{snapshot_name}"
+                batch_commands.append(['zfs', 'snapshot', snapshot_full_name])
+            
+            # Execute batch operation with elevated privileges
+            success, batch_result = self.privilege_manager.run_batch_privileged_commands(batch_commands)
+            
+            if success:
+                # Log individual successful snapshots
+                for dataset in datasets:
+                    snapshot_full_name = f"{dataset}@{snapshot_name}"
+                    self.logger.log_snapshot_operation('create', dataset, snapshot_name, True)
+                    self.logger.log_essential_message(LogLevel.SUCCESS, f"Created snapshot: {snapshot_full_name}")
+                
+                success_msg = f"Successfully created {len(datasets)} {interval} snapshots"
+                self.logger.log_essential_message(LogLevel.SUCCESS, success_msg)
+                self.logger.end_scheduled_operation(True, f"Created {len(datasets)} snapshots successfully")
+                return True, success_msg
+            else:
+                # Log all as failed since it was a batch operation
+                for dataset in datasets:
+                    snapshot_full_name = f"{dataset}@{snapshot_name}"
+                    self.logger.log_snapshot_operation('create', dataset, snapshot_name, False, {'error': batch_result})
+                    self.logger.log_essential_message(LogLevel.ERROR, f"Failed to create snapshot: {snapshot_full_name}")
+                
+                error_msg = f"Batch {interval} snapshot creation failed: {batch_result}"
+                self.logger.log_essential_message(LogLevel.ERROR, error_msg)
+                self.logger.end_scheduled_operation(False, error_msg)
+                return False, error_msg
+                
+        except Exception as e:
+            error_msg = f"Error during {interval} scheduled snapshot creation: {str(e)}"
+            self.logger.log_essential_message(LogLevel.ERROR, error_msg)
+            self.logger.end_scheduled_operation(False, error_msg)
             return False, error_msg

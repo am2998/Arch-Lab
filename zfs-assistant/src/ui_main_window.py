@@ -482,31 +482,34 @@ class MainWindow(Gtk.ApplicationWindow):
         row = Gtk.ListBoxRow()
         row.add_css_class("snapshot-row")
         
-        # Create a modern card-like container with even more compact spacing
-        card_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
-        card_box.set_margin_top(8)     # More compact
-        card_box.set_margin_bottom(8)  # More compact
-        card_box.set_margin_start(12)  # More compact
-        card_box.set_margin_end(12)    # More compact
+        # Create a modern card-like container with improved spacing and alignment
+        card_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=16)
+        card_box.set_margin_top(10)
+        card_box.set_margin_bottom(10) 
+        card_box.set_margin_start(16)
+        card_box.set_margin_end(16)
         
-        # Left side - Icon and main info with more compact spacing
-        left_section = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)  # Reduced from 16 to 12
+        # Left side - Icon and main info with consistent spacing
+        left_section = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=14)
         left_section.set_hexpand(True)
+        left_section.set_halign(Gtk.Align.FILL)
         
-        # Snapshot icon with modern styling (slightly smaller)
+        # Snapshot icon with consistent styling
         snapshot_icon = Gtk.Image.new_from_icon_name("camera-photo-symbolic")
-        snapshot_icon.set_size_request(20, 20)  # Reduced from 24x24 to 20x20
+        snapshot_icon.set_size_request(22, 22)
         snapshot_icon.add_css_class("snapshot-icon")
         left_section.append(snapshot_icon)
         
-        # Info container with reduced spacing
-        info_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)  # Reduced from 6 to 4
+        # Info container with consistent spacing
+        info_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
         info_box.set_hexpand(True)
+        info_box.set_halign(Gtk.Align.FILL)
         
         # Snapshot name (primary, larger)
         name_label = Gtk.Label()
         name_label.set_markup(f"<span size='large' weight='600'>{snapshot.name}</span>")
         name_label.set_xalign(0)
+        name_label.set_halign(Gtk.Align.START)
         name_label.add_css_class("snapshot-title")
         info_box.append(name_label)
         
@@ -514,58 +517,66 @@ class MainWindow(Gtk.ApplicationWindow):
         dataset_label = Gtk.Label()
         dataset_label.set_markup(f"<span alpha='70%' size='small'>{snapshot.dataset}</span>")
         dataset_label.set_xalign(0)
+        dataset_label.set_halign(Gtk.Align.START)
         dataset_label.add_css_class("snapshot-subtitle")
         info_box.append(dataset_label)
         
         left_section.append(info_box)
         card_box.append(left_section)
         
-        # Right side - Metadata with more compact layout
-        right_section = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)  # Reduced from 6 to 4
+        # Right side - Metadata with consistent alignment and spacing
+        right_section = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
         right_section.set_halign(Gtk.Align.END)
         right_section.set_valign(Gtk.Align.CENTER)
+        right_section.set_size_request(160, -1)  # Set minimum width for consistent alignment
         
         # Remote backup indicator (if applicable)
         if hasattr(snapshot, 'has_remote_backup') and snapshot.has_remote_backup:
-            remote_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=4)
+            remote_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
             remote_box.set_halign(Gtk.Align.END)
+            remote_box.set_size_request(160, -1)  # Match parent width
             remote_icon = Gtk.Image.new_from_icon_name("network-server-symbolic")
-            remote_icon.set_size_request(12, 12)
+            remote_icon.set_size_request(14, 14)
             remote_icon.add_css_class("metadata-icon")
             remote_icon.add_css_class("remote-backup")
             remote_box.append(remote_icon)
             
             remote_label = Gtk.Label()
             remote_label.set_text("Remote")
+            remote_label.set_xalign(1.0)  # Right-align text
             remote_label.add_css_class("metadata-text")
             remote_label.add_css_class("remote-backup")
             remote_box.append(remote_label)
             right_section.append(remote_box)
         
-        # Creation date with icon (more compact)
-        date_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=4)  # Reduced from 6 to 4
+        # Creation date with icon - consistent layout
+        date_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
         date_box.set_halign(Gtk.Align.END)
+        date_box.set_size_request(160, -1)  # Match parent width
         date_icon = Gtk.Image.new_from_icon_name("x-office-calendar-symbolic")
-        date_icon.set_size_request(12, 12)  # Reduced from 14x14 to 12x12
+        date_icon.set_size_request(14, 14)  # Consistent icon size
         date_icon.add_css_class("metadata-icon")
         date_box.append(date_icon)
         
         date_label = Gtk.Label()
         date_label.set_text(snapshot.formatted_creation_date)
+        date_label.set_xalign(1.0)  # Right-align text
         date_label.add_css_class("metadata-text")
         date_box.append(date_label)
         right_section.append(date_box)
         
-        # Size info with icon (more compact)
-        size_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=4)  # Reduced from 6 to 4
+        # Size info with icon - consistent layout
+        size_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
         size_box.set_halign(Gtk.Align.END)
+        size_box.set_size_request(160, -1)  # Match parent width
         size_icon = Gtk.Image.new_from_icon_name("drive-harddisk-symbolic")
-        size_icon.set_size_request(12, 12)  # Reduced from 14x14 to 12x12
+        size_icon.set_size_request(14, 14)  # Consistent icon size
         size_icon.add_css_class("metadata-icon")
         size_box.append(size_icon)
         
         size_label = Gtk.Label()
         size_label.set_text(snapshot.formatted_used)
+        size_label.set_xalign(1.0)  # Right-align text
         size_label.add_css_class("metadata-text")
         size_box.append(size_label)
         right_section.append(size_box)
@@ -1201,7 +1212,9 @@ class MainWindow(Gtk.ApplicationWindow):
         schedule_enabled = schedule_status == "on"
         update_status = "on" if (update_config_enabled and schedule_enabled) else "off"
         
-        clean_status = "on" if config.get("clean_cache_after_updates", False) else "off"
+        # Clean cache status depends on BOTH system updates being enabled AND schedule being enabled
+        clean_config_enabled = config.get("clean_cache_after_updates", False)
+        clean_status = "on" if (clean_config_enabled and update_config_enabled and schedule_enabled) else "off"
         
         # Calculate time until next snapshot - only show if schedule is enabled
         next_snapshot_info = self._calculate_next_snapshot_time(config) if schedule_enabled else None
@@ -1224,22 +1237,24 @@ class MainWindow(Gtk.ApplicationWindow):
         
         # Check hourly schedule
         hourly_schedule = config.get("hourly_schedule", [])
+        hourly_minute = config.get("hourly_minute", 0)
         if hourly_schedule:
             current_hour = now.hour
+            current_minute = now.minute
             next_hour = None
             
             # Find the next scheduled hour
             for hour in sorted(hourly_schedule):
-                if hour > current_hour:
+                if hour > current_hour or (hour == current_hour and hourly_minute > current_minute):
                     next_hour = hour
                     break
             
             # If no next hour found today, get the first hour for tomorrow
             if next_hour is None and hourly_schedule:
                 next_hour = min(hourly_schedule)
-                next_time = now.replace(hour=next_hour, minute=0, second=0, microsecond=0) + datetime.timedelta(days=1)
+                next_time = now.replace(hour=next_hour, minute=hourly_minute, second=0, microsecond=0) + datetime.timedelta(days=1)
             else:
-                next_time = now.replace(hour=next_hour, minute=0, second=0, microsecond=0)
+                next_time = now.replace(hour=next_hour, minute=hourly_minute, second=0, microsecond=0)
             
             if next_hour is not None:
                 next_times.append(next_time)
@@ -1247,6 +1262,7 @@ class MainWindow(Gtk.ApplicationWindow):
         # Check daily schedule
         daily_schedule = config.get("daily_schedule", [])
         daily_hour = config.get("daily_hour", 0)
+        daily_minute = config.get("daily_minute", 0)
         
         if daily_schedule:
             current_day = now.weekday()  # 0 is Monday, 6 is Sunday
@@ -1266,7 +1282,7 @@ class MainWindow(Gtk.ApplicationWindow):
                 days_until_next = next_day - current_day
             
             # Calculate the datetime for the next daily snapshot
-            next_daily_time = now.replace(hour=daily_hour, minute=0, second=0, microsecond=0)
+            next_daily_time = now.replace(hour=daily_hour, minute=daily_minute, second=0, microsecond=0)
             
             # If the scheduled time for today has passed, add the days until next
             if days_until_next == 0 and now > next_daily_time:
@@ -1277,23 +1293,25 @@ class MainWindow(Gtk.ApplicationWindow):
         
         # Check weekly schedule
         if config.get("weekly_schedule", False):
-            # Assume weekly snapshots happen on Sunday at the daily hour
+            # Assume weekly snapshots happen on Sunday at the daily hour and minute
             current_day = now.weekday()
             days_until_sunday = 6 - current_day  # 6 is Sunday
-            if days_until_sunday == 0 and now.hour >= daily_hour:
+            weekly_time = now.replace(hour=daily_hour, minute=daily_minute, second=0, microsecond=0)
+            if days_until_sunday == 0 and now > weekly_time:
                 days_until_sunday = 7
             
-            next_weekly_time = now.replace(hour=daily_hour, minute=0, second=0, microsecond=0) + datetime.timedelta(days=days_until_sunday)
+            next_weekly_time = weekly_time + datetime.timedelta(days=days_until_sunday)
             next_times.append(next_weekly_time)
         
         # Check monthly schedule
         if config.get("monthly_schedule", False):
-            # Assume monthly snapshots happen on the 1st of each month at the daily hour
+            # Assume monthly snapshots happen on the 1st of each month at the daily hour and minute
             current_day = now.day
+            monthly_time = now.replace(hour=daily_hour, minute=daily_minute, second=0, microsecond=0)
             
-            if current_day == 1 and now.hour < daily_hour:
-                # It's the 1st and the scheduled hour hasn't passed yet
-                next_monthly_time = now.replace(day=1, hour=daily_hour, minute=0, second=0, microsecond=0)
+            if current_day == 1 and now < monthly_time:
+                # It's the 1st and the scheduled time hasn't passed yet
+                next_monthly_time = monthly_time
             else:
                 # Move to the 1st of next month
                 if now.month == 12:
@@ -1303,7 +1321,7 @@ class MainWindow(Gtk.ApplicationWindow):
                     next_month = now.month + 1
                     next_year = now.year
                 
-                next_monthly_time = datetime.datetime(year=next_year, month=next_month, day=1, hour=daily_hour, minute=0, second=0)
+                next_monthly_time = datetime.datetime(year=next_year, month=next_month, day=1, hour=daily_hour, minute=daily_minute, second=0)
             
             next_times.append(next_monthly_time)
         
@@ -1332,8 +1350,8 @@ class MainWindow(Gtk.ApplicationWindow):
         # Store previous settings hash to detect changes
         self._previous_settings_hash = None
         
-        # Start frequent status checks (every 5 seconds for immediate response)
-        GLib.timeout_add_seconds(5, self._check_for_settings_changes)
+        # Start frequent status checks (every 2 seconds for quick response)
+        GLib.timeout_add_seconds(2, self._check_for_settings_changes)
     
     def _check_for_settings_changes(self):
         """Check if settings have changed and update status immediately"""

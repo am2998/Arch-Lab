@@ -25,12 +25,15 @@ class SystemMaintenance:
     def run_system_update(self) -> Tuple[bool, str]:
         """
         Run system update using pacman -Syu.
+        Uses streamlined logging only if part of a scheduled operation.
         
         Returns:
             (success, message) tuple
         """
         try:
-            log_info("Starting system update", {'command': 'pacman -Syu --noconfirm'})
+            # Check if this is part of a scheduled operation
+            if hasattr(self.logger, 'current_operation') and self.logger.current_operation:
+                self.logger.log_essential_message(LogLevel.INFO, "Starting system update")
             
             success, result = self.privilege_manager.run_privileged_command([
                 'pacman', '-Syu', '--noconfirm'
@@ -38,29 +41,33 @@ class SystemMaintenance:
             
             if not success:
                 error_msg = f"System update failed: {result}"
-                log_error(error_msg, {'command_output': result})
-                self.logger.log_system_command(['pacman', '-Syu', '--noconfirm'], False, error=result)
+                if hasattr(self.logger, 'current_operation') and self.logger.current_operation:
+                    self.logger.log_essential_message(LogLevel.ERROR, error_msg)
                 return False, error_msg
             
             success_msg = "System update completed successfully"
-            log_success(success_msg)
-            self.logger.log_system_command(['pacman', '-Syu', '--noconfirm'], True)
+            if hasattr(self.logger, 'current_operation') and self.logger.current_operation:
+                self.logger.log_essential_message(LogLevel.SUCCESS, success_msg)
             return True, success_msg
             
         except Exception as e:
             error_msg = f"Error during system update: {str(e)}"
-            log_error(error_msg, {'exception': str(e)})
+            if hasattr(self.logger, 'current_operation') and self.logger.current_operation:
+                self.logger.log_essential_message(LogLevel.ERROR, error_msg)
             return False, error_msg
     
     def clean_package_cache(self) -> Tuple[bool, str]:
         """
         Clean package cache using pacman -Scc.
+        Uses streamlined logging only if part of a scheduled operation.
         
         Returns:
             (success, message) tuple
         """
         try:
-            log_info("Starting package cache cleanup", {'command': 'pacman -Scc --noconfirm'})
+            # Check if this is part of a scheduled operation
+            if hasattr(self.logger, 'current_operation') and self.logger.current_operation:
+                self.logger.log_essential_message(LogLevel.INFO, "Starting package cache cleanup")
             
             success, result = self.privilege_manager.run_privileged_command([
                 'pacman', '-Scc', '--noconfirm'
@@ -68,18 +75,53 @@ class SystemMaintenance:
             
             if not success:
                 error_msg = f"Cache cleaning failed: {result}"
-                log_error(error_msg, {'command_output': result})
-                self.logger.log_system_command(['pacman', '-Scc', '--noconfirm'], False, error=result)
+                if hasattr(self.logger, 'current_operation') and self.logger.current_operation:
+                    self.logger.log_essential_message(LogLevel.ERROR, error_msg)
                 return False, error_msg
             
             success_msg = "Package cache cleaned successfully"
-            log_success(success_msg)
-            self.logger.log_system_command(['pacman', '-Scc', '--noconfirm'], True)
+            if hasattr(self.logger, 'current_operation') and self.logger.current_operation:
+                self.logger.log_essential_message(LogLevel.SUCCESS, success_msg)
             return True, success_msg
             
         except Exception as e:
             error_msg = f"Error during cache cleaning: {str(e)}"
-            log_error(error_msg, {'exception': str(e)})
+            if hasattr(self.logger, 'current_operation') and self.logger.current_operation:
+                self.logger.log_essential_message(LogLevel.ERROR, error_msg)
+            return False, error_msg
+
+    def update_flatpak_packages(self) -> Tuple[bool, str]:
+        """
+        Update flatpak packages.
+        Uses streamlined logging only if part of a scheduled operation.
+        
+        Returns:
+            (success, message) tuple
+        """
+        try:
+            # Check if this is part of a scheduled operation
+            if hasattr(self.logger, 'current_operation') and self.logger.current_operation:
+                self.logger.log_essential_message(LogLevel.INFO, "Starting flatpak update")
+            
+            success, result = self.privilege_manager.run_privileged_command([
+                'flatpak', 'update', '-y'
+            ])
+            
+            if not success:
+                error_msg = f"Flatpak update failed: {result}"
+                if hasattr(self.logger, 'current_operation') and self.logger.current_operation:
+                    self.logger.log_essential_message(LogLevel.ERROR, error_msg)
+                return False, error_msg
+            
+            success_msg = "Flatpak packages updated successfully"
+            if hasattr(self.logger, 'current_operation') and self.logger.current_operation:
+                self.logger.log_essential_message(LogLevel.SUCCESS, success_msg)
+            return True, success_msg
+            
+        except Exception as e:
+            error_msg = f"Error during flatpak update: {str(e)}"
+            if hasattr(self.logger, 'current_operation') and self.logger.current_operation:
+                self.logger.log_essential_message(LogLevel.ERROR, error_msg)
             return False, error_msg
     
     def remove_orphaned_packages(self) -> Tuple[bool, str]:
@@ -133,46 +175,36 @@ class SystemMaintenance:
     
     def perform_system_maintenance(self, create_snapshot_before: bool = True, 
                                  run_update: bool = True, clean_cache: bool = True, 
-                                 remove_orphans: bool = True,
+                                 remove_orphans: bool = True, update_flatpak: bool = True,
                                  datasets: List[str] = None) -> Tuple[bool, str]:
         """
         Perform comprehensive system maintenance including snapshots, updates, and cleanup.
-        Uses batch command execution to minimize pkexec prompts.
+        Uses streamlined logging for essential scheduled operations.
         
         Args:
             create_snapshot_before: Whether to create snapshots before updates
             run_update: Whether to run system update
             clean_cache: Whether to clean package cache
             remove_orphans: Whether to remove orphaned packages
+            update_flatpak: Whether to update flatpak packages
             datasets: List of datasets to snapshot (if create_snapshot_before is True)
             
         Returns:
             (success, message) tuple with detailed results
         """
         try:
-            log_info("Starting comprehensive system maintenance", {
-                'create_snapshot_before': create_snapshot_before,
-                'run_update': run_update,
-                'clean_cache': clean_cache,
-                'remove_orphans': remove_orphans,
-                'datasets': datasets
-            })
-            
-            # Start operation tracking
-            operation_id = self.logger.start_operation(OperationType.SYSTEM_MAINTENANCE, {
-                'create_snapshot_before': create_snapshot_before,
-                'run_update': run_update,
-                'clean_cache': clean_cache,
-                'remove_orphans': remove_orphans,
-                'datasets': datasets or []
-            })
+            # Start scheduled operation with streamlined logging
+            self.logger.start_scheduled_operation(
+                OperationType.SYSTEM_MAINTENANCE, 
+                "System Maintenance - Updates and Cleanup"
+            )
             
             results = []
             overall_success = True
             
             # Step 1: Create snapshots before maintenance using batch operation
             if create_snapshot_before and datasets:
-                log_info("Creating pre-maintenance snapshots in batch")
+                self.logger.log_essential_message(LogLevel.INFO, "Creating pre-maintenance snapshots in batch")
                 snapshot_name = f"pre-maintenance-{self._get_timestamp()}"
                 
                 from .zfs_core import ZFSCore
@@ -205,58 +237,65 @@ class SystemMaintenance:
                     
                     if result.returncode == 0 and result.stdout.strip():
                         orphaned_packages = result.stdout.strip().split('\n')
-                        log_info(f"Found {len(orphaned_packages)} orphaned packages", {
-                            'orphaned_packages': orphaned_packages
-                        })
+                        self.logger.log_essential_message(LogLevel.INFO, f"Found {len(orphaned_packages)} orphaned packages")
                         pacman_commands.append(['pacman', '-Rns', '--noconfirm'] + orphaned_packages)
                         command_descriptions.append(f"Remove {len(orphaned_packages)} orphaned packages")
                     else:
                         results.append("Orphan removal: No orphaned packages found")
-                        log_success("No orphaned packages found")
+                        self.logger.log_essential_message(LogLevel.INFO, "No orphaned packages found")
                 except Exception as e:
-                    log_warning(f"Could not check for orphaned packages: {str(e)}")
+                    self.logger.log_essential_message(LogLevel.ERROR, f"Could not check for orphaned packages: {str(e)}")
                     results.append(f"Orphan removal: Failed to check - {str(e)}")
             
             # Execute all pacman commands in batch if any exist
             if pacman_commands:
-                log_info(f"Executing {len(pacman_commands)} maintenance commands in batch")
+                self.logger.log_essential_message(LogLevel.INFO, f"Executing {len(pacman_commands)} maintenance commands in batch")
                 success, batch_result = self.privilege_manager.run_batch_privileged_commands(pacman_commands)
                 
                 if success:
                     for description in command_descriptions:
                         results.append(f"{description}: Success")
-                        log_success(f"Maintenance operation completed: {description}")
-                        # Log individual commands for tracking
-                        if description == "System update":
-                            self.logger.log_system_command(['pacman', '-Syu', '--noconfirm'], True)
-                        elif description == "Cache cleanup":
-                            self.logger.log_system_command(['pacman', '-Scc', '--noconfirm'], True)
-                        elif "orphaned packages" in description:
-                            self.logger.log_system_command(['pacman', '-Rns', '--noconfirm'], True)
+                        self.logger.log_essential_message(LogLevel.SUCCESS, f"Maintenance operation completed: {description}")
                 else:
                     # If batch fails, mark all operations as failed
                     for description in command_descriptions:
                         results.append(f"{description}: Failed - {batch_result}")
-                        log_error(f"Maintenance operation failed: {description} - {batch_result}")
+                        self.logger.log_essential_message(LogLevel.ERROR, f"Maintenance operation failed: {description} - {batch_result}")
+                    overall_success = False
+            
+            # Step 5: Update flatpak packages separately
+            if update_flatpak:
+                self.logger.log_essential_message(LogLevel.INFO, "Updating flatpak packages")
+                try:
+                    success, result = self.privilege_manager.run_privileged_command(['flatpak', 'update', '-y'])
+                    if success:
+                        results.append("Flatpak update: Success")
+                        self.logger.log_essential_message(LogLevel.SUCCESS, "Flatpak packages updated successfully")
+                    else:
+                        results.append(f"Flatpak update: Failed - {result}")
+                        self.logger.log_essential_message(LogLevel.ERROR, f"Flatpak update failed: {result}")
+                        overall_success = False
+                except Exception as e:
+                    results.append(f"Flatpak update: Failed - {str(e)}")
+                    self.logger.log_essential_message(LogLevel.ERROR, f"Flatpak update error: {str(e)}")
                     overall_success = False
             
             # Compile final results
             final_message = "System maintenance completed. " + "; ".join(results)
             
             if overall_success:
-                log_success("System maintenance completed successfully")
-                self.logger.end_operation(operation_id, True, {'results': results})
+                self.logger.log_essential_message(LogLevel.SUCCESS, "System maintenance completed successfully")
+                self.logger.end_scheduled_operation(True, final_message)
                 return True, final_message
             else:
-                log_warning("System maintenance completed with some errors")
-                self.logger.end_operation(operation_id, False, {'results': results})
+                self.logger.log_essential_message(LogLevel.ERROR, "System maintenance completed with some errors")
+                self.logger.end_scheduled_operation(False, final_message)
                 return False, final_message
             
         except Exception as e:
             error_msg = f"Error during system maintenance: {str(e)}"
-            log_error(error_msg, {'exception': str(e)})
-            if 'operation_id' in locals():
-                self.logger.end_operation(operation_id, False, {'error': error_msg})
+            self.logger.log_essential_message(LogLevel.ERROR, error_msg)
+            self.logger.end_scheduled_operation(False, error_msg)
             return False, error_msg
     
     def optimize_system(self) -> Tuple[bool, str]:

@@ -247,7 +247,8 @@ User=root
             # Hourly snapshots
             if schedules.get("hourly", False):
                 hourly_schedule = self.config.get("hourly_schedule", [])
-                log_info(f"Creating hourly timer for hours: {hourly_schedule}")
+                hourly_minute = self.config.get("hourly_minute", 0)
+                log_info(f"Creating hourly timer for hours: {hourly_schedule} at minute {hourly_minute}")
                 
                 # Validate that at least one hour is selected
                 if not hourly_schedule:
@@ -259,7 +260,7 @@ User=root
                 
                 # Add one OnCalendar line for each selected hour
                 for hour in sorted(hourly_schedule):
-                    timer_content += f"OnCalendar=*-*-* {hour:02d}:00:00\n"
+                    timer_content += f"OnCalendar=*-*-* {hour:02d}:{hourly_minute:02d}:00\n"
                 
                 timer_content += "Persistent=true\nUnit=zfs-snapshot@hourly.service\n\n[Install]\nWantedBy=timers.target\n"
                 timer_path = "/etc/systemd/system/zfs-snapshot-hourly.timer"
@@ -283,9 +284,10 @@ User=root
             if schedules.get("daily", False):
                 daily_schedule = self.config.get("daily_schedule", [0, 1, 2, 3, 4])  # Weekdays
                 daily_hour = self.config.get("daily_hour", 0)
+                daily_minute = self.config.get("daily_minute", 0)
                 weekdays = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
                 
-                log_info(f"Creating daily timer for days: {daily_schedule} at hour {daily_hour}")
+                log_info(f"Creating daily timer for days: {daily_schedule} at {daily_hour:02d}:{daily_minute:02d}")
                 
                 # Validate that at least one day is selected
                 if not daily_schedule:
@@ -309,7 +311,7 @@ User=root
 Description=ZFS Daily Snapshot on {days_spec}
 
 [Timer]
-OnCalendar={days_spec} *-*-* {daily_hour:02d}:00:00
+OnCalendar={days_spec} *-*-* {daily_hour:02d}:{daily_minute:02d}:00
 Persistent=true
 Unit=zfs-snapshot@daily.service
 
@@ -465,17 +467,22 @@ import json
 import os
 import sys
 
+# Add the src directory to Python path to find our modules
+sys.path.insert(0, '/etc/zfs-assistant/src')
+
 # Try to import the logging system, fallback if not available
 try:
     from logger import ZFSLogger, OperationType, LogLevel
     HAS_LOGGING = True
 except ImportError:
     HAS_LOGGING = False
-    def log_operation_start(op_type, details): print(f"Starting operation: {details}")
-    def log_message(level, message, details=None): print(f"[{level}] {message}")
-    def log_operation_end(op_type, success, details=None, error_message=None):
+    def log_operation_start(op_type, details): 
+        print(f"Starting operation: {details}", flush=True)
+    def log_message(level, message, details=None): 
+        print(f"[{level}] {message}", flush=True)
+    def log_operation_end(success, details=None, error_message=None):
         status = "SUCCESS" if success else "FAILED"
-        print(f"Operation completed: {status}")
+        print(f"Operation completed: {status}", flush=True)
 
 def create_pre_pacman_snapshot():
     logger = None
@@ -490,7 +497,7 @@ def create_pre_pacman_snapshot():
             log_operation_start("PACMAN_INTEGRATION", "Pre-package transaction snapshot creation")
             operation_started = True
         
-                config_file = "/etc/zfs-assistant/config.json"
+        config_file = "/etc/zfs-assistant/config.json"
         
         if not os.path.exists(config_file):
             error_msg = f"Configuration file not found: {config_file}"
@@ -539,7 +546,7 @@ def create_pre_pacman_snapshot():
                 snapshot_name = f"{dataset}@{prefix}-pkgop-{timestamp}"
                 script_lines.append(f"zfs snapshot '{snapshot_name}'")
             
-            script_content = '\\n'.join(script_lines)
+            script_content = '\n'.join(script_lines)
             
             try:
                 # Esegui con privilegi (necessario per i comandi zfs)
@@ -591,17 +598,22 @@ import json
 import os
 import sys
 
+# Add the src directory to Python path to find our modules
+sys.path.insert(0, '/etc/zfs-assistant/src')
+
 # Try to import the logging system, fallback if not available
 try:
     from logger import ZFSLogger, OperationType, LogLevel
     HAS_LOGGING = True
 except ImportError:
     HAS_LOGGING = False
-    def log_operation_start(op_type, details): print(f"Starting operation: {details}")
-    def log_message(level, message, details=None): print(f"[{level}] {message}")
-    def log_operation_end(op_type, success, details=None, error_message=None):
+    def log_operation_start(op_type, details): 
+        print(f"Starting operation: {details}", flush=True)
+    def log_message(level, message, details=None): 
+        print(f"[{level}] {message}", flush=True)
+    def log_operation_end(success, details=None, error_message=None):
         status = "SUCCESS" if success else "FAILED"
-        print(f"Operation completed: {status}")
+        print(f"Operation completed: {status}", flush=True)
 
 def create_scheduled_snapshot(interval):
     logger = None
@@ -610,39 +622,96 @@ def create_scheduled_snapshot(interval):
     try:
         if HAS_LOGGING:
             logger = ZFSLogger()
-            logger.log_operation_start(OperationType.SCHEDULED_SNAPSHOT, f"Scheduled {interval} snapshot creation")
+            # Start scheduled operation with clear description
+            if interval == "hourly":
+                description = "Hourly Snapshot Creation"
+            elif interval == "daily":
+                description = "Daily Snapshot Creation"
+            elif interval == "weekly":
+                description = "Weekly Snapshot Creation"
+            elif interval == "monthly":
+                description = "Monthly Snapshot Creation"
+            else:
+                description = f"{interval.capitalize()} Snapshot Creation"
+            
+            logger.start_scheduled_operation(OperationType.SCHEDULED_SNAPSHOT, description)
             operation_started = True
         else:
-            log_operation_start("SCHEDULED_SNAPSHOT", f"Scheduled {interval} snapshot creation")
+            log_operation_start("SCHEDULED_SNAPSHOT", f"{interval} snapshot creation")
             operation_started = True
         
+        # Debug logging to file for troubleshooting
+        debug_log = f"/tmp/zfs-assistant-{interval}-debug.log"
+        with open(debug_log, 'a') as f:
+            f.write(f"\\n=== {datetime.datetime.now()} ===\\n")
+            f.write(f"Script started for interval: {interval}\\n")
+            f.write(f"HAS_LOGGING: {HAS_LOGGING}\\n")
+        
+        # Load configuration
         config_file = "/etc/zfs-assistant/config.json"
+        
+        # Debug: Check if config file exists
+        with open(debug_log, 'a') as f:
+            f.write(f"Checking config file: {config_file}\\n")
+            f.write(f"Config file exists: {os.path.exists(config_file)}\\n")
         
         if not os.path.exists(config_file):
             error_msg = f"Configuration file not found: {config_file}"
+            with open(debug_log, 'a') as f:
+                f.write(f"ERROR: {error_msg}\\n")
             if logger:
-                logger.log_error("Configuration file not found", {'config_file': config_file})
-                logger.log_operation_end(OperationType.SCHEDULED_SNAPSHOT, False, error_message=error_msg)
+                logger.log_essential_message(LogLevel.ERROR, error_msg)
+                logger.end_scheduled_operation(False, "Configuration file missing")
             else:
                 log_message("ERROR", error_msg)
-                log_operation_end("SCHEDULED_SNAPSHOT", False, error_message=error_msg)
-            return
+                log_operation_end(False, "Configuration file missing")
+            sys.exit(1)
         
-        with open(config_file, 'r') as f:
-            config = json.load(f)
+        try:
+            with open(config_file, 'r') as f:
+                config = json.load(f)
+            
+            with open(debug_log, 'a') as f:
+                f.write(f"Config loaded successfully\\n")
+                f.write(f"Datasets in config: {config.get('datasets', [])}\\n")
+        except Exception as e:
+            error_msg = f"Error reading config file: {str(e)}"
+            with open(debug_log, 'a') as f:
+                f.write(f"ERROR reading config: {error_msg}\\n")
+            if logger:
+                logger.log_essential_message(LogLevel.ERROR, error_msg)
+                logger.end_scheduled_operation(False, "Config read error")
+            else:
+                log_message("ERROR", error_msg)
+                log_operation_end(False, "Config read error")
+            sys.exit(1)
         
         datasets = config.get("datasets", [])
         if not datasets:
+            with open(debug_log, 'a') as f:
+                f.write("No datasets configured\\n")
             if logger:
-                logger.log_warning("No datasets configured for snapshots")
-                logger.log_operation_end(OperationType.SCHEDULED_SNAPSHOT, True, "No datasets configured")
+                logger.log_essential_message(LogLevel.INFO, "No datasets configured for snapshots")
+                logger.end_scheduled_operation(True, "No datasets to snapshot")
             else:
-                log_message("WARNING", "No datasets configured for snapshots")
-                log_operation_end("SCHEDULED_SNAPSHOT", True, "No datasets configured")
+                log_message("INFO", "No datasets configured for snapshots")
+                log_operation_end(True, "No datasets to snapshot")
             return
         
         timestamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
         prefix = config.get("prefix", "zfs-assistant")
+        
+        # Debug logging
+        with open(debug_log, 'a') as f:
+            f.write(f"Creating snapshots with prefix: {prefix}\\n")
+            f.write(f"Timestamp: {timestamp}\\n")
+            f.write(f"Datasets to snapshot: {datasets}\\n")
+        
+        # Log essential details
+        if logger:
+            logger.log_essential_message(LogLevel.INFO, f"Creating {interval} snapshots for {len(datasets)} datasets")
+        else:
+            log_message("INFO", f"Creating {interval} snapshots for {len(datasets)} datasets")
         
         # Create batch script for all snapshots
         batch_commands = []
@@ -657,43 +726,91 @@ def create_scheduled_snapshot(interval):
                 snapshot_name = f"{dataset}@{prefix}-{interval}-{timestamp}"
                 script_lines.append(f"zfs snapshot '{snapshot_name}'")
             
-            script_content = '\\n'.join(script_lines)
+            script_content = '\n'.join(script_lines)
+            
+            # Debug: Log the script content
+            with open(debug_log, 'a') as f:
+                f.write(f"Script content:\\n{script_content}\\n")
             
             try:
                 # Execute with elevated privileges (necessary for zfs commands)
+                with open(debug_log, 'a') as f:
+                    f.write("Executing zfs snapshot commands...\\n")
+                
                 result = subprocess.run(['bash', '-c', script_content], 
                                       check=True, capture_output=True, text=True)
                 
+                with open(debug_log, 'a') as f:
+                    f.write(f"Command output: {result.stdout}\\n")
+                    if result.stderr:
+                        f.write(f"Command stderr: {result.stderr}\\n")
+                
                 success_count = len(datasets)
+                with open(debug_log, 'a') as f:
+                    f.write(f"Successfully created {success_count} snapshots\\n")
+                
                 if logger:
-                    for dataset in datasets:
-                        snapshot_name = f"{prefix}-{interval}-{timestamp}"
-                        logger.log_snapshot_operation("create", dataset, snapshot_name, True)
-                    logger.log_success(f"All {interval} snapshots created successfully")
-                    logger.log_operation_end(OperationType.SCHEDULED_SNAPSHOT, True)
+                    logger.log_essential_message(LogLevel.SUCCESS, f"Successfully created {success_count} {interval} snapshots")
+                    logger.end_scheduled_operation(True, f"Created {success_count} snapshots successfully")
                 else:
                     log_message("SUCCESS", f"Created {success_count} {interval} snapshots")
-                    log_operation_end("SCHEDULED_SNAPSHOT", True)
+                    log_operation_end(True, f"Created {success_count} snapshots")
                 
             except subprocess.CalledProcessError as e:
                 error_msg = f"Failed to create {interval} snapshots: {e.stderr if e.stderr else str(e)}"
+                with open(debug_log, 'a') as f:
+                    f.write(f"ERROR: {error_msg}\\n")
+                    f.write(f"Return code: {e.returncode}\\n")
+                    if e.stdout:
+                        f.write(f"Stdout: {e.stdout}\\n")
+                    if e.stderr:
+                        f.write(f"Stderr: {e.stderr}\\n")
+                
                 if logger:
-                    logger.log_error(f"{interval.capitalize()} snapshot creation failed", {'error': error_msg})
-                    logger.log_operation_end(OperationType.SCHEDULED_SNAPSHOT, False, error_message=error_msg)
+                    logger.log_essential_message(LogLevel.ERROR, error_msg)
+                    logger.end_scheduled_operation(False, error_msg)
                 else:
                     log_message("ERROR", error_msg)
-                    log_operation_end("SCHEDULED_SNAPSHOT", False, error_message=error_msg)
+                    log_operation_end(False, error_msg)
                 sys.exit(1)
+            
+            except Exception as e:
+                error_msg = f"Unexpected error creating {interval} snapshots: {str(e)}"
+                with open(debug_log, 'a') as f:
+                    f.write(f"UNEXPECTED ERROR: {error_msg}\\n")
+                
+                if logger:
+                    logger.log_essential_message(LogLevel.ERROR, error_msg)
+                    logger.end_scheduled_operation(False, error_msg)
+                else:
+                    log_message("ERROR", error_msg)
+                    log_operation_end(False, error_msg)
+                sys.exit(1)
+        else:
+            with open(debug_log, 'a') as f:
+                f.write("No snapshots to create\\n")
+            if logger:
+                logger.log_essential_message(LogLevel.INFO, "No snapshots to create")
+                logger.end_scheduled_operation(True, "No snapshots needed")
+            else:
+                log_message("INFO", "No snapshots to create")
+                log_operation_end(True, "No snapshots needed")
     
     except Exception as e:
         error_msg = f"Error in {interval} snapshot script: {str(e)}"
+        try:
+            with open(debug_log, 'a') as f:
+                f.write(f"CRITICAL ERROR: {error_msg}\\n")
+        except:
+            pass  # If we can't write to debug log, continue anyway
+        
         if logger and operation_started:
-            logger.log_error(f"Critical error in {interval} snapshot execution", {'error': error_msg})
-            logger.log_operation_end(OperationType.SCHEDULED_SNAPSHOT, False, error_message=error_msg)
+            logger.log_essential_message(LogLevel.ERROR, error_msg)
+            logger.end_scheduled_operation(False, error_msg)
         else:
             log_message("ERROR", error_msg)
             if operation_started:
-                log_operation_end("SCHEDULED_SNAPSHOT", False, error_message=error_msg)
+                log_operation_end(False, error_msg)
         sys.exit(1)
 
 if __name__ == "__main__":

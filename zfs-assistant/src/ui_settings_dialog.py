@@ -280,6 +280,15 @@ class SettingsDialog(Gtk.Dialog):
         self.hourly_check = Gtk.CheckButton(label="Hourly Snapshots")
         self.hourly_check.connect("toggled", self.on_schedule_type_toggled)
         hourly_header.append(self.hourly_check)
+        
+        # Minutes selection for hourly snapshots
+        hourly_header.append(Gtk.Label(label="at minute:"))
+        self.hourly_minute_spin = Gtk.SpinButton.new_with_range(0, 59, 1)
+        self.hourly_minute_spin.set_value(self.config.get("hourly_minute", 0))
+        self.hourly_minute_spin.connect("value-changed", self.update_snapshot_preview)
+        self.hourly_minute_spin.connect("value-changed", self.update_hourly_labels)
+        hourly_header.append(self.hourly_minute_spin)
+        
         hourly_section.append(hourly_header)
         
         # Add explanation for hourly
@@ -318,7 +327,8 @@ class SettingsDialog(Gtk.Dialog):
         for hour in range(24):
             row = hour // 12  # 12 hours per row instead of 6 (more horizontal)
             col = hour % 12
-            hour_label = f"{hour:02d}:00"
+            minute_value = self.config.get("hourly_minute", 0)
+            hour_label = f"{hour:02d}:{minute_value:02d}"  # Show actual minute value
             check = Gtk.CheckButton(label=hour_label)
             check.set_active(hour in hourly_schedule)
             check.connect("toggled", self.update_snapshot_preview)  # Connect to preview update
@@ -344,7 +354,11 @@ class SettingsDialog(Gtk.Dialog):
         self.daily_hour_spin.set_value(self.config.get("daily_hour", 0))
         self.daily_hour_spin.connect("value-changed", self.update_snapshot_preview)  # Connect to preview update
         daily_header.append(self.daily_hour_spin)
-        daily_header.append(Gtk.Label(label=":00"))
+        daily_header.append(Gtk.Label(label=":"))
+        self.daily_minute_spin = Gtk.SpinButton.new_with_range(0, 59, 1)
+        self.daily_minute_spin.set_value(self.config.get("daily_minute", 0))
+        self.daily_minute_spin.connect("value-changed", self.update_snapshot_preview)
+        daily_header.append(self.daily_minute_spin)
         
         daily_section.append(daily_header)
         
@@ -768,6 +782,8 @@ class SettingsDialog(Gtk.Dialog):
             for day, check in self.day_checks.items():
                 check.set_sensitive(False)
             self.daily_hour_spin.set_sensitive(False)
+            self.daily_minute_spin.set_sensitive(False)
+            self.hourly_minute_spin.set_sensitive(False)
             self.hourly_select_all_button.set_sensitive(False)
             self.hourly_select_none_button.set_sensitive(False)
             self.daily_select_all_button.set_sensitive(False)
@@ -795,6 +811,8 @@ class SettingsDialog(Gtk.Dialog):
             for check in self.day_checks.values():
                 check.set_sensitive(False)
             self.daily_hour_spin.set_sensitive(False)
+            self.daily_minute_spin.set_sensitive(False)
+            self.hourly_minute_spin.set_sensitive(False)
             
             # Disable snapshot naming fields
             self.prefix_entry.set_sensitive(False)
@@ -943,6 +961,7 @@ class SettingsDialog(Gtk.Dialog):
                     if check.get_active():
                         hourly_schedule.append(hour)
                 self.config["hourly_schedule"] = hourly_schedule
+                self.config["hourly_minute"] = int(self.hourly_minute_spin.get_value())
             elif self.daily_check.get_active():
                 daily_schedule = []
                 for day, check in self.day_checks.items():
@@ -950,6 +969,7 @@ class SettingsDialog(Gtk.Dialog):
                         daily_schedule.append(day)
                 self.config["daily_schedule"] = daily_schedule
                 self.config["daily_hour"] = int(self.daily_hour_spin.get_value())
+                self.config["daily_minute"] = int(self.daily_minute_spin.get_value())
             elif self.weekly_check.get_active():
                 self.config["weekly_schedule"] = True
             elif self.monthly_check.get_active():
@@ -1172,6 +1192,9 @@ class SettingsDialog(Gtk.Dialog):
                 for day, check in self.day_checks.items():
                     check.set_sensitive(False)
                 self.daily_hour_spin.set_sensitive(False)
+                self.daily_minute_spin.set_sensitive(False)
+                # Disable hourly minute control too
+                self.hourly_minute_spin.set_sensitive(True)
                 if auto_snapshot_enabled:
                     self.daily_select_all_button.set_sensitive(False)
                     self.daily_select_none_button.set_sensitive(False)
@@ -1184,6 +1207,11 @@ class SettingsDialog(Gtk.Dialog):
                 for day, check in self.day_checks.items():
                     check.set_sensitive(True)
                 self.daily_hour_spin.set_sensitive(True)
+                self.daily_minute_spin.set_sensitive(True)
+                # Disable hourly controls
+                for hour, check in self.hour_checks.items():
+                    check.set_sensitive(False)
+                self.hourly_minute_spin.set_sensitive(False)
                 auto_snapshot_enabled = self.config.get("auto_snapshot", True)
                 if auto_snapshot_enabled:
                     self.daily_select_all_button.set_sensitive(True)
@@ -1205,6 +1233,8 @@ class SettingsDialog(Gtk.Dialog):
                 for day, check in self.day_checks.items():
                     check.set_sensitive(False)
                 self.daily_hour_spin.set_sensitive(False)
+                self.daily_minute_spin.set_sensitive(False)
+                self.hourly_minute_spin.set_sensitive(False)
                 auto_snapshot_enabled = self.config.get("auto_snapshot", True)
                 if auto_snapshot_enabled:
                     self.hourly_select_all_button.set_sensitive(False)
@@ -1222,6 +1252,8 @@ class SettingsDialog(Gtk.Dialog):
                 for day, check in self.day_checks.items():
                     check.set_sensitive(False)
                 self.daily_hour_spin.set_sensitive(False)
+                self.daily_minute_spin.set_sensitive(False)
+                self.hourly_minute_spin.set_sensitive(False)
                 auto_snapshot_enabled = self.config.get("auto_snapshot", True)
                 if auto_snapshot_enabled:
                     self.hourly_select_all_button.set_sensitive(False)
@@ -1233,17 +1265,22 @@ class SettingsDialog(Gtk.Dialog):
             if button == self.hourly_check:
                 for hour, check in self.hour_checks.items():
                     check.set_sensitive(False)
+                self.hourly_minute_spin.set_sensitive(False)
                 self.hourly_select_all_button.set_sensitive(False)
                 self.hourly_select_none_button.set_sensitive(False)
             elif button == self.daily_check:
                 for day, check in self.day_checks.items():
                     check.set_sensitive(False)
                 self.daily_hour_spin.set_sensitive(False)
+                self.daily_minute_spin.set_sensitive(False)
                 self.daily_select_all_button.set_sensitive(False)
                 self.daily_select_none_button.set_sensitive(False)
 
         # Update snapshot preview when schedule type changes
         self.update_snapshot_preview()
+        
+        # Update clean cache sensitivity when schedule changes
+        self.update_clean_cache_sensitivity()
             
     def on_hourly_select_all_clicked(self, button):
         """Select all hours"""
@@ -1297,6 +1334,10 @@ class SettingsDialog(Gtk.Dialog):
         
         # Update pacman preview
         self.update_pacman_preview()
+        
+        # Update clean cache sensitivity when pacman integration changes
+        self.update_clean_cache_sensitivity()
+        
         return False
     
     def on_backup_switch_toggled(self, widget, state):
@@ -1423,6 +1464,10 @@ class SettingsDialog(Gtk.Dialog):
         for check in self.day_checks.values():
             check.set_sensitive(state and self.daily_check.get_active())
         self.daily_hour_spin.set_sensitive(state and self.daily_check.get_active())
+        self.daily_minute_spin.set_sensitive(state and self.daily_check.get_active())
+        
+        # Update sensitivity of hourly minute selector  
+        self.hourly_minute_spin.set_sensitive(state and self.hourly_check.get_active())
         
         # Update sensitivity of snapshot naming fields
         self.prefix_entry.set_sensitive(state)
@@ -1432,10 +1477,9 @@ class SettingsDialog(Gtk.Dialog):
         self.update_disabled_radio.set_sensitive(state)
         self.update_before_radio.set_sensitive(state)
         self.update_pacman_only_radio.set_sensitive(state)
-        # Clean cache option should only be enabled if scheduling is on AND update option is enabled
-        current_update_enabled = (self.update_before_radio.get_active() or 
-                                self.update_pacman_only_radio.get_active())
-        self.clean_cache_check.set_sensitive(state and current_update_enabled)
+        
+        # Update clean cache sensitivity when schedule toggle changes
+        self.update_clean_cache_sensitivity()
         
         return False  # Allow the state change to proceed
     
@@ -1468,15 +1512,20 @@ class SettingsDialog(Gtk.Dialog):
                     if check.get_active():
                         selected_hours.append(hour)
             
+            # Get hourly minute setting
+            hourly_minute = 0
+            if hasattr(self, 'hourly_minute_spin'):
+                hourly_minute = int(self.hourly_minute_spin.get_value())
+            
             if selected_hours:
                 # Show first few selected hours as examples
                 example_hours = selected_hours[:3]  # Show up to 3 examples
                 for hour in example_hours:
-                    sample_time = datetime.datetime.now().replace(hour=hour, minute=0, second=0)
+                    sample_time = datetime.datetime.now().replace(hour=hour, minute=hourly_minute, second=0)
                     timestamp = sample_time.strftime("%Y%m%d-%H%M%S")
                     
                     preview = self._generate_preview_name(prefix, "hourly", timestamp, "", format_type)
-                    active_schedules.append(f"Hourly ({hour:02d}:00): {preview}")
+                    active_schedules.append(f"Hourly ({hour:02d}:{hourly_minute:02d}): {preview}")
                 
                 # If more than 3 hours selected, show count
                 if len(selected_hours) > 3:
@@ -1497,8 +1546,11 @@ class SettingsDialog(Gtk.Dialog):
                         selected_days.append(day_idx)
             
             daily_hour = 0
+            daily_minute = 0
             if hasattr(self, 'daily_hour_spin'):
                 daily_hour = int(self.daily_hour_spin.get_value())
+            if hasattr(self, 'daily_minute_spin'):
+                daily_minute = int(self.daily_minute_spin.get_value())
             
             if selected_days:
                 # Show first few selected days as examples
@@ -1511,19 +1563,19 @@ class SettingsDialog(Gtk.Dialog):
                     if days_ahead <= 0:  # Target day already happened this week
                         days_ahead += 7
                     target_date = today + datetime.timedelta(days=days_ahead)
-                    sample_time = datetime.datetime.combine(target_date, datetime.time(daily_hour, 0))
+                    sample_time = datetime.datetime.combine(target_date, datetime.time(daily_hour, daily_minute))
                     
                     timestamp = sample_time.strftime("%Y%m%d-%H%M%S")
                     
                     preview = self._generate_preview_name(prefix, "daily", timestamp, "", format_type)
-                    active_schedules.append(f"Daily ({days[day_idx]} {daily_hour:02d}:00): {preview}")
+                    active_schedules.append(f"Daily ({days[day_idx]} {daily_hour:02d}:{daily_minute:02d}): {preview}")
                 
                 # If more than 3 days selected, show count
                 if len(selected_days) > 3:
                     active_schedules.append(f"... and {len(selected_days) - 3} more daily schedules")
             else:
                 # No days selected but daily is enabled
-                sample_time = datetime.datetime.now().replace(hour=daily_hour, minute=0, second=0)
+                sample_time = datetime.datetime.now().replace(hour=daily_hour, minute=daily_minute, second=0)
                 timestamp = sample_time.strftime("%Y%m%d-%H%M%S")
                 preview = self._generate_preview_name(prefix, "daily", timestamp, "", format_type)
                 active_schedules.append(f"Daily (no days selected): {preview}")
@@ -1639,10 +1691,7 @@ class SettingsDialog(Gtk.Dialog):
                 self.update_before_radio.set_active(False)
         
         # Always update clean cache sensitivity based on current state
-        # Clean cache should only be enabled when updates are enabled (not disabled)
-        update_enabled = (self.update_before_radio.get_active() or 
-                         self.update_pacman_only_radio.get_active())
-        self.clean_cache_check.set_sensitive(update_enabled)
+        self.update_clean_cache_sensitivity()
         
         # Update pacman preview since it might have changed
         self.update_pacman_preview()
@@ -1662,3 +1711,15 @@ class SettingsDialog(Gtk.Dialog):
         # Clean cache should be enabled only if scheduling is on, updates are enabled, and pacman integration is off
         should_enable = auto_snapshot_enabled and update_enabled and not pacman_enabled
         self.clean_cache_check.set_sensitive(should_enable)
+    
+    def update_hourly_labels(self, widget=None):
+        """Update the hour checkbox labels when minute value changes"""
+        if not hasattr(self, 'hour_checks') or not hasattr(self, 'hourly_minute_spin'):
+            return
+            
+        minute_value = int(self.hourly_minute_spin.get_value())
+        
+        for hour, check in self.hour_checks.items():
+            new_label = f"{hour:02d}:{minute_value:02d}"
+            check.set_label(new_label)
+            
