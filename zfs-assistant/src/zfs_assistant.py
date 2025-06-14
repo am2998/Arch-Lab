@@ -238,6 +238,18 @@ class ZFSAssistant:
         """Get properties for a specific dataset"""
         return self.zfs_core.get_dataset_properties(dataset_name)
     
+    def get_arc_properties(self):
+        """Get ARC (Adaptive Replacement Cache) properties and statistics"""
+        return self.zfs_core.get_arc_properties()
+    
+    def get_arc_tunables(self):
+        """Get ARC tunable parameters that can be modified"""
+        return self.zfs_core.get_arc_tunables()
+    
+    def set_arc_tunable(self, parameter, value):
+        """Set an ARC tunable parameter"""
+        return self.zfs_core.set_arc_tunable(parameter, value)
+    
     def get_snapshots(self, dataset=None):
         """Get all snapshots for a dataset (or all datasets if dataset is None)"""
         return self.zfs_core.get_snapshots(dataset)

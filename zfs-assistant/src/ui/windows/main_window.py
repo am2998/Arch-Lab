@@ -304,14 +304,58 @@ class MainWindow(Gtk.ApplicationWindow):
         
         properties_content.append(props_card)
         
-        # Create properties tab label with icon
+        # Create dataset properties tab label with icon
         properties_tab_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
         properties_tab_icon = Gtk.Image.new_from_icon_name("document-properties-symbolic")
-        properties_tab_label = Gtk.Label(label="Properties")
+        properties_tab_label = Gtk.Label(label="Dataset Properties")
         properties_tab_box.append(properties_tab_icon)
         properties_tab_box.append(properties_tab_label)
         
         notebook.append_page(properties_page, properties_tab_box)
+        
+        # ARC Properties tab with inline editing capabilities
+        arc_page = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
+        
+        arc_content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
+        arc_content.set_margin_top(16)
+        arc_content.set_margin_bottom(16)
+        arc_content.set_margin_start(16)
+        arc_content.set_margin_end(16)
+        arc_page.append(arc_content)
+        
+        # Create ARC properties card
+        arc_card = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
+        arc_card.add_css_class("content-card")
+        arc_card.set_vexpand(True)
+        
+        # Scrolled window for ARC properties
+        arc_scrolled_window = Gtk.ScrolledWindow()
+        arc_scrolled_window.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
+        arc_scrolled_window.set_vexpand(True)
+        arc_scrolled_window.set_min_content_height(200)
+        arc_card.append(arc_scrolled_window)
+        
+        # Grid for ARC properties with inline editing
+        self.arc_grid = Gtk.Grid()
+        self.arc_grid.set_column_spacing(12)
+        self.arc_grid.set_row_spacing(8)
+        self.arc_grid.set_margin_top(16)
+        self.arc_grid.set_margin_bottom(16)
+        self.arc_grid.set_margin_start(16)
+        self.arc_grid.set_margin_end(16)
+        self.arc_grid.add_css_class("arc-properties-grid")
+        arc_scrolled_window.set_child(self.arc_grid)
+        
+        arc_content.append(arc_card)
+        
+        # Create ARC properties tab label with icon
+        arc_tab_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+        arc_tab_icon = Gtk.Image.new_from_icon_name("applications-system-symbolic")
+        arc_tab_label = Gtk.Label(label="ARC Properties")
+        arc_tab_box.append(arc_tab_icon)
+        arc_tab_box.append(arc_tab_label)
+        
+        notebook.append_page(arc_page, arc_tab_box)
         
         # Add more compact status bar at the bottom
         self.status_bar = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)  # Reduced from 12 to 10
@@ -417,6 +461,10 @@ class MainWindow(Gtk.ApplicationWindow):
             self.update_dataset_combo()
             # Update snapshot list
             self.refresh_snapshots()
+            # Update dataset properties
+            self.refresh_dataset_properties()
+            # Update ARC properties
+            self.refresh_arc_properties()
         except Exception as e:
             print(f"Error during deferred initialization: {e}")
         return False  # Don't repeat the timeout
@@ -693,19 +741,19 @@ class MainWindow(Gtk.ApplicationWindow):
             info_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
             info_box.set_hexpand(True)
             
-            # Dataset name with styling
+            # Dataset header with larger text like ARC Properties
             header_label = Gtk.Label()
-            header_label.set_markup(f"<span size='large'><b>{dataset_name}</b></span>")
+            header_label.set_markup(f"<span size='large'><b>ZFS Dataset Properties</b></span>")
             header_label.set_xalign(0)
             header_label.set_hexpand(True)
             info_box.append(header_label)
             
-            # Add quick summary of type and mountpoint below the name
+            # Add summary with dataset name, type and mountpoint below the header
             type_value = dataset_properties.get("type", "N/A")
             mountpoint_value = dataset_properties.get("mountpoint", "N/A")
             
             summary_label = Gtk.Label()
-            summary_label.set_markup(f"<span size='small' alpha='80%'>{type_value} • {mountpoint_value}</span>")
+            summary_label.set_markup(f"<span size='small' alpha='80%'>{dataset_name} • {type_value} • {mountpoint_value}</span>")
             summary_label.set_xalign(0)
             summary_label.set_hexpand(True)
             info_box.append(summary_label)
@@ -832,11 +880,215 @@ class MainWindow(Gtk.ApplicationWindow):
             error_label.set_margin_bottom(20)
             self.properties_grid.attach(error_label, 0, 0, 2, 1)
 
+    def refresh_arc_properties(self):
+        """Refresh the ARC properties grid with statistics and tunables"""
+        try:
+            # Clear the grid by removing all children
+            while True:
+                child = self.arc_grid.get_first_child()
+                if not child:
+                    break
+                self.arc_grid.remove(child)
+            
+            # Get ARC properties and tunables
+            arc_properties = self.zfs_assistant.get_arc_properties()
+            arc_tunables = self.zfs_assistant.get_arc_tunables()
+            
+            if not arc_properties:
+                info_label = Gtk.Label(label="ARC statistics not available - ZFS may not be loaded")
+                info_label.set_margin_top(20)
+                info_label.set_margin_bottom(20)
+                self.arc_grid.attach(info_label, 0, 0, 2, 1)
+                return
+            
+            # Add ARC header with refresh button
+            header_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
+            header_box.add_css_class("content-card")
+            header_box.set_margin_bottom(15)
+            header_box.set_margin_top(5)
+            header_box.set_margin_start(21)
+            header_box.set_margin_end(21)
+            
+            # Add ARC icon
+            icon_box = Gtk.Box()
+            icon_box.set_size_request(40, 40)
+            icon_box.add_css_class("snapshot-icon")
+            icon_box.set_valign(Gtk.Align.CENTER)
+            
+            icon = Gtk.Image.new_from_icon_name("applications-system-symbolic")
+            icon.set_pixel_size(18)
+            icon_box.append(icon)
+            header_box.append(icon_box)
+            
+            # ARC details
+            info_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+            info_box.set_hexpand(True)
+            
+            header_label = Gtk.Label()
+            header_label.set_markup(f"<span size='large'><b>ZFS ARC Properties</b></span>")
+            header_label.set_xalign(0)
+            header_label.set_hexpand(True)
+            info_box.append(header_label)
+            
+            # Get cache size for summary
+            cache_stats = arc_properties.get("Memory Usage", {})
+            arc_size = cache_stats.get("ARC Size", "N/A")
+            hit_rate = arc_properties.get("Cache Statistics", {}).get("Hit Rate", "N/A")
+            
+            summary_label = Gtk.Label()
+            summary_label.set_markup(f"<span size='small' alpha='80%'>Cache Size: {arc_size} • Hit Rate: {hit_rate}</span>")
+            summary_label.set_xalign(0)
+            summary_label.set_hexpand(True)
+            info_box.append(summary_label)
+            
+            header_box.append(info_box)
+            
+            # Add refresh button
+            refresh_button = Gtk.Button()
+            refresh_button.set_icon_name("view-refresh-symbolic")
+            refresh_button.set_tooltip_text("Refresh ARC Properties")
+            refresh_button.set_valign(Gtk.Align.CENTER)
+            refresh_button.add_css_class("flat")
+            refresh_button.add_css_class("refresh-properties-button")
+            refresh_button.connect("clicked", self.on_arc_refresh_clicked)
+            header_box.append(refresh_button)
+            
+            self.arc_grid.attach(header_box, 0, 0, 2, 1)
+            
+            row = 1
+            
+            # Create a box to hold all ARC sections
+            arc_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=15)
+            arc_box.set_margin_top(10)
+            
+            # Display ARC statistics
+            for category_name, stats in arc_properties.items():
+                section_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=5)
+                section_box.add_css_class("dataset-category")
+                
+                # Add category header
+                category_label = Gtk.Label()
+                category_label.set_markup(f"<b>{category_name}</b>")
+                category_label.set_xalign(0)
+                section_box.append(category_label)
+                
+                # Add statistics in this category
+                for label, value in stats.items():
+                    stat_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
+                    stat_box.add_css_class("dataset-property-row")
+                    
+                    # Statistic name
+                    name_label = Gtk.Label(label=f"{label}:")
+                    name_label.set_xalign(0)
+                    name_label.set_size_request(150, -1)
+                    name_label.add_css_class("dataset-property-name")
+                    
+                    # Statistic value
+                    value_label = Gtk.Label(label=str(value))
+                    value_label.set_xalign(0)
+                    value_label.set_selectable(True)
+                    value_label.set_hexpand(True)
+                    value_label.add_css_class("dataset-property-value")
+                    
+                    stat_box.append(name_label)
+                    stat_box.append(value_label)
+                    section_box.append(stat_box)
+                
+                arc_box.append(section_box)
+                
+                # Add separator between categories
+                if category_name != list(arc_properties.keys())[-1] or arc_tunables:
+                    separator = Gtk.Separator(orientation=Gtk.Orientation.HORIZONTAL)
+                    separator.set_margin_top(5)
+                    separator.set_margin_bottom(5)
+                    arc_box.append(separator)
+            
+            # Add tunable parameters section with inline editing
+            if arc_tunables:
+                tunables_section = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=5)
+                tunables_section.add_css_class("dataset-category")
+                
+                # Add tunables header
+                tunables_label = Gtk.Label()
+                tunables_label.set_markup("<b>Tunable Parameters (Editable)</b>")
+                tunables_label.set_xalign(0)
+                tunables_section.append(tunables_label)
+                
+                # Add description
+                desc_label = Gtk.Label()
+                desc_label.set_markup("<span size='small' alpha='70%'>Click on values to edit. Changes require root privileges.</span>")
+                desc_label.set_xalign(0)
+                desc_label.set_margin_bottom(5)
+                tunables_section.append(desc_label)
+                
+                # Add editable tunables
+                for param_name, param_info in arc_tunables.items():
+                    tunable_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
+                    tunable_box.add_css_class("dataset-property-row")
+                    
+                    # Parameter name with tooltip
+                    name_label = Gtk.Label(label=f"{param_name.replace('zfs_', '')}:")
+                    name_label.set_xalign(0)
+                    name_label.set_size_request(150, -1)
+                    name_label.add_css_class("dataset-property-name")
+                    name_label.set_tooltip_text(param_info.get("description", ""))
+                    
+                    if param_info.get("editable", False):
+                        # Create editable entry for tunable values
+                        value_entry = Gtk.Entry()
+                        value_entry.set_text(str(param_info.get("value", "")))
+                        value_entry.set_hexpand(True)
+                        value_entry.add_css_class("arc-tunable-entry")
+                        value_entry.connect("activate", self.on_arc_tunable_changed, param_name)
+                        
+                        # Use focus controller for GTK4 instead of focus-out-event
+                        focus_controller = Gtk.EventControllerFocus()
+                        focus_controller.connect("leave", self.on_arc_tunable_focus_out, param_name)
+                        value_entry.add_controller(focus_controller)
+                        
+                        tunable_box.append(name_label)
+                        tunable_box.append(value_entry)
+                    else:
+                        # Read-only value
+                        value_label = Gtk.Label(label=str(param_info.get("value", "N/A")))
+                        value_label.set_xalign(0)
+                        value_label.set_selectable(True)
+                        value_label.set_hexpand(True)
+                        value_label.add_css_class("dataset-property-value")
+                        
+                        tunable_box.append(name_label)
+                        tunable_box.append(value_label)
+                    
+                    tunables_section.append(tunable_box)
+                
+                arc_box.append(tunables_section)
+            
+            # Add the ARC box to the grid
+            self.arc_grid.attach(arc_box, 0, row, 2, 1)
+            
+            # Make sure all is visible
+            self.arc_grid.show()
+            
+        except Exception as e:
+            print(f"Error refreshing ARC properties: {e}")
+            # Clear any existing content first
+            while True:
+                child = self.arc_grid.get_first_child()
+                if not child:
+                    break
+                self.arc_grid.remove(child)
+            # Add error message
+            error_label = Gtk.Label(label=f"Error loading ARC properties: {str(e)}")
+            error_label.set_margin_top(20)
+            error_label.set_margin_bottom(20)
+            self.arc_grid.attach(error_label, 0, 0, 2, 1)
+
     def on_refresh_clicked(self, button):
         """Handle refresh button click"""
         self.update_dataset_combo()
         self.refresh_snapshots()
         self.refresh_dataset_properties()
+        self.refresh_arc_properties()
         
     def on_properties_refresh_clicked(self, button):
         """Handle properties refresh button click"""
@@ -864,77 +1116,86 @@ class MainWindow(Gtk.ApplicationWindow):
         GLib.timeout_add(2000, lambda: self.set_status("Ready") and False)
         return False  # Don't repeat
 
-    def on_cleanup_clicked(self, button):
-        """Handle cleanup button click"""
-        # Create confirmation dialog
-        dialog = Gtk.MessageDialog(
-            transient_for=self,
-            modal=True,
-            message_type=Gtk.MessageType.WARNING,
-            buttons=Gtk.ButtonsType.YES_NO,
-            text="Clean Up Snapshots",
-            secondary_text="This will delete old snapshots based on your retention policy settings.\n\n"
-                         "Do you want to continue?"
-        )
+    def on_arc_refresh_clicked(self, button):
+        """Handle ARC properties refresh button click"""
+        # Animate the button with a spinning effect
+        context = button.get_style_context()
+        context.add_class("refreshing")
         
-        dialog.connect("response", self._on_cleanup_dialog_response)
-        dialog.present()
+        # Show a brief status message
+        self.set_status("Refreshing ARC properties...", "view-refresh-symbolic")
         
-    def _on_cleanup_dialog_response(self, dialog, response):
-        """Handle cleanup dialog response"""
-        dialog.destroy()
+        # Add a small delay for visual feedback
+        GLib.timeout_add(200, self._refresh_arc_with_status, button)
+
+    def _refresh_arc_with_status(self, button=None):
+        """Refresh ARC properties with status update"""
+        self.refresh_arc_properties()
+        self.set_status("ARC properties refreshed", "emblem-ok-symbolic")
         
-        if response == Gtk.ResponseType.YES:
-            # Show progress dialog
-            progress_dialog = Gtk.MessageDialog(
-                transient_for=self,
-                modal=True,
-                message_type=Gtk.MessageType.INFO,
-                buttons=Gtk.ButtonsType.NONE,
-                text="Cleaning Up Snapshots",
-                secondary_text="Please wait while snapshots are being cleaned up..."
-            )
-            progress_dialog.present()
+        # Remove animation class if button provided
+        if button:
+            context = button.get_style_context()
+            context.remove_class("refreshing")
             
-            # Run cleanup in a separate thread to avoid blocking UI
-            def cleanup_thread():
-                success, message = self.zfs_assistant.cleanup_snapshots()
-                
-                # Update UI on main thread
-                GLib.idle_add(self._cleanup_completed, progress_dialog, success, message)
+        # Reset status after 2 seconds
+        GLib.timeout_add(2000, lambda: self.set_status("Ready") and False)
+        return False  # Don't repeat
+
+    def on_arc_tunable_changed(self, entry, param_name):
+        """Handle ARC tunable parameter change on Enter key"""
+        new_value = entry.get_text().strip()
+        self._update_arc_tunable(param_name, new_value, entry)
+
+    def on_arc_tunable_focus_out(self, controller, param_name):
+        """Handle ARC tunable parameter change on focus out"""
+        # Get the entry widget from the controller
+        entry = controller.get_widget()
+        new_value = entry.get_text().strip()
+        self._update_arc_tunable(param_name, new_value, entry)
+
+    def _update_arc_tunable(self, param_name, new_value, entry):
+        """Update an ARC tunable parameter"""
+        if not new_value:
+            return
             
-            # Start the thread
-            import threading
-            thread = threading.Thread(target=cleanup_thread)
-            thread.daemon = True
-            thread.start()
+        try:
+            # Show updating status
+            self.set_status(f"Updating {param_name}...", "system-run-symbolic")
             
-    def _cleanup_completed(self, progress_dialog, success, message):
-        """Called when cleanup is complete"""
-        progress_dialog.destroy()
-        
-        # Show result dialog
-        result_dialog = Gtk.MessageDialog(
-            transient_for=self,
-            modal=True,
-            message_type=Gtk.MessageType.INFO if success else Gtk.MessageType.ERROR,
-            buttons=Gtk.ButtonsType.OK,
-            text="Cleanup Result",
-            secondary_text=message
-        )
-        result_dialog.connect("response", lambda d, r: d.destroy())
-        result_dialog.present()
-        
-        # Send notification
-        self.app.send_app_notification("Snapshot Cleanup Completed", message)
-        
-        # Refresh snapshot list
-        self.refresh_snapshots()
-        
-        return False  # Required for GLib.idle_add
+            # Validate the value (basic validation)
+            try:
+                int(new_value)  # Most ARC tunables are integers
+            except ValueError:
+                self.set_status(f"Invalid value for {param_name}: must be a number", "dialog-error-symbolic")
+                # Reset to original value
+                self.refresh_arc_properties()
+                return
+            
+            # Update the tunable
+            success, message = self.zfs_assistant.set_arc_tunable(param_name, new_value)
+            
+            if success:
+                self.set_status(f"Updated {param_name} successfully", "emblem-ok-symbolic")
+                # Refresh to show new value
+                GLib.timeout_add(500, self.refresh_arc_properties)
+            else:
+                self.set_status(f"Failed to update {param_name}: {message}", "dialog-error-symbolic")
+                # Reset to original value
+                self.refresh_arc_properties()
+            
+            # Reset status after 3 seconds
+            GLib.timeout_add(3000, lambda: self.set_status("Ready") and False)
+            
+        except Exception as e:
+            self.set_status(f"Error updating {param_name}: {str(e)}", "dialog-error-symbolic")
+            # Reset to original value
+            self.refresh_arc_properties()
+            GLib.timeout_add(3000, lambda: self.set_status("Ready") and False)
 
     def on_settings_clicked(self, button):
         """Handle settings button click"""
+        from ..settings.settings_dialog import SettingsDialog
         settings_dialog = SettingsDialog(self)
         settings_dialog.present()
 
@@ -951,20 +1212,21 @@ class MainWindow(Gtk.ApplicationWindow):
                 modal=True,
                 message_type=Gtk.MessageType.WARNING,
                 buttons=Gtk.ButtonsType.YES_NO,
-                text="Rollback to Snapshot",
-                secondary_text=f"Are you sure you want to roll back to snapshot '{snapshot.name}'?\n\n"
-                             "This will revert your dataset to the state at the time of this snapshot.\n"
-                             "Any changes made after this snapshot will be lost."
+                text="Confirm Rollback",
+                secondary_text=f"Are you sure you want to rollback dataset '{snapshot.dataset}' to snapshot '{snapshot.name}'?\n\n"
+                             f"This will revert all changes made after the snapshot was created.\n"
+                             f"This action cannot be undone."
             )
             
             dialog.connect("response", self._on_rollback_dialog_response, snapshot)
             dialog.present()
-            
+
     def _on_rollback_dialog_response(self, dialog, response, snapshot):
         """Handle rollback dialog response"""
         dialog.destroy()
         
-        if response == Gtk.ResponseType.YES:            # Perform rollback
+        if response == Gtk.ResponseType.YES:
+            # Perform rollback
             snapshot_full_name = f"{snapshot.dataset}@{snapshot.name}"
             success, message = self.zfs_assistant.rollback_snapshot(snapshot_full_name)
             
@@ -1025,41 +1287,27 @@ class MainWindow(Gtk.ApplicationWindow):
     def _on_clone_dialog_response(self, dialog, response, snapshot, target_entry):
         """Handle clone dialog response"""
         if response == Gtk.ResponseType.OK:
-            # Get target name
             target_name = target_entry.get_text().strip()
-            
-            if not target_name:
-                # Show error for empty name
-                error_dialog = Gtk.MessageDialog(
-                    transient_for=dialog,
-                    modal=True,
-                    message_type=Gtk.MessageType.ERROR,
-                    buttons=Gtk.ButtonsType.OK,
-                    text="Invalid Target Name",
-                    secondary_text="Please enter a valid target dataset name."
-                )
-                error_dialog.connect("response", lambda d, r: d.destroy())
-                error_dialog.present()
-                return
-            
-            # Perform clone
-            snapshot_full_name = f"{snapshot.dataset}@{snapshot.name}"
-            success, message = self.zfs_assistant.clone_snapshot(snapshot_full_name, target_name)
-            
-            # Show result dialog
-            result_dialog = Gtk.MessageDialog(
-                transient_for=self,
-                modal=True,
-                message_type=Gtk.MessageType.INFO if success else Gtk.MessageType.ERROR,
-                buttons=Gtk.ButtonsType.OK,
-                text="Clone Result",
-                secondary_text=message
-            )
-            result_dialog.connect("response", lambda d, r: d.destroy())
-            result_dialog.present()
-            
-            if success:
-                self.update_dataset_combo()
+            if target_name:
+                snapshot_full_name = f"{snapshot.dataset}@{snapshot.name}"
+                success, message = self.zfs_assistant.clone_snapshot(snapshot_full_name, target_name)
+                
+                # Show result
+                if not success:
+                    error_dialog = Gtk.MessageDialog(
+                        transient_for=self,
+                        modal=True,
+                        message_type=Gtk.MessageType.ERROR,
+                        buttons=Gtk.ButtonsType.OK,
+                        text="Clone Error",
+                        secondary_text=message
+                    )
+                    error_dialog.connect("response", lambda d, r: d.destroy())
+                    error_dialog.present()
+                else:
+                    # Send notification for successful clone
+                    self.app.send_app_notification("Snapshot Cloned", 
+                                              f"Snapshot {snapshot.name} has been cloned to {target_name}.")
         
         dialog.destroy()
 
@@ -1070,7 +1318,7 @@ class MainWindow(Gtk.ApplicationWindow):
             # Get the snapshot object from the selected row
             snapshot = selected.get_child().snapshot
             
-            # Directly delete without confirmation
+            # Perform delete immediately without confirmation
             snapshot_full_name = f"{snapshot.dataset}@{snapshot.name}"
             success, message = self.zfs_assistant.delete_snapshot(snapshot_full_name)
             
@@ -1092,294 +1340,147 @@ class MainWindow(Gtk.ApplicationWindow):
                 self.refresh_snapshots()
                 # Send notification
                 self.app.send_app_notification("Snapshot Deleted", f"Snapshot {snapshot.name} has been deleted.")
-            
+
     def on_quick_create_activate(self, entry):
         """Handle Enter key press in quick create entry"""
         self.create_quick_snapshot()
-    
+
     def on_quick_create_clicked(self, button):
         """Handle quick create button click"""
         self.create_quick_snapshot()
-    
+
     def create_quick_snapshot(self):
         """Create a snapshot with the name from quick create entry"""
-        snapshot_name = self.quick_create_entry.get_text().strip()
-        
-        # Get currently selected dataset
+        name = self.quick_create_entry.get_text().strip()
+        if not name:
+            return
+            
+        # Get selected dataset
         selected = self.dataset_combo.get_selected()
         model = self.dataset_combo.get_model()
         
-        if selected == 0 or selected == Gtk.INVALID_LIST_POSITION:
-            self.update_status("error", "Please select a specific dataset first")
+        if selected == 0:
+            # "All Datasets" is selected - need to choose a dataset
+            self.set_status("Please select a specific dataset to create a snapshot", "dialog-warning-symbolic")
             return
-        
-        if not snapshot_name:
-            self.update_status("error", "Please enter a snapshot name")
-            return
-        
+            
         dataset = model.get_string(selected)
         
-        # Update status to show progress
-        self.update_status("info", f"Creating snapshot '{snapshot_name}' for {dataset}...")
-        
         # Create snapshot
-        success, result = self.zfs_assistant.create_snapshot(dataset, snapshot_name)
+        success, message = self.zfs_assistant.create_snapshot(dataset, name)
         
         if success:
-            # Clear the entry
-            self.quick_create_entry.set_text("")
-            # Refresh snapshots
+            self.quick_create_entry.set_text("")  # Clear entry
             self.refresh_snapshots()
-            # Update status
-            self.update_status("success", f"Snapshot '{snapshot_name}' created successfully")
+            self.set_status(f"Created snapshot: {name}", "emblem-ok-symbolic")
             # Send notification
-            self.app.send_app_notification("Snapshot Created", f"Snapshot '{snapshot_name}' has been created successfully.")
+            self.app.send_app_notification("Snapshot Created", f"Snapshot '{name}' created for dataset '{dataset}'.")
         else:
-            self.update_status("error", f"Failed to create snapshot: {result}")
-    
+            self.set_status(f"Failed to create snapshot: {message}", "dialog-error-symbolic")
+        
+        # Clear status after 3 seconds
+        GLib.timeout_add(3000, lambda: self.set_status("Ready") and False)
+
     def on_search_changed(self, search_entry):
         """Handle search text changes"""
         search_text = search_entry.get_text().lower()
         
         # Show/hide rows based on search
-        for row in self.snapshots_list:
-            if row.get_child():
-                box = row.get_child()
-                if hasattr(box, 'snapshot'):
-                    snapshot = box.snapshot
+        row = self.snapshots_list.get_first_child()
+        while row:
+            if hasattr(row, 'get_child') and row.get_child():
+                snapshot = getattr(row.get_child(), 'snapshot', None)
+                if snapshot:
                     # Search in snapshot name and dataset
-                    if (search_text in snapshot.name.lower() or 
-                        search_text in snapshot.dataset.lower()):
-                        row.set_visible(True)
-                    else:
-                        row.set_visible(False)
-                else:
-                    row.set_visible(True)
-        
-        # Update the snapshot count after filtering
-        self.update_snapshot_count()
-    
+                    visible = (search_text in snapshot.name.lower() or 
+                             search_text in snapshot.dataset.lower())
+                    row.set_visible(visible)
+            row = row.get_next_sibling()
+
+    def set_status(self, message, icon_name="emblem-ok-symbolic"):
+        """Set status bar message with icon"""
+        self.status_label.set_text(message)
+        self.status_icon.set_from_icon_name(icon_name)
+
     def update_status(self, status_type, message):
         """Update the status bar with a message and icon"""
         icon_map = {
-            "success": "emblem-ok-symbolic",
-            "error": "dialog-error-symbolic", 
+            "loading": "content-loading-symbolic",
+            "success": "emblem-ok-symbolic", 
+            "error": "dialog-error-symbolic",
             "warning": "dialog-warning-symbolic",
-            "info": "dialog-information-symbolic",
-            "loading": "view-refresh-symbolic"
+            "info": "dialog-information-symbolic"
         }
         
-        icon_name = icon_map.get(status_type, "dialog-information-symbolic")
-        self.status_icon.set_visible(True)  # Ensure icon is visible
-        self.status_icon.set_from_icon_name(icon_name)
-        self.status_label.set_text(message)
-        
-        # Auto-clear status after 5 seconds for non-error messages
-        if status_type != "error":
-            GLib.timeout_add_seconds(5, self._clear_status)
-    
-    def _clear_status(self):
-        """Clear the status bar"""
-        self.status_icon.set_visible(False)
-        self.status_label.set_text("Ready")
-        return False  # Don't repeat the timeout
-    
+        icon = icon_map.get(status_type, "emblem-ok-symbolic")
+        self.set_status(message, icon)
+
     def update_snapshot_count(self):
-        """Update the snapshot count display"""
-        count = 0
-        visible_count = 0
-        
-        for row in self.snapshots_list:
-            count += 1
-            if row.get_visible():
-                visible_count += 1
-        
-        if count == visible_count:
-            self.snapshot_count_label.set_text(f"{count} snapshots")
-        else:
-            self.snapshot_count_label.set_text(f"{visible_count} of {count} snapshots")
-        
-        # Also update settings status when snapshot count is updated
-        self._update_settings_status()
-        
-    def _update_settings_status(self):
-        """Update the settings status display with information about enabled features and next snapshot"""
-        config = self.zfs_assistant.config
-        
-        # Get actual timer status from system integration instead of config values
+        """Update the snapshot count in status bar"""
         try:
-            actual_schedule_status = self.zfs_assistant.system_integration.get_schedule_status()
-            schedule_status = "on" if any(actual_schedule_status.values()) else "off"
+            selected = self.dataset_combo.get_selected()
+            model = self.dataset_combo.get_model()
+            
+            if selected == 0:
+                # "All Datasets" - count all snapshots
+                snapshots = self.zfs_assistant.get_snapshots()
+            else:
+                dataset = model.get_string(selected)
+                snapshots = self.zfs_assistant.get_snapshots(dataset)
+            
+            count = len(snapshots) if snapshots else 0
+            self.snapshot_count_label.set_text(f"{count} snapshots")
+            
         except Exception as e:
-            # Fallback to config-based status if timer status check fails
-            schedule_status = "on" if (config.get("daily_schedule", []) or
+            print(f"Error updating snapshot count: {e}")
+            self.snapshot_count_label.set_text("0 snapshots")
+
+    def _setup_real_time_updates(self):
+        """Setup real-time status updates"""
+        self._previous_settings_hash = None
+        self._update_settings_status()
+
+    def _update_settings_status(self):
+        """Update the settings status display with information about enabled features"""
+        try:
+            config = self.zfs_assistant.config
+            
+            # Create a simple hash of relevant config items to detect changes
+            config_items = [
+                config.get("hourly_schedule", []),
+                config.get("daily_schedule", []),
+                config.get("weekly_schedule", False),
+                config.get("monthly_schedule", False),
+                config.get("pacman_integration", False),
+                config.get("update_snapshots", "disabled"),
+                config.get("clean_cache_after_updates", False)
+            ]
+            current_hash = hash(str(config_items))
+            
+            # Only update if something changed
+            if self._previous_settings_hash == current_hash:
+                return True
+            
+            self._previous_settings_hash = current_hash
+            
+            # Get settings status
+            schedule_status = "on" if (config.get("hourly_schedule", []) or 
+                                     config.get("daily_schedule", []) or
                                      config.get("weekly_schedule", False) or 
                                      config.get("monthly_schedule", False)) else "off"
-                                 
-        pacman_status = "on" if config.get("pacman_integration", False) else "off"
-        
-        # System update status depends on both the config setting AND the schedule being enabled
-        # because system updates require the schedule to function
-        update_config_enabled = config.get("update_snapshots", "disabled") != "disabled"
-        schedule_enabled = schedule_status == "on"
-        update_status = "on" if (update_config_enabled and schedule_enabled) else "off"
-        
-        # Clean cache status depends on BOTH system updates being enabled AND schedule being enabled
-        clean_config_enabled = config.get("clean_cache_after_updates", False)
-        clean_status = "on" if (clean_config_enabled and update_config_enabled and schedule_enabled) else "off"
-        
-        # Calculate time until next snapshot - only show if schedule is enabled
-        next_snapshot_info = self._calculate_next_snapshot_time(config) if schedule_enabled else None
-        
-        # Build status text
-        status_text = f"schedule: {schedule_status}    pacman-int: {pacman_status}    sys-update: {update_status}    clean: {clean_status}"
-        
-        if next_snapshot_info and schedule_enabled:
-            status_text += f"    next snapshot in: {next_snapshot_info}"
-        
-        self.settings_status_label.set_text(status_text)
-        
-        # Return True to allow the timeout to continue
-        return True
-        
-    def _calculate_next_snapshot_time(self, config):
-        """Calculate the time until the next scheduled snapshot"""
-        now = datetime.datetime.now()
-        next_times = []
-        
-        # Check daily schedule
-        daily_schedule = config.get("daily_schedule", [])
-        daily_hour = config.get("daily_hour", 0)
-        daily_minute = config.get("daily_minute", 0)
-        
-        if daily_schedule:
-            current_day = now.weekday()  # 0 is Monday, 6 is Sunday
-            next_day = None
+                                     
+            pacman_status = "on" if config.get("pacman_integration", False) else "off"
+            update_status = "on" if config.get("update_snapshots", "disabled") != "disabled" else "off"
+            clean_status = "on" if config.get("clean_cache_after_updates", False) else "off"
             
-            # Find the next scheduled day
-            for day in sorted(daily_schedule):
-                if day > current_day:
-                    next_day = day
-                    break
+            # Build status text
+            status_text = f"schedule: {schedule_status} • pacman: {pacman_status} • updates: {update_status} • clean: {clean_status}"
             
-            # If no next day found this week, get the first day for next week
-            if next_day is None and daily_schedule:
-                next_day = min(daily_schedule)
-                days_until_next = 7 - current_day + next_day
-            else:
-                days_until_next = next_day - current_day
+            self.settings_status_label.set_text(status_text)
             
-            # Calculate the datetime for the next daily snapshot
-            next_daily_time = now.replace(hour=daily_hour, minute=daily_minute, second=0, microsecond=0)
+            # Return True to allow the timeout to continue
+            return True
             
-            # If the scheduled time for today has passed, add the days until next
-            if days_until_next == 0 and now > next_daily_time:
-                days_until_next = 7
-            
-            next_daily_time += datetime.timedelta(days=days_until_next)
-            next_times.append(next_daily_time)
-        
-        # Check weekly schedule
-        if config.get("weekly_schedule", False):
-            # Assume weekly snapshots happen on Sunday at the daily hour and minute
-            current_day = now.weekday()
-            days_until_sunday = 6 - current_day  # 6 is Sunday
-            weekly_time = now.replace(hour=daily_hour, minute=daily_minute, second=0, microsecond=0)
-            if days_until_sunday == 0 and now > weekly_time:
-                days_until_sunday = 7
-            
-            next_weekly_time = weekly_time + datetime.timedelta(days=days_until_sunday)
-            next_times.append(next_weekly_time)
-        
-        # Check monthly schedule
-        if config.get("monthly_schedule", False):
-            # Assume monthly snapshots happen on the 1st of each month at the daily hour and minute
-            current_day = now.day
-            monthly_time = now.replace(hour=daily_hour, minute=daily_minute, second=0, microsecond=0)
-            
-            if current_day == 1 and now < monthly_time:
-                # It's the 1st and the scheduled time hasn't passed yet
-                next_monthly_time = monthly_time
-            else:
-                # Move to the 1st of next month
-                if now.month == 12:
-                    next_month = 1
-                    next_year = now.year + 1
-                else:
-                    next_month = now.month + 1
-                    next_year = now.year
-                
-                next_monthly_time = datetime.datetime(year=next_year, month=next_month, day=1, hour=daily_hour, minute=daily_minute, second=0)
-            
-            next_times.append(next_monthly_time)
-        
-        # Find the earliest next snapshot time
-        if not next_times:
-            return None
-        
-        next_snapshot_time = min(next_times)
-        time_diff = next_snapshot_time - now
-        
-        # Format the time difference
-        days = time_diff.days
-        hours, remainder = divmod(time_diff.seconds, 3600)
-        minutes, _ = divmod(remainder, 60)
-        
-        if days > 0:
-            return f"{days}d {hours}h {minutes}m"
-        elif hours > 0:
-            return f"{hours}h {minutes}m"
-        else:
-            return f"{minutes}m"
-        
-        return None
-    def _setup_real_time_updates(self):
-        """Setup real-time updates for status bar and UI elements"""
-        # Store previous settings hash to detect changes
-        self._previous_settings_hash = None
-        
-        # Start frequent status checks (every 2 seconds for quick response)
-        GLib.timeout_add_seconds(2, self._check_for_settings_changes)
-    
-    def _check_for_settings_changes(self):
-        """Check if settings have changed and update status immediately"""
-        try:
-            # Create a hash of current settings to detect changes
-            config = self.zfs_assistant.config
-            settings_data = {
-                'auto_snapshot': config.get('auto_snapshot', False),
-                'daily_schedule': config.get('daily_schedule', []),
-                'weekly_schedule': config.get('weekly_schedule', False),
-                'monthly_schedule': config.get('monthly_schedule', False),
-                'pacman_integration': config.get('pacman_integration', False),
-                'update_snapshots': config.get('update_snapshots', 'disabled'),
-                'clean_cache_after_updates': config.get('clean_cache_after_updates', False)
-            }
-            
-            # Get actual timer states for comparison
-            try:
-                actual_schedule_status = self.zfs_assistant.system_integration.get_schedule_status()
-                settings_data['actual_timers'] = actual_schedule_status
-            except:
-                settings_data['actual_timers'] = {}
-            
-            current_hash = hash(str(sorted(settings_data.items())))
-            
-            # If settings changed, update status immediately
-            if self._previous_settings_hash != current_hash:
-                self._previous_settings_hash = current_hash
-                self._update_settings_status()
-                
         except Exception as e:
-            print(f"Error checking for settings changes: {e}")
-        
-        # Continue checking
-        return True
-
-    def trigger_status_update(self):
-        """Trigger an immediate status update - can be called externally"""
-        self._previous_settings_hash = None  # Force update
-        self._update_settings_status()
-        
-        # Also trigger snapshot count update for consistency
-        GLib.idle_add(self.update_snapshot_count)
+            print(f"Error updating settings status: {e}")
+            return True

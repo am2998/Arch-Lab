@@ -5,6 +5,7 @@
 import subprocess
 import datetime
 from typing import List, Optional, Tuple
+import os
 
 # Handle imports for both relative and direct execution
 try:
@@ -771,4 +772,199 @@ class ZFSCore:
             error_msg = f"Error during {interval} scheduled snapshot creation: {str(e)}"
             self.logger.log_essential_message(LogLevel.ERROR, error_msg)
             self.logger.end_scheduled_operation(False, error_msg)
+            return False, error_msg
+    
+    def get_arc_properties(self) -> dict:
+        """
+        Get ZFS ARC (Adaptive Replacement Cache) statistics and properties.
+        
+        Returns:
+            Dictionary of ARC properties organized by category
+        """
+        try:
+            log_info("Getting ARC properties")
+            
+            # Read ARC statistics from /proc/spl/kstat/zfs/arcstats
+            arcstats_path = "/proc/spl/kstat/zfs/arcstats"
+            if not os.path.exists(arcstats_path):
+                log_warning("ARC statistics not available - ZFS may not be loaded")
+                return {}
+            
+            arc_properties = {}
+            
+            with open(arcstats_path, 'r') as f:
+                lines = f.readlines()
+            
+            # Skip header lines
+            for line in lines[2:]:  # Skip the first two header lines
+                line = line.strip()
+                if not line:
+                    continue
+                    
+                parts = line.split()
+                if len(parts) >= 3:
+                    name = parts[0]
+                    value = parts[2]
+                    arc_properties[name] = value
+            
+            # Organize properties into categories
+            categorized_properties = {
+                "Cache Statistics": {
+                    "Total Hits": arc_properties.get("hits", "0"),
+                    "Total Misses": arc_properties.get("misses", "0"),
+                    "Hit Rate": self._calculate_hit_rate(arc_properties),
+                    "Demand Data Hits": arc_properties.get("demand_data_hits", "0"),
+                    "Demand Data Misses": arc_properties.get("demand_data_misses", "0"),
+                    "Demand Metadata Hits": arc_properties.get("demand_metadata_hits", "0"),
+                    "Demand Metadata Misses": arc_properties.get("demand_metadata_misses", "0"),
+                },
+                "Memory Usage": {
+                    "ARC Size": self._format_bytes(arc_properties.get("size", "0")),
+                    "ARC Maximum Size": self._format_bytes(arc_properties.get("c_max", "0")),
+                    "ARC Target Size": self._format_bytes(arc_properties.get("c", "0")),
+                    "ARC Minimum Size": self._format_bytes(arc_properties.get("c_min", "0")),
+                    "MRU Size": self._format_bytes(arc_properties.get("p", "0")),
+                    "Data Size": self._format_bytes(arc_properties.get("data_size", "0")),
+                    "Metadata Size": self._format_bytes(arc_properties.get("meta_size", "0")),
+                },
+                "Cache Lists": {
+                    "MRU Hits": arc_properties.get("mru_hits", "0"),
+                    "MRU Ghost Hits": arc_properties.get("mru_ghost_hits", "0"),
+                    "MFU Hits": arc_properties.get("mfu_hits", "0"),
+                    "MFU Ghost Hits": arc_properties.get("mfu_ghost_hits", "0"),
+                    "Prefetch Data Hits": arc_properties.get("prefetch_data_hits", "0"),
+                    "Prefetch Metadata Hits": arc_properties.get("prefetch_metadata_hits", "0"),
+                },
+                "Efficiency": {
+                    "Read Hits": arc_properties.get("iohits", "0"),
+                    "Sync Wait for Read": arc_properties.get("sync_wait_for_async", "0"),
+                    "Async Upgrade Sync": arc_properties.get("async_upgrade_sync", "0"),
+                    "Evict Skip": arc_properties.get("evict_skip", "0"),
+                    "Mutex Miss": arc_properties.get("mutex_miss", "0"),
+                }
+            }
+            
+            log_success(f"Retrieved ARC properties with {len(arc_properties)} statistics")
+            return categorized_properties
+            
+        except Exception as e:
+            error_msg = f"Error getting ARC properties: {str(e)}"
+            log_error(error_msg)
+            return {}
+    
+    def _calculate_hit_rate(self, arc_properties: dict) -> str:
+        """Calculate ARC hit rate percentage."""
+        try:
+            hits = int(arc_properties.get("hits", "0"))
+            misses = int(arc_properties.get("misses", "0"))
+            total = hits + misses
+            
+            if total == 0:
+                return "0.00%"
+            
+            hit_rate = (hits / total) * 100
+            return f"{hit_rate:.2f}%"
+        except (ValueError, ZeroDivisionError):
+            return "N/A"
+    
+    def _format_bytes(self, byte_str: str) -> str:
+        """Format bytes into human-readable format."""
+        try:
+            bytes_val = int(byte_str)
+            if bytes_val == 0:
+                return "0 B"
+            
+            units = ['B', 'KB', 'MB', 'GB', 'TB']
+            unit_index = 0
+            
+            while bytes_val >= 1024 and unit_index < len(units) - 1:
+                bytes_val /= 1024
+                unit_index += 1
+            
+            return f"{bytes_val:.1f} {units[unit_index]}"
+        except ValueError:
+            return byte_str
+    
+    def get_arc_tunables(self) -> dict:
+        """
+        Get ZFS ARC tunable parameters that can be modified.
+        
+        Returns:
+            Dictionary of tunable ARC parameters
+        """
+        try:
+            log_info("Getting ARC tunable parameters")
+            
+            tunables = {}
+            
+            # Common ARC tunables from /sys/module/zfs/parameters/
+            tunable_params = {
+                "zfs_arc_max": "Maximum ARC size (bytes)",
+                "zfs_arc_min": "Minimum ARC size (bytes)", 
+                "zfs_arc_meta_limit": "ARC metadata limit (bytes)",
+                "zfs_arc_meta_min": "ARC metadata minimum (bytes)",
+                "zfs_arc_shrink_shift": "ARC shrink shift",
+                "zfs_arc_grow_retry": "ARC grow retry interval",
+                "zfs_arc_p_min_shift": "ARC target size minimum shift"
+            }
+            
+            for param, description in tunable_params.items():
+                param_path = f"/sys/module/zfs/parameters/{param}"
+                if os.path.exists(param_path):
+                    try:
+                        with open(param_path, 'r') as f:
+                            value = f.read().strip()
+                        tunables[param] = {
+                            "value": value,
+                            "description": description,
+                            "editable": True
+                        }
+                    except Exception:
+                        tunables[param] = {
+                            "value": "N/A",
+                            "description": description, 
+                            "editable": False
+                        }
+            
+            log_success(f"Retrieved {len(tunables)} ARC tunable parameters")
+            return tunables
+            
+        except Exception as e:
+            error_msg = f"Error getting ARC tunables: {str(e)}"
+            log_error(error_msg)
+            return {}
+    
+    def set_arc_tunable(self, parameter: str, value: str) -> Tuple[bool, str]:
+        """
+        Set an ARC tunable parameter.
+        
+        Args:
+            parameter: Name of the tunable parameter
+            value: New value to set
+            
+        Returns:
+            (success, message) tuple
+        """
+        try:
+            log_info(f"Setting ARC tunable: {parameter} = {value}")
+            
+            param_path = f"/sys/module/zfs/parameters/{parameter}"
+            if not os.path.exists(param_path):
+                return False, f"Parameter {parameter} not found"
+            
+            # Use privilege manager to write the new value
+            success, result = self.privilege_manager.run_privileged_command([
+                'sh', '-c', f'echo "{value}" > {param_path}'
+            ])
+            
+            if not success:
+                log_error(f"Failed to set ARC tunable {parameter}: {result}")
+                return False, f"Failed to set {parameter}: {result}"
+            
+            log_success(f"Successfully set ARC tunable: {parameter} = {value}")
+            return True, f"Set {parameter} to {value}"
+            
+        except Exception as e:
+            error_msg = f"Error setting ARC tunable: {str(e)}"
+            log_error(error_msg)
             return False, error_msg

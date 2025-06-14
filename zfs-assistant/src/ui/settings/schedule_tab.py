@@ -25,15 +25,18 @@ class ScheduleSettingsTab:
     
     def _build_ui(self):
         """Build the schedule settings tab UI"""
-        # Create main container
-        self.box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
-        self.box.set_margin_top(10)
-        self.box.set_margin_bottom(10)
+        # Create main container with reduced spacing for compactness
+        self.box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+        self.box.set_margin_top(8)
+        self.box.set_margin_bottom(8)
         self.box.set_margin_start(10)
         self.box.set_margin_end(10)
         
         # Enable scheduled snapshots
         self._create_schedule_enable_section()
+        
+        # Managed datasets section (moved from General tab)
+        self._create_managed_datasets_section()
         
         # Schedule types configuration (create before naming to avoid AttributeError)
         self._create_schedule_types_section()
@@ -57,55 +60,138 @@ class ScheduleSettingsTab:
         schedule_enable_box.append(self.schedule_switch)
         self.box.append(schedule_enable_box)
         
-        # Add explanation text
+        # Add explanation text (shorter)
         explanation_label = Gtk.Label(
-            label="Choose one schedule type below. Only one schedule type can be active at a time. "
-                  "For daily snapshots, you can select multiple days within that type. "
-                  "System updates (pacman -Syu) will be executed automatically during scheduled snapshots."
+            label="Automated snapshots help protect your data by creating regular backups. "
+                  "Choose one schedule type below and select datasets to include."
         )
         
         explanation_label.set_wrap(True)
-        explanation_label.set_margin_top(5)
-        explanation_label.set_margin_bottom(5)
+        explanation_label.set_margin_top(4)
+        explanation_label.set_margin_bottom(4)
         explanation_label.set_halign(Gtk.Align.START)
         explanation_label.set_margin_start(0)  # Align with frame content
         explanation_label.add_css_class("dim-label")
         self.box.append(explanation_label)
     
+    def _create_managed_datasets_section(self):
+        """Create the managed datasets selection section"""
+        datasets_frame = Gtk.Frame()
+        datasets_frame.set_label("Datasets to Include in Scheduled Snapshots")
+        datasets_frame.set_margin_top(5)
+        datasets_frame.set_margin_bottom(5)
+        self.box.append(datasets_frame)
+        
+        datasets_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+        datasets_box.set_margin_top(6)
+        datasets_box.set_margin_bottom(6)
+        datasets_box.set_margin_start(10)
+        datasets_box.set_margin_end(10)
+        datasets_frame.set_child(datasets_box)
+        
+        # Add explanation for dataset selection (shorter text)
+        dataset_explanation = Gtk.Label(
+            label="Select which ZFS datasets should be included in your scheduled snapshots."
+        )
+        dataset_explanation.set_wrap(True)
+        dataset_explanation.set_margin_bottom(6)
+        dataset_explanation.set_halign(Gtk.Align.START)
+        dataset_explanation.set_margin_start(0)
+        dataset_explanation.add_css_class("dim-label")
+        datasets_box.append(dataset_explanation)
+        
+        # Dataset list with checkboxes - more compact
+        datasets_scroll = Gtk.ScrolledWindow()
+        datasets_scroll.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
+        datasets_scroll.set_size_request(-1, 100)  # Reduced height for compactness
+        datasets_scroll.set_vexpand(False)  # Don't expand vertically
+        datasets_box.append(datasets_scroll)
+        
+        # Create a list box for datasets
+        self.datasets_list = Gtk.ListBox()
+        self.datasets_list.set_selection_mode(Gtk.SelectionMode.NONE)
+        datasets_scroll.set_child(self.datasets_list)
+        
+        # Get available datasets (exclude root pool datasets)
+        datasets = self.zfs_assistant.get_filtered_datasets()
+        managed_datasets = self.config.get("datasets", [])
+        
+        # Add datasets to the list
+        if datasets:
+            for dataset in datasets:
+                dataset_name = dataset
+                row = Gtk.ListBoxRow()
+                box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
+                box.set_margin_top(5)
+                box.set_margin_bottom(5)
+                box.set_margin_start(5)
+                box.set_margin_end(5)
+                
+                check = Gtk.CheckButton(label=dataset_name)
+                check.set_active(dataset_name in managed_datasets)
+                box.append(check)
+                
+                row.set_child(box)
+                self.datasets_list.append(row)
+        else:
+            # Show message when no datasets are available
+            no_datasets_label = Gtk.Label(label="No ZFS datasets found to manage")
+            no_datasets_label.set_halign(Gtk.Align.CENTER)
+            no_datasets_label.add_css_class("dim-label")
+            datasets_box.append(no_datasets_label)
+        
+        # Add buttons for selecting all/none
+        if datasets:  # Only show buttons if there are datasets
+            button_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
+            button_box.set_margin_top(6)
+            
+            select_all_button = Gtk.Button(label="Select All Datasets")
+            select_all_button.connect("clicked", self.on_select_all_datasets_clicked)
+            button_box.append(select_all_button)
+            
+            select_none_button = Gtk.Button(label="Clear All Datasets")
+            select_none_button.connect("clicked", self.on_select_none_datasets_clicked)
+            button_box.append(select_none_button)
+            
+            datasets_box.append(button_box)
+    
     def _create_naming_section(self):
         """Create the snapshot naming configuration section"""
         naming_frame = Gtk.Frame()
         naming_frame.set_label("Snapshot Naming")
-        naming_frame.set_margin_top(10)
-        naming_frame.set_margin_bottom(10)
+        naming_frame.set_margin_top(5)
+        naming_frame.set_margin_bottom(5)
         self.box.append(naming_frame)
         
-        naming_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
-        naming_box.set_margin_top(10)
-        naming_box.set_margin_bottom(10)
+        naming_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
+        naming_box.set_margin_top(6)
+        naming_box.set_margin_bottom(6)
         naming_box.set_margin_start(10)
         naming_box.set_margin_end(10)
         naming_frame.set_child(naming_box)
         
+        # Create horizontal layout for naming settings
+        naming_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=15)
+        naming_row.set_halign(Gtk.Align.START)
+        naming_box.append(naming_row)
+        
         # Prefix setting
-        prefix_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
-        prefix_box.set_halign(Gtk.Align.START)
-        prefix_label = Gtk.Label(label="Snapshot Prefix:")
-        prefix_label.set_size_request(140, -1)
+        prefix_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        prefix_label = Gtk.Label(label="Prefix:")
+        prefix_label.set_size_request(60, -1)
         prefix_label.set_halign(Gtk.Align.START)
         prefix_box.append(prefix_label)
         
         self.prefix_entry = Gtk.Entry()
         self.prefix_entry.set_text(self.config.get("prefix", "zfs-assistant"))
-        self.prefix_entry.set_size_request(200, -1)
+        self.prefix_entry.set_size_request(150, -1)
         prefix_box.append(self.prefix_entry)
-        naming_box.append(prefix_box)
+        naming_row.append(prefix_box)
         
         # Name format dropdown
-        format_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
-        format_box.set_halign(Gtk.Align.START)
-        format_label = Gtk.Label(label="Naming Format:")
-        format_label.set_size_request(140, -1)
+        format_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        format_label = Gtk.Label(label="Format:")
+        format_label.set_size_request(60, -1)
         format_label.set_halign(Gtk.Align.START)
         format_box.append(format_label)
         
@@ -129,21 +215,21 @@ class ScheduleSettingsTab:
         except ValueError:
             self.format_combo.set_selected(0)
         
-        self.format_combo.set_size_request(200, -1)
+        self.format_combo.set_size_request(180, -1)
         format_box.append(self.format_combo)
-        naming_box.append(format_box)
+        naming_row.append(format_box)
         
-        # Preview of snapshot names
-        preview_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
-        preview_box.set_halign(Gtk.Align.START)
+        # Preview of snapshot names (more compact)
+        preview_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        preview_box.set_margin_top(6)
         preview_label = Gtk.Label(label="Preview:")
-        preview_label.set_size_request(140, -1)
+        preview_label.set_size_request(60, -1)
         preview_label.set_halign(Gtk.Align.START)
         preview_box.append(preview_label)
         
-        # Container for multiple preview labels
-        self.preview_container = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=3)
-        self.preview_container.set_size_request(400, -1)  # Match the input field width area
+        # Container for preview labels - horizontal layout
+        self.preview_container = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
+        self.preview_container.set_hexpand(True)
         self.preview_container.set_halign(Gtk.Align.START)
         preview_box.append(self.preview_container)
         
@@ -158,183 +244,236 @@ class ScheduleSettingsTab:
     def _create_schedule_types_section(self):
         """Create the schedule types configuration section"""
         schedule_frame = Gtk.Frame()
-        schedule_frame.set_label("Snapshot Schedules")
-        schedule_frame.set_margin_top(10)
-        schedule_frame.set_margin_bottom(10)
+        schedule_frame.set_label("Snapshot Schedule Types")
+        schedule_frame.set_margin_top(5)
+        schedule_frame.set_margin_bottom(5)
         self.box.append(schedule_frame)
         
-        schedule_types_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
-        schedule_types_box.set_margin_top(10)
-        schedule_types_box.set_margin_bottom(10)
+        schedule_types_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
+        schedule_types_box.set_margin_top(6)
+        schedule_types_box.set_margin_bottom(6)
         schedule_types_box.set_margin_start(10)
         schedule_types_box.set_margin_end(10)
         schedule_frame.set_child(schedule_types_box)
         
-        # Daily snapshots
-        self._create_daily_section(schedule_types_box)
+        # Add explanation for schedule types (shorter)
+        schedule_explanation = Gtk.Label(
+            label="Select one schedule type that best fits your backup needs."
+        )
+        schedule_explanation.set_wrap(True)
+        schedule_explanation.set_margin_bottom(6)
+        schedule_explanation.set_halign(Gtk.Align.START)
+        schedule_explanation.set_margin_start(0)
+        schedule_explanation.add_css_class("dim-label")
+        schedule_types_box.append(schedule_explanation)
         
-        # Weekly snapshots
-        self._create_weekly_section(schedule_types_box)
+        # Create horizontal layout for schedule types
+        schedule_main_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=15)
+        schedule_types_box.append(schedule_main_box)
         
-        # Monthly snapshots
-        self._create_monthly_section(schedule_types_box)
+        # Left column: Daily snapshots
+        daily_column = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+        daily_column.set_hexpand(True)
+        self._create_daily_section(daily_column)
+        schedule_main_box.append(daily_column)
+        
+        # Add vertical separator
+        separator = Gtk.Separator(orientation=Gtk.Orientation.VERTICAL)
+        separator.set_margin_start(5)
+        separator.set_margin_end(5)
+        schedule_main_box.append(separator)
+        
+        # Right column: Weekly and Monthly
+        right_column = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+        right_column.set_hexpand(True)
+        self._create_weekly_section(right_column)
+        self._create_monthly_section(right_column)
+        schedule_main_box.append(right_column)
     
     def _create_daily_section(self, parent):
         """Create daily snapshots configuration"""
-        daily_section = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=5)
-        daily_header = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
+        daily_section = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+        daily_header = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
         self.daily_check = Gtk.CheckButton(label="Daily Snapshots")
         self.daily_check.connect("toggled", self.on_schedule_type_toggled)
         daily_header.append(self.daily_check)
         
         # Time selection for daily snapshots
-        daily_header.append(Gtk.Label(label="at time:"))
+        daily_header.append(Gtk.Label(label="at"))
         self.daily_hour_spin = Gtk.SpinButton.new_with_range(0, 23, 1)
         self.daily_hour_spin.set_value(self.config.get("daily_hour", 0))
-        self.daily_hour_spin.connect("value-changed", self.update_snapshot_preview)  # Connect to preview update
+        self.daily_hour_spin.connect("value-changed", self.update_snapshot_preview)
+        self.daily_hour_spin.set_size_request(60, -1)
         daily_header.append(self.daily_hour_spin)
         daily_header.append(Gtk.Label(label=":"))
         self.daily_minute_spin = Gtk.SpinButton.new_with_range(0, 59, 1)
         self.daily_minute_spin.set_value(self.config.get("daily_minute", 0))
         self.daily_minute_spin.connect("value-changed", self.update_snapshot_preview)
+        self.daily_minute_spin.set_size_request(60, -1)
         daily_header.append(self.daily_minute_spin)
         
         daily_section.append(daily_header)
         
-        # Add explanation for daily
-        daily_explanation = Gtk.Label(label="Select the days of the week when snapshots should be taken")
-        daily_explanation.set_margin_start(0)  # Align with frame content
+        # Add shorter explanation for daily
+        daily_explanation = Gtk.Label(label="High Protection - Best for active systems")
+        daily_explanation.set_margin_start(20)
         daily_explanation.set_halign(Gtk.Align.START)
+        daily_explanation.set_wrap(True)
         daily_explanation.add_css_class("dim-label")
         daily_section.append(daily_explanation)
         
-        # Days selection grid
-        self.daily_grid = Gtk.Grid()
-        self.daily_grid.set_column_homogeneous(True)
-        self.daily_grid.set_row_spacing(3)  # Reduced row spacing for more compact layout
-        self.daily_grid.set_column_spacing(8)  # Slightly reduced column spacing
-        self.daily_grid.set_margin_start(0)  # Align with frame content
+        # Compact day selection buttons
+        daily_button_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+        daily_button_box.set_margin_top(4)
+        daily_button_box.set_margin_start(20)
         
-        # Day selection button box
-        daily_button_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
-        daily_button_box.set_margin_bottom(5)
-        daily_button_box.set_margin_start(0)  # Align with frame content
-        
-        self.daily_select_all_button = Gtk.Button(label="Select All Days")
+        self.daily_select_all_button = Gtk.Button(label="All Days")
         self.daily_select_all_button.connect("clicked", self.on_daily_select_all_clicked)
+        self.daily_select_all_button.add_css_class("pill")
         daily_button_box.append(self.daily_select_all_button)
         
-        self.daily_select_none_button = Gtk.Button(label="Clear Days")
+        self.daily_select_none_button = Gtk.Button(label="Clear")
         self.daily_select_none_button.connect("clicked", self.on_daily_select_none_clicked)
+        self.daily_select_none_button.add_css_class("pill")
         daily_button_box.append(self.daily_select_none_button)
         
         daily_section.append(daily_button_box)
         
-        # Create day checkboxes
-        days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+        # Create compact day checkboxes grid
+        self.daily_grid = Gtk.Grid()
+        self.daily_grid.set_column_homogeneous(True)
+        self.daily_grid.set_row_spacing(2)
+        self.daily_grid.set_column_spacing(4)
+        self.daily_grid.set_margin_start(20)
+        self.daily_grid.set_margin_top(4)
+        
+        # Create day checkboxes in a more compact 3x3 grid (7 days total)
+        days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
         daily_schedule = self.config.get("daily_schedule", list(range(7)))
         
         for day_idx, day_name in enumerate(days):
-            row = 0  # All days in one row (more horizontal)
-            col = day_idx
+            row = day_idx // 3  # 3 days per row for more compact layout
+            col = day_idx % 3
             check = Gtk.CheckButton(label=day_name)
             check.set_active(day_idx in daily_schedule)
-            check.connect("toggled", self.update_snapshot_preview)  # Connect to preview update
+            check.connect("toggled", self.update_snapshot_preview)
             self.day_checks[day_idx] = check
             self.daily_grid.attach(check, col, row, 1, 1)
         
         daily_section.append(self.daily_grid)
         parent.append(daily_section)
-        
-        # Add a separator
-        parent.append(Gtk.Separator(orientation=Gtk.Orientation.HORIZONTAL))
     
     def _create_weekly_section(self, parent):
         """Create weekly snapshots configuration"""
-        weekly_section = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=5)
+        weekly_section = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
         
-        weekly_label = Gtk.Label(label="Weekly Snapshots (every Monday at midnight)")
+        weekly_label = Gtk.Label(label="Weekly Snapshots")
         weekly_label.set_halign(Gtk.Align.START)
-        weekly_label.set_margin_start(0)  # Align with frame content
+        weekly_label.set_margin_start(0)
         
         self.weekly_check = Gtk.CheckButton()
         self.weekly_check.set_child(weekly_label)
         self.weekly_check.connect("toggled", self.on_schedule_type_toggled)
         weekly_section.append(self.weekly_check)
-        parent.append(weekly_section)
         
-        # Add a separator
-        parent.append(Gtk.Separator(orientation=Gtk.Orientation.HORIZONTAL))
+        # Add shorter explanation for weekly
+        weekly_explanation = Gtk.Label(label="Moderate Protection - Every Monday at midnight")
+        weekly_explanation.set_margin_start(20)
+        weekly_explanation.set_halign(Gtk.Align.START)
+        weekly_explanation.set_wrap(True)
+        weekly_explanation.add_css_class("dim-label")
+        weekly_section.append(weekly_explanation)
+        
+        parent.append(weekly_section)
     
     def _create_monthly_section(self, parent):
         """Create monthly snapshots configuration"""
-        monthly_section = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=5)
+        monthly_section = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
         
-        monthly_label = Gtk.Label(label="Monthly Snapshots (on the 1st of each month at midnight)")
+        monthly_label = Gtk.Label(label="Monthly Snapshots")
         monthly_label.set_halign(Gtk.Align.START)
-        monthly_label.set_margin_start(0)  # Align with frame content
+        monthly_label.set_margin_start(0)
         
         self.monthly_check = Gtk.CheckButton()
         self.monthly_check.set_child(monthly_label)
         self.monthly_check.connect("toggled", self.on_schedule_type_toggled)
         monthly_section.append(self.monthly_check)
+        
+        # Add shorter explanation for monthly
+        monthly_explanation = Gtk.Label(label="Basic Protection - 1st of each month at midnight")
+        monthly_explanation.set_margin_start(20)
+        monthly_explanation.set_halign(Gtk.Align.START)
+        monthly_explanation.set_wrap(True)
+        monthly_explanation.add_css_class("dim-label")
+        monthly_section.append(monthly_explanation)
+        
         parent.append(monthly_section)
     
     def _create_retention_section(self):
         """Create retention policy configuration"""
         retention_frame = Gtk.Frame()
         retention_frame.set_label("Retention Policy")
-        retention_frame.set_margin_top(10)
-        retention_frame.set_margin_bottom(10)
+        retention_frame.set_margin_top(5)
+        retention_frame.set_margin_bottom(5)
         self.box.append(retention_frame)
         
         retention_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
-        retention_box.set_margin_top(10)
-        retention_box.set_margin_bottom(10)
+        retention_box.set_margin_top(6)
+        retention_box.set_margin_bottom(6)
         retention_box.set_margin_start(10)
         retention_box.set_margin_end(10)
         retention_frame.set_child(retention_box)
         
         retention_explanation = Gtk.Label(
-            label="Specify how many snapshots of each type to keep. Older snapshots will be automatically deleted."
+            label="Specify how many snapshots of each type to keep."
         )
         retention_explanation.set_wrap(True)
-        retention_explanation.set_margin_bottom(10)
+        retention_explanation.set_margin_bottom(6)
         retention_explanation.set_halign(Gtk.Align.START)
-        retention_explanation.set_margin_start(0)  # Align with frame content
+        retention_explanation.set_margin_start(0)
         retention_explanation.add_css_class("dim-label")
         retention_box.append(retention_explanation)
         
-        # Create a horizontal grid layout for retention settings (more compact)
-        retention_grid = Gtk.Grid()
-        retention_grid.set_column_spacing(20)  # Space between columns
-        retention_grid.set_row_spacing(8)      # Space between rows
-        retention_grid.set_column_homogeneous(True)  # Make columns equal width
-        retention_box.append(retention_grid)
+        # Create horizontal layout for retention settings
+        retention_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=20)
+        retention_row.set_halign(Gtk.Align.START)
+        retention_box.append(retention_row)
         
-        # Daily retention (row 0, col 0)
+        # Daily retention
+        daily_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
         daily_label = Gtk.Label(label="Daily:")
+        daily_label.set_size_request(50, -1)
         daily_label.set_halign(Gtk.Align.START)
-        retention_grid.attach(daily_label, 0, 0, 1, 1)
+        daily_box.append(daily_label)
         self.daily_spin = Gtk.SpinButton.new_with_range(1, 100, 1)
         self.daily_spin.set_value(self.config.get("snapshot_retention", {}).get("daily", 7))
-        retention_grid.attach(self.daily_spin, 1, 0, 1, 1)
+        self.daily_spin.set_size_request(80, -1)
+        daily_box.append(self.daily_spin)
+        retention_row.append(daily_box)
         
-        # Weekly retention (row 0, col 2)
+        # Weekly retention
+        weekly_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
         weekly_label = Gtk.Label(label="Weekly:")
+        weekly_label.set_size_request(50, -1)
         weekly_label.set_halign(Gtk.Align.START)
-        retention_grid.attach(weekly_label, 2, 0, 1, 1)
+        weekly_box.append(weekly_label)
         self.weekly_spin = Gtk.SpinButton.new_with_range(1, 100, 1)
         self.weekly_spin.set_value(self.config.get("snapshot_retention", {}).get("weekly", 4))
-        retention_grid.attach(self.weekly_spin, 3, 0, 1, 1)
+        self.weekly_spin.set_size_request(80, -1)
+        weekly_box.append(self.weekly_spin)
+        retention_row.append(weekly_box)
         
-        # Monthly retention (row 1, col 0)
+        # Monthly retention
+        monthly_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
         monthly_label = Gtk.Label(label="Monthly:")
+        monthly_label.set_size_request(60, -1)
         monthly_label.set_halign(Gtk.Align.START)
-        retention_grid.attach(monthly_label, 0, 1, 1, 1)
+        monthly_box.append(monthly_label)
         self.monthly_spin = Gtk.SpinButton.new_with_range(1, 100, 1)
         self.monthly_spin.set_value(self.config.get("snapshot_retention", {}).get("monthly", 12))
-        retention_grid.attach(self.monthly_spin, 1, 1, 1, 1)
+        self.monthly_spin.set_size_request(80, -1)
+        monthly_box.append(self.monthly_spin)
+        retention_row.append(monthly_box)
     
     def _set_initial_schedule_state(self):
         """Set initial state of schedule sections"""
@@ -398,6 +537,13 @@ class ScheduleSettingsTab:
             # Disable snapshot naming fields
             self.prefix_entry.set_sensitive(False)
             self.format_combo.set_sensitive(False)
+            
+            # Disable dataset selection when auto-snapshot is disabled
+            if hasattr(self, 'datasets_list'):
+                for row in self.datasets_list:
+                    box = row.get_child()
+                    check = box.get_first_child()
+                    check.set_sensitive(False)
     
     def get_box(self):
         """Get the main container widget"""
@@ -453,9 +599,11 @@ class ScheduleSettingsTab:
             else:
                 snapshot_name = f"{prefix}-{type_key}-{timestamp}"
             
-            preview_label = Gtk.Label(label=f"{type_name}: {snapshot_name}")
+            # Show only the snapshot name without type prefix for horizontal layout
+            preview_label = Gtk.Label(label=snapshot_name)
             preview_label.set_halign(Gtk.Align.START)
             preview_label.add_css_class("dim-label")
+            preview_label.set_margin_end(15)  # Add spacing between previews
             self.preview_container.append(preview_label)
     
     def on_schedule_switch_toggled(self, widget, state):
@@ -464,6 +612,13 @@ class ScheduleSettingsTab:
         self.daily_check.set_sensitive(state)
         self.weekly_check.set_sensitive(state)
         self.monthly_check.set_sensitive(state)
+        
+        # Update sensitivity of dataset selection
+        if hasattr(self, 'datasets_list'):
+            for row in self.datasets_list:
+                box = row.get_child()
+                check = box.get_first_child()
+                check.set_sensitive(state)
         
         # Update sensitivity of daily buttons
         self.daily_select_all_button.set_sensitive(state)
@@ -521,8 +676,34 @@ class ScheduleSettingsTab:
         for check in self.day_checks.values():
             check.set_active(False)
     
+    def on_select_all_datasets_clicked(self, button):
+        """Handle select all datasets button click"""
+        if hasattr(self, 'datasets_list'):
+            for row in self.datasets_list:
+                box = row.get_child()
+                check = box.get_first_child()
+                check.set_active(True)
+    
+    def on_select_none_datasets_clicked(self, button):
+        """Handle select none datasets button click"""
+        if hasattr(self, 'datasets_list'):
+            for row in self.datasets_list:
+                box = row.get_child()
+                check = box.get_first_child()
+                check.set_active(False)
+    
     def apply_settings(self, config):
         """Apply settings from this tab to the config"""
+        # Update managed datasets
+        managed_datasets = []
+        if hasattr(self, 'datasets_list'):
+            for row in self.datasets_list:
+                box = row.get_child()
+                check = box.get_first_child()
+                if check.get_active():
+                    managed_datasets.append(check.get_label())
+        config["datasets"] = managed_datasets
+        
         # Update prefix
         config["prefix"] = self.prefix_entry.get_text().strip()
         

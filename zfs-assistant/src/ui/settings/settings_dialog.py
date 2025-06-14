@@ -34,8 +34,8 @@ class SettingsDialog(Gtk.Dialog):
         self.add_button("Save", Gtk.ResponseType.OK)
         
         # Set dialog size to be more horizontal (wider, less tall)
-        self.set_default_size(1400, 600)  # Wider and shorter than before
-        self.set_size_request(1200, 500)   # Minimum size also wider and shorter
+        self.set_default_size(1200, 500)  # Wider and much shorter
+        self.set_size_request(1000, 450)   # Minimum size also wider and shorter
         
         # Create notebook for tabs
         notebook = Gtk.Notebook()
