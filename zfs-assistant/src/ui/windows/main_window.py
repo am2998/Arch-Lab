@@ -4,6 +4,7 @@
 
 import gi
 import datetime
+import os
 
 gi.require_version('Gtk', '4.0')
 gi.require_version('Adw', '1')
@@ -357,6 +358,50 @@ class MainWindow(Gtk.ApplicationWindow):
         
         notebook.append_page(arc_page, arc_tab_box)
         
+        # Log tab for displaying log file contents
+        log_page = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
+        
+        log_content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
+        log_content.set_margin_top(16)
+        log_content.set_margin_bottom(16)
+        log_content.set_margin_start(16)
+        log_content.set_margin_end(16)
+        log_page.append(log_content)
+        
+        # Create log content card
+        log_card = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
+        log_card.add_css_class("content-card")
+        log_card.set_vexpand(True)
+        
+        # Scrolled window for log content
+        log_scrolled_window = Gtk.ScrolledWindow()
+        log_scrolled_window.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.AUTOMATIC)
+        log_scrolled_window.set_vexpand(True)
+        log_scrolled_window.set_min_content_height(200)
+        log_card.append(log_scrolled_window)
+        
+        # Create grid for log content like other tabs
+        self.log_grid = Gtk.Grid()
+        self.log_grid.set_column_spacing(20)
+        self.log_grid.set_row_spacing(10)
+        self.log_grid.set_margin_top(16)
+        self.log_grid.set_margin_bottom(16)
+        self.log_grid.set_margin_start(16)
+        self.log_grid.set_margin_end(16)
+        self.log_grid.add_css_class("log-grid")
+        log_scrolled_window.set_child(self.log_grid)
+        
+        log_content.append(log_card)
+        
+        # Create log tab label with icon
+        log_tab_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+        log_tab_icon = Gtk.Image.new_from_icon_name("text-x-generic-symbolic")
+        log_tab_label = Gtk.Label(label="Log")
+        log_tab_box.append(log_tab_icon)
+        log_tab_box.append(log_tab_label)
+        
+        notebook.append_page(log_page, log_tab_box)
+        
         # Add more compact status bar at the bottom
         self.status_bar = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)  # Reduced from 12 to 10
         self.status_bar.set_margin_top(10)    # Reduced from 12 to 10
@@ -465,6 +510,8 @@ class MainWindow(Gtk.ApplicationWindow):
             self.refresh_dataset_properties()
             # Update ARC properties
             self.refresh_arc_properties()
+            # Load log content
+            self.refresh_log_content()
         except Exception as e:
             print(f"Error during deferred initialization: {e}")
         return False  # Don't repeat the timeout
@@ -1089,6 +1136,7 @@ class MainWindow(Gtk.ApplicationWindow):
         self.refresh_snapshots()
         self.refresh_dataset_properties()
         self.refresh_arc_properties()
+        self.refresh_log_content()
         
     def on_properties_refresh_clicked(self, button):
         """Handle properties refresh button click"""
@@ -1484,3 +1532,168 @@ class MainWindow(Gtk.ApplicationWindow):
         except Exception as e:
             print(f"Error updating settings status: {e}")
             return True
+
+    def on_log_refresh_clicked(self, button):
+        """Handle log refresh button click"""
+        # Animate the button with a spinning effect
+        context = button.get_style_context()
+        context.add_class("refreshing")
+        
+        # Show a brief status message
+        self.set_status("Refreshing log...", "view-refresh-symbolic")
+        
+        # Add a small delay for visual feedback
+        GLib.timeout_add(200, self._refresh_log_with_status, button)
+
+    def _refresh_log_with_status(self, button=None):
+        """Refresh log content with status update"""
+        self.refresh_log_content()
+        self.set_status("Log refreshed", "emblem-ok-symbolic")
+        
+        # Remove animation class if button provided
+        if button:
+            context = button.get_style_context()
+            context.remove_class("refreshing")
+            
+        # Reset status after 2 seconds
+        GLib.timeout_add(2000, lambda: self.set_status("Ready") and False)
+        return False  # Don't repeat
+
+    def refresh_log_content(self):
+        """Refresh the log content by reading from the log file"""
+        try:
+            # Clear the grid by removing all children
+            while True:
+                child = self.log_grid.get_first_child()
+                if not child:
+                    break
+                self.log_grid.remove(child)
+            
+            log_file_path = "/var/log/zfs-assistant.log"
+            
+            # Add log header with refresh button
+            header_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
+            header_box.add_css_class("content-card")
+            header_box.set_margin_bottom(15)
+            header_box.set_margin_top(5)
+            header_box.set_margin_start(21)
+            header_box.set_margin_end(21)
+            
+            # Add log icon
+            icon_box = Gtk.Box()
+            icon_box.set_size_request(40, 40)
+            icon_box.add_css_class("snapshot-icon")
+            icon_box.set_valign(Gtk.Align.CENTER)
+            
+            icon = Gtk.Image.new_from_icon_name("text-x-generic-symbolic")
+            icon.set_pixel_size(18)
+            icon_box.append(icon)
+            header_box.append(icon_box)
+            
+            # Log details
+            info_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+            info_box.set_hexpand(True)
+            
+            header_label = Gtk.Label()
+            header_label.set_markup(f"<span size='large'><b>ZFS Assistant Log</b></span>")
+            header_label.set_xalign(0)
+            header_label.set_hexpand(True)
+            info_box.append(header_label)
+            
+            summary_label = Gtk.Label()
+            summary_label.set_markup(f"<span size='small' alpha='80%'>Log file: /var/log/zfs-assistant.log</span>")
+            summary_label.set_xalign(0)
+            summary_label.set_hexpand(True)
+            info_box.append(summary_label)
+            
+            header_box.append(info_box)
+            
+            # Add refresh button
+            refresh_button = Gtk.Button()
+            refresh_button.set_icon_name("view-refresh-symbolic")
+            refresh_button.set_tooltip_text("Refresh Log")
+            refresh_button.set_valign(Gtk.Align.CENTER)
+            refresh_button.add_css_class("flat")
+            refresh_button.add_css_class("refresh-properties-button")
+            refresh_button.connect("clicked", self.on_log_refresh_clicked)
+            header_box.append(refresh_button)
+            
+            self.log_grid.attach(header_box, 0, 0, 2, 1)
+            
+            row = 1
+            
+            # Create a box to hold the log content
+            log_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
+            log_box.set_margin_top(10)
+            
+            # Create scrolled window for log text
+            text_scrolled_window = Gtk.ScrolledWindow()
+            text_scrolled_window.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.AUTOMATIC)
+            text_scrolled_window.set_vexpand(True)
+            text_scrolled_window.set_min_content_height(300)
+            
+            # Text view for log content
+            self.log_text_view = Gtk.TextView()
+            self.log_text_view.set_editable(False)
+            self.log_text_view.set_cursor_visible(False)
+            self.log_text_view.set_monospace(True)
+            self.log_text_view.set_margin_top(16)
+            self.log_text_view.set_margin_bottom(16)
+            self.log_text_view.set_margin_start(16)
+            self.log_text_view.set_margin_end(16)
+            self.log_text_view.add_css_class("log-text-view")
+            text_scrolled_window.set_child(self.log_text_view)
+            
+            log_box.append(text_scrolled_window)
+            
+            # Get the text buffer
+            buffer = self.log_text_view.get_buffer()
+            
+            if not os.path.exists(log_file_path):
+                # Log file doesn't exist
+                buffer.set_text("Log file not found. No logs available yet.\n\nThe log file will be created when ZFS Assistant performs operations.")
+            else:
+                try:
+                    # Read the log file
+                    with open(log_file_path, 'r', encoding='utf-8') as f:
+                        content = f.read()
+                    
+                    if not content.strip():
+                        # Log file is empty
+                        buffer.set_text("Log file is empty. No logs available yet.")
+                    else:
+                        # Show log content
+                        buffer.set_text(content)
+                        
+                        # Auto-scroll to the bottom to show latest entries
+                        mark = buffer.get_insert()
+                        iter_end = buffer.get_end_iter()
+                        buffer.place_cursor(iter_end)
+                        self.log_text_view.scroll_mark_onscreen(mark)
+                        
+                except PermissionError:
+                    # No permission to read log file
+                    buffer.set_text("Permission denied: Cannot read log file.\n\nThe log file requires elevated permissions to read. Try running the application with appropriate privileges.")
+                except Exception as e:
+                    # Other file reading errors
+                    buffer.set_text(f"Error reading log file: {str(e)}\n\nThere was an issue accessing the log file. Please check that the file exists and is readable.")
+            
+            # Add the log box to the grid
+            self.log_grid.attach(log_box, 0, row, 2, 1)
+            
+            # Make sure all is visible
+            self.log_grid.show()
+                
+        except Exception as e:
+            print(f"Error refreshing log content: {e}")
+            # Clear any existing content first
+            while True:
+                child = self.log_grid.get_first_child()
+                if not child:
+                    break
+                self.log_grid.remove(child)
+            # Add error message
+            error_label = Gtk.Label(label=f"Error loading log content: {str(e)}")
+            error_label.set_margin_top(20)
+            error_label.set_margin_bottom(20)
+            self.log_grid.attach(error_label, 0, 0, 2, 1)
