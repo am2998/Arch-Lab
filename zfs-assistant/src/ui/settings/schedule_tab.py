@@ -572,7 +572,7 @@ class ScheduleSettingsTab:
         
         # Example timestamp
         now = datetime.datetime.now()
-        timestamp = now.strftime("%Y%m%d-%H%M%S")
+        timestamp = now.strftime("%Y%m%d-%H%M")
         
         # Generate examples for different snapshot types
         examples = []

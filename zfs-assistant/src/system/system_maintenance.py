@@ -483,4 +483,4 @@ class SystemMaintenance:
     def _get_timestamp(self) -> str:
         """Get current timestamp for naming."""
         import datetime
-        return datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+        return datetime.datetime.now().strftime("%Y%m%d-%H%M")

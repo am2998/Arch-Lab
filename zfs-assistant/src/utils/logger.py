@@ -122,7 +122,7 @@ class ZFSLogger:
             'type': operation_type,
             'description': description,
             'start_time': start_time,
-            'operation_id': f"{operation_type.value}_{start_time.strftime('%Y%m%d_%H%M%S')}"
+            'operation_id': f"{operation_type.value}_{start_time.strftime('%Y%m%d_%H%M')}"
         }
         
         # Create clear start header

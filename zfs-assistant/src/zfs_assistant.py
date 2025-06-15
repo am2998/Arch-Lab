@@ -308,31 +308,20 @@ class ZFSAssistant:
         """Check actual systemd timer status to determine if schedules are really active"""
         return self.system_integration.get_schedule_status()
 
-    # ==================== System Maintenance ====================
-    
-    def run_system_update(self):
-        """Run system update using pacman -Syu"""
-        return self.system_maintenance.run_system_update()
-    
-    def clean_package_cache(self):
-        """Clean package cache using pacman -Scc"""
-        return self.system_maintenance.clean_package_cache()
-    
-    def remove_orphaned_packages(self):
-        """Remove orphaned packages"""
-        return self.system_maintenance.remove_orphaned_packages()
-    
-    def perform_system_maintenance(self, create_snapshot_before=True, run_update=True, 
-                                   clean_cache=True, remove_orphans=True):
-        """Perform comprehensive system maintenance"""
-        return self.system_maintenance.perform_system_maintenance(
-            create_snapshot_before, run_update, clean_cache, remove_orphans
-        )
     
     def create_system_update_snapshot(self, snapshot_type="sysupdate"):
         """Create snapshots for all managed datasets before system updates"""
         return self.system_maintenance.create_system_update_snapshot(snapshot_type)
     
+    def get_next_snapshot_times(self):
+        """Get the next scheduled snapshot times from systemd timers.
+        
+        Returns:
+            Dictionary with schedule type (daily, weekly, monthly) as keys
+            and next execution times as values
+        """
+        return self.system_integration.get_next_snapshot_time()
+
     # ==================== Legacy/Compatibility Methods ====================
     
     def run_pkexec_command(self, cmd):

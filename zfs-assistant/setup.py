@@ -21,12 +21,12 @@ if os.path.exists(readme_path):
 setup(
     name="zfs-assistant",
     version="0.1.0",
-    packages=find_packages(),
-    package_dir={'zfs_assistant': 'src'},
+    packages=find_packages(include=['src', 'src.*']),
+    package_data={'': ['*.css', '*.policy', '*.ui', '*.glade']},
     install_requires=requirements,
     entry_points={
         'console_scripts': [
-            'zfs-assistant=zfs_assistant.__main__:main',
+            'zfs-assistant=src.__main__:main',
         ],
     },
     python_requires='>=3.8',

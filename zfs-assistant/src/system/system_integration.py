@@ -648,7 +648,7 @@ def create_pre_pacman_snapshot():
                 log_operation_end("PACMAN_INTEGRATION", True, "No datasets configured")
             return
         
-        timestamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+        timestamp = datetime.datetime.now().strftime("%Y%m%d-%H%M")
         prefix = config.get("prefix", "zfs-assistant")
         
         # Create batch script for all snapshots
@@ -755,6 +755,59 @@ except ImportError:
             status = "SUCCESS" if success else "FAILED"
             print(f"Operation completed: {status}", flush=True)
 
+def send_desktop_notification(message, title="ZFS Assistant"):
+    """Send desktop notification to all logged-in users."""
+    try:
+        # Find all logged-in users
+        result = subprocess.run(['who'], capture_output=True, text=True, check=False)
+        if result.returncode != 0:
+            return
+        
+        logged_users = set()
+        for line in result.stdout.strip().split('\\n'):
+            if line.strip():
+                user = line.split()[0]
+                logged_users.add(user)
+        
+        # Send notification to each user
+        for user in logged_users:
+            try:
+                # Get user's home directory
+                result = subprocess.run(['getent', 'passwd', user], capture_output=True, text=True, check=False)
+                if result.returncode == 0:
+                    home_dir = result.stdout.strip().split(':')[5]
+                    
+                    # Set environment for notification
+                    env = os.environ.copy()
+                    env['HOME'] = home_dir
+                    env['USER'] = user
+                    
+                    # Try to find an active display
+                    display_found = False
+                    for display in [':0', ':1', ':10']:
+                        env['DISPLAY'] = display
+                        
+                        # Check if display is available
+                        check_result = subprocess.run(['sudo', '-u', user, 'xset', '-display', display, 'q'], 
+                                                    env=env, capture_output=True, check=False, timeout=5)
+                        if check_result.returncode == 0:
+                            display_found = True
+                            break
+                    
+                    if display_found:
+                        # Send notification using notify-send
+                        subprocess.run(['sudo', '-u', user, 'notify-send', 
+                                      '--app-name=ZFS Assistant',
+                                      '--icon=drive-harddisk',
+                                      title, message], 
+                                     env=env, check=False, timeout=10)
+                        
+            except Exception:
+                continue  # Skip this user on error
+                
+    except Exception:
+        pass  # Fail silently if notifications can't be sent
+
 def create_scheduled_snapshot(interval):
     logger = None
     operation_started = False
@@ -769,21 +822,12 @@ def create_scheduled_snapshot(interval):
     try:
         if HAS_LOGGING:
             logger = ZFSLogger()
-            # Start scheduled operation with clear description
-            if interval == "daily":
-                description = "Daily Snapshot Creation"
-            elif interval == "weekly":
-                description = "Weekly Snapshot Creation"
-            elif interval == "monthly":
-                description = "Monthly Snapshot Creation"
-            else:
-                description = f"{interval.capitalize()} Snapshot Creation"
-            
-            logger.start_scheduled_operation(OperationType.SCHEDULED_SNAPSHOT, description)
-            operation_started = True
+            # We'll set the description after loading config to include maintenance info
+            logger_description = None
+            operation_started = False
         else:
-            log_operation_start("SCHEDULED_SNAPSHOT", f"{interval} snapshot creation")
-            operation_started = True
+            logger_description = None
+            operation_started = False
         
         # Load configuration from multiple potential locations
         config_file = None
@@ -803,7 +847,7 @@ def create_scheduled_snapshot(interval):
         
         if not config_file:
             error_msg = f"Configuration file not found in any of these locations: {config_locations}"
-            if logger:
+            if logger and operation_started:
                 logger.log_essential_message(LogLevel.ERROR, error_msg)
                 logger.end_scheduled_operation(False, "Configuration file missing")
             else:
@@ -816,13 +860,44 @@ def create_scheduled_snapshot(interval):
                 config = json.load(f)
         except Exception as e:
             error_msg = f"Error reading config file: {str(e)}"
-            if logger:
+            if logger and operation_started:
                 logger.log_essential_message(LogLevel.ERROR, error_msg)
                 logger.end_scheduled_operation(False, "Config read error")
             else:
                 log_message("ERROR", error_msg)
                 log_operation_end(False, "Config read error")
             sys.exit(1)
+        
+        # Now determine operation description based on config
+        update_snapshots = config.get("update_snapshots", "disabled")
+        should_run_updates = update_snapshots in ["enabled", "pacman_only"]
+        
+        if should_run_updates:
+            if interval == "daily":
+                description = "Daily Maintenance & Snapshot Creation"
+            elif interval == "weekly":
+                description = "Weekly Maintenance & Snapshot Creation"
+            elif interval == "monthly":
+                description = "Monthly Maintenance & Snapshot Creation"
+            else:
+                description = f"{interval.capitalize()} Maintenance & Snapshot Creation"
+        else:
+            if interval == "daily":
+                description = "Daily Snapshot Creation"
+            elif interval == "weekly":
+                description = "Weekly Snapshot Creation"
+            elif interval == "monthly":
+                description = "Monthly Snapshot Creation"
+            else:
+                description = f"{interval.capitalize()} Snapshot Creation"
+        
+        # Start the operation with the proper description
+        if HAS_LOGGING:
+            logger.start_scheduled_operation(OperationType.SCHEDULED_SNAPSHOT, description)
+            operation_started = True
+        else:
+            log_operation_start("SCHEDULED_SNAPSHOT", description)
+            operation_started = True
         
         datasets = config.get("datasets", [])
         if not datasets:
@@ -834,9 +909,16 @@ def create_scheduled_snapshot(interval):
                 log_operation_end(True, "No datasets to snapshot")
             return
         
-        timestamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+        timestamp = datetime.datetime.now().strftime("%Y%m%d-%H%M")
         prefix = config.get("prefix", "zfs-assistant")
-         # Find ZFS command location
+        
+        # Check system maintenance configuration
+        update_snapshots = config.get("update_snapshots", "disabled")
+        clean_cache_after_updates = config.get("clean_cache_after_updates", False)
+        should_run_updates = update_snapshots in ["enabled", "pacman_only"]
+        should_run_flatpak = update_snapshots == "enabled"
+        
+        # Find ZFS command location
         zfs_command = '/usr/bin/zfs'
         if not os.path.exists(zfs_command):
             # Try alternative locations
@@ -844,15 +926,30 @@ def create_scheduled_snapshot(interval):
                 if os.path.exists(zfs_path):
                     zfs_command = zfs_path
                     break
-        # Log essential details
+        
+        # Log essential details including maintenance operations
+        maintenance_info = ""
+        if should_run_updates:
+            operations = ["pacman update"]
+            if should_run_flatpak:
+                operations.append("flatpak update")
+            if clean_cache_after_updates:
+                operations.append("cache cleanup")
+            maintenance_info = f" with {', '.join(operations)}"
+        
         if logger:
-            logger.log_essential_message(LogLevel.INFO, f"Creating {interval} snapshots for {len(datasets)} datasets")
+            logger.log_essential_message(LogLevel.INFO, f"Creating {interval} snapshots for {len(datasets)} datasets{maintenance_info}")
         else:
-            log_message("INFO", f"Creating {interval} snapshots for {len(datasets)} datasets")
+            log_message("INFO", f"Creating {interval} snapshots for {len(datasets)} datasets{maintenance_info}")
         
         # Create batch script for all snapshots
         if datasets:
-            # Execute all snapshots - use a simpler approach
+            # Step 1: Create scheduled snapshots (before any maintenance operations)
+            if logger:
+                logger.log_essential_message(LogLevel.INFO, f"Creating {interval} snapshots")
+            else:
+                log_message("INFO", f"Creating {interval} snapshots")
+            
             success_count = 0
             errors = []
             
@@ -878,15 +975,19 @@ def create_scheduled_snapshot(interval):
                     error_msg = f"Unexpected error creating snapshot {snapshot_name}: {str(e)}"
                     errors.append(error_msg)
             
-            # Report results
+            # Check if snapshot creation was successful before proceeding
             if errors:
-                combined_error = f"Created {success_count}/{len(datasets)} snapshots. Errors: {'; '.join(errors)}"
+                combined_error = f"Created {success_count}/{len(datasets)} {interval} snapshots. Errors: {'; '.join(errors)}"
                 if logger:
                     logger.log_essential_message(LogLevel.ERROR, combined_error)
                     logger.end_scheduled_operation(False, combined_error)
                 else:
                     log_message("ERROR", combined_error)
                     log_operation_end(False, combined_error)
+                
+                # Send error notification if enabled
+                if config.get("notifications_enabled", True):
+                    send_desktop_notification(combined_error, "ZFS Snapshot Error")
                 
                 # Also log error to main zfs-assistant log file
                 try:
@@ -901,24 +1002,178 @@ def create_scheduled_snapshot(interval):
                 
                 sys.exit(1)
             else:
-                success_msg = f"Successfully created {success_count} {interval} snapshots"
                 if logger:
-                    logger.log_essential_message(LogLevel.SUCCESS, success_msg)
-                    logger.end_scheduled_operation(True, success_msg)
+                    logger.log_essential_message(LogLevel.SUCCESS, f"Created {success_count} {interval} snapshots")
                 else:
-                    log_message("SUCCESS", success_msg)
-                    log_operation_end(True, success_msg)
+                    log_message("SUCCESS", f"Created {success_count} {interval} snapshots")
+            
+            # Step 2: Perform system maintenance if enabled
+            if should_run_updates:
+                maintenance_errors = []
                 
-                # Also log completion to main zfs-assistant log file
+                # System update (pacman)
+                if logger:
+                    logger.log_essential_message(LogLevel.INFO, "Running system update (pacman -Syu)")
+                else:
+                    log_message("INFO", "Running system update (pacman -Syu)")
+                
                 try:
-                    with open("/var/log/zfs-assistant.log", 'a') as f:
+                    result = subprocess.run(['pacman', '-Syu', '--noconfirm'], 
+                                          check=True, capture_output=True, text=True, timeout=1800)
+                    if logger:
+                        logger.log_essential_message(LogLevel.SUCCESS, "System update completed successfully")
+                    else:
+                        log_message("SUCCESS", "System update completed successfully")
+                except subprocess.CalledProcessError as e:
+                    error_msg = f"System update failed: {e.stderr if e.stderr else str(e)}"
+                    maintenance_errors.append(error_msg)
+                    if logger:
+                        logger.log_essential_message(LogLevel.ERROR, error_msg)
+                    else:
+                        log_message("ERROR", error_msg)
+                except Exception as e:
+                    error_msg = f"System update error: {str(e)}"
+                    maintenance_errors.append(error_msg)
+                    if logger:
+                        logger.log_essential_message(LogLevel.ERROR, error_msg)
+                    else:
+                        log_message("ERROR", error_msg)
+                
+                # Flatpak update (if enabled)
+                if should_run_flatpak:
+                    if logger:
+                        logger.log_essential_message(LogLevel.INFO, "Running flatpak update")
+                    else:
+                        log_message("INFO", "Running flatpak update")
+                    
+                    try:
+                        result = subprocess.run(['flatpak', 'update', '-y'], 
+                                              check=True, capture_output=True, text=True, timeout=1800)
+                        if logger:
+                            logger.log_essential_message(LogLevel.SUCCESS, "Flatpak update completed successfully")
+                        else:
+                            log_message("SUCCESS", "Flatpak update completed successfully")
+                    except subprocess.CalledProcessError as e:
+                        error_msg = f"Flatpak update failed: {e.stderr if e.stderr else str(e)}"
+                        maintenance_errors.append(error_msg)
+                        if logger:
+                            logger.log_essential_message(LogLevel.ERROR, error_msg)
+                        else:
+                            log_message("ERROR", error_msg)
+                    except Exception as e:
+                        error_msg = f"Flatpak update error: {str(e)}"
+                        maintenance_errors.append(error_msg)
+                        if logger:
+                            logger.log_essential_message(LogLevel.ERROR, error_msg)
+                        else:
+                            log_message("ERROR", error_msg)
+                
+                # Clean package cache (if enabled)
+                if clean_cache_after_updates:
+                    if logger:
+                        logger.log_essential_message(LogLevel.INFO, "Cleaning package cache")
+                    else:
+                        log_message("INFO", "Cleaning package cache")
+                    
+                    try:
+                        # Clean pacman cache
+                        result = subprocess.run(['pacman', '-Scc', '--noconfirm'], 
+                                              check=True, capture_output=True, text=True, timeout=300)
+                        
+                        # Clean flatpak cache if flatpak updates were enabled
+                        if should_run_flatpak:
+                            subprocess.run(['flatpak', 'uninstall', '--unused', '-y'], 
+                                         check=False, capture_output=True, text=True, timeout=300)
+                        
+                        if logger:
+                            logger.log_essential_message(LogLevel.SUCCESS, "Package cache cleaned successfully")
+                        else:
+                            log_message("SUCCESS", "Package cache cleaned successfully")
+                    except Exception as e:
+                        error_msg = f"Cache cleanup error: {str(e)}"
+                        maintenance_errors.append(error_msg)
+                        if logger:
+                            logger.log_essential_message(LogLevel.WARNING, error_msg)
+                        else:
+                            log_message("WARNING", error_msg)
+                
+                # Remove orphaned packages
+                if logger:
+                    logger.log_essential_message(LogLevel.INFO, "Removing orphaned packages")
+                else:
+                    log_message("INFO", "Removing orphaned packages")
+                
+                try:
+                    # Check for orphaned packages
+                    orphan_check = subprocess.run(['pacman', '-Qtdq'], 
+                                                capture_output=True, text=True, check=False)
+                    
+                    if orphan_check.returncode == 0 and orphan_check.stdout.strip():
+                        orphaned_packages = orphan_check.stdout.strip().split('\\n')
+                        if logger:
+                            logger.log_essential_message(LogLevel.INFO, f"Found {len(orphaned_packages)} orphaned packages")
+                        else:
+                            log_message("INFO", f"Found {len(orphaned_packages)} orphaned packages")
+                        
+                        # Remove orphaned packages
+                        cmd = ['pacman', '-Rns', '--noconfirm'] + orphaned_packages
+                        result = subprocess.run(cmd, check=True, capture_output=True, text=True, timeout=600)
+                        
+                        if logger:
+                            logger.log_essential_message(LogLevel.SUCCESS, f"Removed {len(orphaned_packages)} orphaned packages")
+                        else:
+                            log_message("SUCCESS", f"Removed {len(orphaned_packages)} orphaned packages")
+                    else:
+                        if logger:
+                            logger.log_essential_message(LogLevel.INFO, "No orphaned packages found")
+                        else:
+                            log_message("INFO", "No orphaned packages found")
+                
+                except Exception as e:
+                    error_msg = f"Orphan removal error: {str(e)}"
+                    maintenance_errors.append(error_msg)
+                    if logger:
+                        logger.log_essential_message(LogLevel.WARNING, error_msg)
+                    else:
+                        log_message("WARNING", error_msg)
+                
+                # If there were critical maintenance errors, log them but continue
+                if maintenance_errors:
+                    combined_error = f"System maintenance completed with errors: {'; '.join(maintenance_errors)}"
+                    if logger:
+                        logger.log_essential_message(LogLevel.ERROR, combined_error)
+                    else:
+                        log_message("ERROR", combined_error)
+                    
+                    # Send maintenance error notification if enabled
+                    if config.get("notifications_enabled", True):
+                        send_desktop_notification(combined_error, "ZFS Maintenance Warning")
+            
+            # Final success reporting
+            operation_description = f"{interval} operation" if not should_run_updates else f"{interval} maintenance operation"
+            success_msg = f"Successfully completed {operation_description}: {success_count} snapshots created"
+            
+            if logger:
+                logger.log_essential_message(LogLevel.SUCCESS, success_msg)
+                logger.end_scheduled_operation(True, success_msg)
+            else:
+                log_message("SUCCESS", success_msg)
+                log_operation_end(True, success_msg)
+            
+            # Also log completion to main zfs-assistant log file
+            try:
+                with open("/var/log/zfs-assistant.log", 'a') as f:
+                    f.write(f"[{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] - SUCCESS - {success_msg}\\n")
+            except:
+                try:
+                    with open("/tmp/zfs-assistant-execution.log", 'a') as f:
                         f.write(f"[{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] - SUCCESS - {success_msg}\\n")
                 except:
-                    try:
-                        with open("/tmp/zfs-assistant-execution.log", 'a') as f:
-                            f.write(f"[{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] - SUCCESS - {success_msg}\\n")
-                    except:
-                        pass
+                    pass
+            
+            # Send desktop notification if enabled
+            if config.get("notifications_enabled", True):
+                send_desktop_notification(success_msg, operation_description)
         else:
             if logger:
                 logger.log_essential_message(LogLevel.INFO, "No snapshots to create")
@@ -935,6 +1190,13 @@ def create_scheduled_snapshot(interval):
                 f.write(f"CRITICAL ERROR: {error_msg}\\n")
         except:
             pass  # If we can't write to any log, continue anyway
+        
+        # Send critical error notification if enabled (load config again for safety)
+        try:
+            if config.get("notifications_enabled", True):
+                send_desktop_notification(f"Critical error in {interval} snapshot: {str(e)}", "ZFS Assistant Error")
+        except:
+            pass
         
         if logger and operation_started:
             logger.log_essential_message(LogLevel.ERROR, error_msg)
@@ -999,3 +1261,73 @@ if __name__ == "__main__":
             
         except Exception as e:
             return False, f"Error ensuring system config: {str(e)}"
+    
+    def get_next_snapshot_time(self) -> Dict[str, str]:
+        """Get the next execution time for each active snapshot timer.
+
+        Returns:
+            Dictionary with schedule type (daily, weekly, monthly) as keys and 
+            next execution time as values (or None if not scheduled)
+        """
+        try:
+            result = {
+                "daily": None,
+                "weekly": None, 
+                "monthly": None
+            }
+            
+            timers = {
+                "daily": "zfs-snapshot-daily.timer",
+                "weekly": "zfs-snapshot-weekly.timer",
+                "monthly": "zfs-snapshot-monthly.timer"
+            }
+            
+            # Check each timer
+            for schedule_type, timer_name in timers.items():
+                try:
+                    # First check if the timer is active
+                    success, active_result = self.privilege_manager.run_privileged_command(
+                        ['systemctl', 'is-active', timer_name]
+                    )
+                    
+                    is_active = False
+                    if success:
+                        if hasattr(active_result, 'stdout') and active_result.stdout.strip() == "active":
+                            is_active = True
+                        elif isinstance(active_result, str) and active_result.strip() == "active":
+                            is_active = True
+                    
+                    if is_active:
+                        # Get next execution time
+                        success, next_time_result = self.privilege_manager.run_privileged_command(
+                            ['systemctl', 'list-timers', timer_name, '--no-pager']
+                        )
+                        
+                        if success:
+                            output = ""
+                            if hasattr(next_time_result, 'stdout'):
+                                output = next_time_result.stdout
+                            elif isinstance(next_time_result, str):
+                                output = next_time_result
+                                
+                            # Parse the output to get the next execution time
+                            lines = output.strip().split('\n')
+                            if len(lines) >= 2:  # Header + at least one timer
+                                # Timer output format is:
+                                # NEXT                    LEFT          LAST                     PASSED    UNIT                         ACTIVATES
+                                # Wed 2025-06-18 00:00:00 UTC  4 days left  Sat 2025-06-14 00:00:00 UTC  1h 2min ago  zfs-snapshot-weekly.timer  zfs-snapshot-weekly.service
+                                timer_info = lines[1].strip()
+                                parts = timer_info.split()
+                                if len(parts) >= 4:  # We need at least weekday, date, and time
+                                    # Combine weekday, date and time
+                                    next_time = f"{parts[0]} {parts[1]} {parts[2]}"
+                                    result[schedule_type] = next_time
+                
+                except Exception as e:
+                    log_warning(f"Error getting next run time for {timer_name}: {str(e)}")
+                    
+            return result
+            
+        except Exception as e:
+            log_warning(f"Error getting next snapshot times: {str(e)}")
+            return result

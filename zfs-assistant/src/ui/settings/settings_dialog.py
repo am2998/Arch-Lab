@@ -172,6 +172,15 @@ class SettingsDialog(Gtk.Dialog):
                         def show_cleanup_error():
                             print(f"Warning: Timer cleanup failed: {error_message}")
                         GLib.idle_add(show_cleanup_error)
+                    
+                    # Force status update after all background operations complete
+                    def trigger_final_status_update():
+                        if not self.is_destroyed():
+                            print("Triggering final status update after background operations...")
+                            self.parent.force_status_update_with_retry()
+                        return False  # Don't repeat
+                    # Add a longer delay to ensure systemd operations are fully complete
+                    GLib.timeout_add(3000, trigger_final_status_update)  # 3 second delay
                         
                 except Exception as e:
                     # Handle any unexpected errors in background thread
@@ -200,6 +209,12 @@ class SettingsDialog(Gtk.Dialog):
                 
             # Update notifications setting
             self.parent.app.toggle_notifications(self.config.get("notifications_enabled", True))
+            
+            # Force immediate status update to reflect changes (with retry mechanism)
+            def delayed_status_update():
+                self.parent.force_status_update_with_retry()
+                return False  # Don't repeat
+            GLib.timeout_add(500, delayed_status_update)  # 500ms delay
             
             # Close the dialog without showing a message
             self.destroy()

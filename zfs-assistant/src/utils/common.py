@@ -68,4 +68,4 @@ def run_command(cmd, capture_output=True, check=True):
 
 def get_timestamp():
     """Get current timestamp formatted for filenames"""
-    return datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+    return datetime.datetime.now().strftime("%Y%m%d-%H%M")

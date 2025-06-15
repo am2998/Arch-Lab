@@ -2,6 +2,13 @@
 
 A modern GTK4 GUI application for managing ZFS snapshots on Linux systems.
 
+**Key Features:**
+- Modern GTK4/libadwaita interface
+- Complete ZFS snapshot management
+- Dataset property viewing and monitoring
+- Modular architecture for maintainability and extensibility
+- Dark mode support
+
 ## Project Structure
 
 ```
@@ -21,6 +28,17 @@ zfs-assistant/
     ├── system/                # System integration and maintenance
     ├── ui/                    # User interface components
     │   ├── windows/           # Main application windows
+    │   │   ├── components/    # Modular UI components
+    │   │   │   ├── snapshot_model.py        # Snapshot list model
+    │   │   │   ├── layout_manager.py        # Window layout management
+    │   │   │   ├── notebook_manager.py      # Tab/notebook management
+    │   │   │   ├── data_refresh_manager.py  # Data refresh operations
+    │   │   │   ├── status_manager.py        # Status bar management
+    │   │   │   └── arc_properties_manager.py # ARC properties handling
+    │   │   ├── handlers/      # Event and operation handlers
+    │   │   │   ├── event_handlers.py        # UI event handlers
+    │   │   │   └── snapshot_operations.py   # Snapshot operation handlers
+    │   │   └── main_window.py # Main application window
     │   ├── dialogs/           # Modal dialog windows
     │   ├── settings/          # Settings-related UI components
     │   └── components/        # Reusable UI components
@@ -45,6 +63,7 @@ zfs-assistant/
   - Built with GTK4 and libadwaita
   - Adaptive design
   - Dark mode support
+  - Modular architecture for maintainability
 
 ## Installation
 
@@ -213,6 +232,7 @@ python -m src
 - If `pkexec` is not available, it will provide instructions to run with `sudo`
 - Use `DEBUG=1` environment variable for verbose logging
 - Use `--no-elevated` flag to skip privilege escalation for UI testing
+
 
 ## Building AppImage
 

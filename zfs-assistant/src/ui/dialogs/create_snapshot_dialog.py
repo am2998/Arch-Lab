@@ -61,7 +61,7 @@ class CreateSnapshotDialog(Gtk.Dialog):
         # Custom name entry
         self.name_entry = Gtk.Entry()
         self.name_entry.set_sensitive(False)
-        timestamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+        timestamp = datetime.datetime.now().strftime("%Y%m%d-%H%M")
         prefix = self.zfs_assistant.config['prefix']
         self.name_entry.set_text(f"{prefix}-{timestamp}")
         content_area.append(self.name_entry)

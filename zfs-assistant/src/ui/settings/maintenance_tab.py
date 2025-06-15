@@ -7,7 +7,7 @@ gi.require_version('Gtk', '4.0')
 from gi.repository import Gtk
 
 class MaintenanceSettingsTab:
-    """System maintenance settings tab for pacman integration, system updates, and backup"""
+    """System maintenance settings tab for pacman integration, system maintenance, and backup"""
     
     def __init__(self, parent_dialog):
         self.dialog = parent_dialog
@@ -32,8 +32,8 @@ class MaintenanceSettingsTab:
         # Pacman integration section
         self._create_pacman_section()
         
-        # System updates section
-        self._create_system_updates_section()
+        # System maintenance section
+        self._create_system_maintenance_section()
         
         # External backup section
         self._create_backup_section()
@@ -62,7 +62,7 @@ class MaintenanceSettingsTab:
         pacman_box.append(pacman_enable_box)
         
         # Info about pacman hook
-        pacman_info = Gtk.Label(label="This will create snapshots before package installations\nand removals via pacman (excludes system updates).")
+        pacman_info = Gtk.Label(label="This will create snapshots before package installations\nand removals via pacman (excludes system maintenance).")
         pacman_info.set_halign(Gtk.Align.START)
         pacman_info.set_margin_start(0)  # Align with frame content
         pacman_info.set_margin_top(5)
@@ -87,10 +87,10 @@ class MaintenanceSettingsTab:
         # Update pacman preview
         self.update_pacman_preview()
     
-    def _create_system_updates_section(self):
-        """Create system updates configuration section"""
+    def _create_system_maintenance_section(self):
+        """Create system maintenance configuration section"""
         updates_frame = Gtk.Frame()
-        updates_frame.set_label("Scheduled System Updates")
+        updates_frame.set_label("Scheduled System Maintenance")
         updates_frame.set_margin_top(10)
         updates_frame.set_margin_bottom(10)
         self.box.append(updates_frame)
@@ -103,7 +103,7 @@ class MaintenanceSettingsTab:
         updates_frame.set_child(updates_box)
         
         # Update options
-        updates_info = Gtk.Label(label="System updates (pacman -Syu + flatpak update) can be executed automatically during scheduled snapshots.\nChoose when to create snapshots relative to the update:")
+        updates_info = Gtk.Label(label="System maintenance (pacman -Syu + flatpak update + cache cleanup + orphan removal) is ONLY available during scheduled snapshots.\nThis ensures system consistency and rollback capabilities. Choose when to create snapshots relative to maintenance:")
         updates_info.set_halign(Gtk.Align.START)
         updates_info.set_margin_bottom(15)  # Better spacing before radio buttons
         updates_info.set_margin_start(0)   # Align with frame content
@@ -111,17 +111,17 @@ class MaintenanceSettingsTab:
         updates_box.append(updates_info)
         
         # Radio button for disabled updates
-        self.update_disabled_radio = Gtk.CheckButton(label="Do not execute system updates during snapshots")
+        self.update_disabled_radio = Gtk.CheckButton(label="Do not execute system maintenance during snapshots")
         self.update_disabled_radio.connect("toggled", self.on_update_option_toggled)
         updates_box.append(self.update_disabled_radio)
         
         # Radio button for full system update (pacman + flatpak)
-        self.update_before_radio = Gtk.CheckButton(label="Enable full system updates (pacman + flatpak) during snapshots")
+        self.update_before_radio = Gtk.CheckButton(label="Enable full system maintenance (pacman updates + flatpak updates + cache cleanup + orphan removal) during snapshots")
         self.update_before_radio.connect("toggled", self.on_update_option_toggled)
         updates_box.append(self.update_before_radio)
         
         # Radio button for pacman-only updates
-        self.update_pacman_only_radio = Gtk.CheckButton(label="Enable pacman-only updates (no flatpak) during snapshots")
+        self.update_pacman_only_radio = Gtk.CheckButton(label="Enable pacman-only maintenance (pacman updates + cache cleanup + orphan removal, no flatpak) during snapshots")
         self.update_pacman_only_radio.connect("toggled", self.on_update_option_toggled)
         updates_box.append(self.update_pacman_only_radio)
         
@@ -130,7 +130,7 @@ class MaintenanceSettingsTab:
         clean_cache_box.set_margin_start(0)  # Align with frame content
         clean_cache_box.set_margin_top(10)    # Better spacing from radio buttons
         
-        self.clean_cache_check = Gtk.CheckButton(label="Clean package caches after updates (pacman + flatpak)")
+        self.clean_cache_check = Gtk.CheckButton(label="Clean package caches after maintenance (pacman + flatpak)")
         self.clean_cache_check.set_active(self.config.get("clean_cache_after_updates", False))
         clean_cache_box.append(self.clean_cache_check)
         updates_box.append(clean_cache_box)
@@ -267,7 +267,7 @@ class MaintenanceSettingsTab:
         import datetime
         
         prefix = "zfs-assistant"  # Use default prefix for pacman operations
-        timestamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+        timestamp = datetime.datetime.now().strftime("%Y%m%d-%H%M")
         snapshot_name = f"{prefix}-pkgop-{timestamp}"
         
         self.pacman_preview_label.set_text(snapshot_name)
@@ -306,7 +306,7 @@ class MaintenanceSettingsTab:
         return False
     
     def on_update_option_toggled(self, widget):
-        """Handle system update option toggle"""
+        """Handle system maintenance option toggle"""
         if not widget.get_active():
             return  # Only process activation
         
@@ -314,18 +314,18 @@ class MaintenanceSettingsTab:
         if widget == self.update_disabled_radio:
             self.update_before_radio.set_active(False)
             self.update_pacman_only_radio.set_active(False)
-            # Enable pacman integration when updates are disabled
+            # Enable pacman integration when maintenance is disabled
             self.pacman_switch.set_sensitive(True)
         elif widget == self.update_before_radio:
             self.update_disabled_radio.set_active(False)
             self.update_pacman_only_radio.set_active(False)
-            # Disable pacman integration when updates are enabled
+            # Disable pacman integration when maintenance is enabled
             self.pacman_switch.set_active(False)
             self.pacman_switch.set_sensitive(False)
         elif widget == self.update_pacman_only_radio:
             self.update_disabled_radio.set_active(False)
             self.update_before_radio.set_active(False)
-            # Disable pacman integration when updates are enabled
+            # Disable pacman integration when maintenance is enabled
             self.pacman_switch.set_active(False)
             self.pacman_switch.set_sensitive(False)
         
@@ -376,7 +376,7 @@ class MaintenanceSettingsTab:
         # Update pacman integration
         config["pacman_integration"] = self.pacman_switch.get_active()
         
-        # Update system update snapshots option
+        # Update system maintenance snapshots option
         if self.update_disabled_radio.get_active():
             config["update_snapshots"] = "disabled"
         elif self.update_before_radio.get_active():
