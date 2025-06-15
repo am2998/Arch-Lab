@@ -3,7 +3,6 @@
 # Author: GitHub Copilot
 
 import os
-import json
 import subprocess
 import datetime
 
@@ -22,18 +21,17 @@ MIN_WINDOW_HEIGHT = 500
 DEFAULT_CONFIG = {
     "auto_snapshot": True,
     "snapshot_retention": {
-        "hourly": 24,
         "daily": 7,
         "weekly": 4,
         "monthly": 12
-    },    "hourly_schedule": [8, 12, 16, 20],  # Default to business hours
+    },    
     "daily_schedule": [0, 1, 2, 3, 4],    # Default to weekdays
     "daily_hour": 0,                      # Default hour for daily snapshots
     "weekly_schedule": True,              # Enable weekly by default
     "monthly_schedule": True,             # Enable monthly by default
     "datasets": [],
     "pacman_integration": True,
-    "update_snapshots": "disabled",       # Default to disabled system updates
+    "update_snapshots": "disabled",       # Options: "disabled", "enabled", "pacman_only"
     "clean_cache_after_updates": False,   # Default to not cleaning cache
     "snapshot_name_format": "prefix-type-timestamp", # Default snapshot naming format
     "prefix": "zfs-assistant",
@@ -44,9 +42,10 @@ DEFAULT_CONFIG = {
     "notifications_enabled": True
 }
 
-# File paths
-CONFIG_DIR = os.path.expanduser("~/.config/zfs-assistant")
-CONFIG_FILE = os.path.join(CONFIG_DIR, "config.json")
+# File paths - System-wide configuration since application runs with elevated privileges
+CONFIG_DIR = "/etc/zfs-assistant"
+CONFIG_FILE = "/etc/zfs-assistant/config.json"
+LOG_FILE = "/var/log/zfs-assistant.log"
 PACMAN_HOOK_PATH = "/etc/pacman.d/hooks/00-zfs-snapshot.hook"
 SYSTEMD_SCRIPT_PATH = "/usr/local/bin/zfs-assistant-systemd.py"
 PACMAN_SCRIPT_PATH = "/usr/local/bin/zfs-assistant-pacman-hook.py"
@@ -67,34 +66,6 @@ def run_command(cmd, capture_output=True, check=True):
     except Exception as e:
         return False, e
 
-def format_size(size_str):
-    """Format size string for display"""
-    if not size_str or size_str == "-" or size_str.lower() == "none":
-        return "0 B"
-    
-    # Return as is if already formatted
-    if any(unit in size_str for unit in ["B", "K", "M", "G", "T", "P"]):
-        return size_str
-    
-    try:
-        size = float(size_str)
-        units = ["B", "KiB", "MiB", "GiB", "TiB", "PiB"]
-        unit_index = 0
-        
-        while size >= 1024 and unit_index < len(units) - 1:
-            size /= 1024
-            unit_index += 1
-        
-        return f"{size:.2f} {units[unit_index]}"
-    except (ValueError, TypeError):
-        return size_str
-
-def format_datetime(dt):
-    """Format datetime for display"""
-    if isinstance(dt, datetime.datetime):
-        return dt.strftime("%Y-%m-%d %H:%M")
-    return str(dt)
-
 def get_timestamp():
     """Get current timestamp formatted for filenames"""
-    return datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+    return datetime.datetime.now().strftime("%Y%m%d-%H%M")

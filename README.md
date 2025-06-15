@@ -41,8 +41,9 @@ A GTK GUI application for managing ZFS snapshots on Arch Linux:
 - Modern GTK4 and libadwaita interface for ZFS management
 - Create, delete, and roll back to snapshots
 - Schedule automatic snapshots using systemd timers
-- View and modify ZFS dataset properties
-- Pacman integration for pre-update snapshots
+- View ZFS dataset properties
+- Pacman integration for pre-install/remove snapshots
+- System updates integration for scheduled snapshots
 
 ---
 

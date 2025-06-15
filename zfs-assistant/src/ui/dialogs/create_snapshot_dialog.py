@@ -7,7 +7,7 @@ import datetime
 
 gi.require_version('Gtk', '4.0')
 gi.require_version('Adw', '1')
-from gi.repository import Gtk, Adw, GLib, Gio, Gdk, GObject
+from gi.repository import Gtk, Adw, GObject
 
 class CreateSnapshotDialog(Gtk.Dialog):
     def __init__(self, parent):
@@ -43,9 +43,9 @@ class CreateSnapshotDialog(Gtk.Dialog):
         model = Gtk.StringList.new([])
         
         # Add available datasets
-        datasets = self.zfs_assistant.get_datasets()
+        datasets = self.zfs_assistant.get_filtered_datasets()
         for dataset in datasets:
-            model.append(dataset['name'])
+            model.append(dataset)
         
         self.dataset_combo.set_model(model)
         if model.get_n_items() > 0:
@@ -61,7 +61,7 @@ class CreateSnapshotDialog(Gtk.Dialog):
         # Custom name entry
         self.name_entry = Gtk.Entry()
         self.name_entry.set_sensitive(False)
-        timestamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+        timestamp = datetime.datetime.now().strftime("%Y%m%d-%H%M")
         prefix = self.zfs_assistant.config['prefix']
         self.name_entry.set_text(f"{prefix}-{timestamp}")
         content_area.append(self.name_entry)

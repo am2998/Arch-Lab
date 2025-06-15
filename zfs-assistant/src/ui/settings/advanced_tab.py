@@ -6,13 +6,21 @@ import gi
 
 gi.require_version('Gtk', '4.0')
 gi.require_version('Adw', '1')
-from gi.repository import Gtk, Adw, GLib, Gio, Gdk
+from gi.repository import Gtk, Adw
 
 class AdvancedSettingsTab:
+    """Advanced settings tab for configuration import/export and other advanced features"""
+    
     def __init__(self, parent_dialog):
         self.dialog = parent_dialog
         self.zfs_assistant = parent_dialog.zfs_assistant
+        self.config = parent_dialog.config
         
+        # Build the advanced settings UI
+        self._build_ui()
+    
+    def _build_ui(self):
+        """Build the advanced settings tab UI"""
         # Create main box
         self.box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
         self.box.set_margin_top(10)
@@ -149,3 +157,9 @@ class AdvancedSettingsTab:
         new_dialog = type(self.dialog)(self.dialog.parent)
         self.dialog.destroy()
         new_dialog.present()
+    
+    def apply_settings(self, config):
+        """Apply settings from this tab to the config (advanced tab manages its own settings)"""
+        # Advanced tab doesn't modify the main config directly
+        # Import/export operations handle their own config management
+        return config
